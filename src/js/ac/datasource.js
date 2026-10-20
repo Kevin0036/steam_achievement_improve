@@ -10,8 +10,10 @@
  *   写成 appAchievementProgressCache.mapCache 会静默拿到 undefined，
  *   结果全部游戏都会变成「数据未知」。
  *
- *   ⚠️ 同模块的 GetAchievementProgress() 会修改缓存并排队 CM 请求，
- *      SaveCacheFile() 会写回磁盘。本项目**只读 mapCache，绝不调用这两个方法**。
+ *   ⚠️ 正常读取只碰 mapCache，不调用 GetAchievementProgress() / SaveCacheFile()。
+ *      唯一例外：新装 Steam 还没有 achievement_progress.json 时，缓存会一直是
+ *      undefined。此时 ensureProgressCache() 会调用一次 GetAchievementProgress()，
+ *      让 Steam 自己发批量请求并写回缓存；缓存一旦就绪就不再调用。
  *
  * ── 全球完成率：Steam Player.GetGameAchievements 服务 ──────────────────
  *   通过客户端已有 CM 连接获取 player_percent_unlocked（0–100）。
@@ -41,7 +43,7 @@ import {
     getLoginStore,
     getSteamClientMethod,
 } from './env.js';
-import { log, warn, tagged } from './utils.js';
+import { log, waitFor, warn, tagged } from './utils.js';
 
 const out = tagged('data');
 
@@ -80,6 +82,70 @@ export function getProgressEntry(appid) {
     const { status, entries } = readProgress();
     if (status !== 'ready') return null;
     return entries.get(appid) ?? entries.get(String(appid)) ?? null;
+}
+
+/** 首次运行等待 Steam 建立缓存的最长时间 */
+const CACHE_BOOTSTRAP_TIMEOUT_MS = 20000;
+
+let progressBootstrap = null;
+
+/**
+ * 新装 Steam 或新账号第一次打开卡包时，achievement_progress.json 还不存在，
+ * m_achievementProgress 会一直是 undefined —— Steam 只在排序或收到成就通知时
+ * 才请求进度，所以卡包可能永远停在「等待数据」。
+ *
+ * 这里调用一次 Steam 自己的 GetAchievementProgress()，把库内游戏排进它的
+ * 批量请求；请求完成后由 Steam 自己写入缓存，我们只等 mapCache 就绪。
+ * 缓存已经可用时绝不调用。
+ */
+export function ensureProgressCache() {
+    if (readProgress().status === 'ready') return Promise.resolve(true);
+    if (progressBootstrap) return progressBootstrap;
+
+    progressBootstrap = (async () => {
+        let manager = getAchievementCache();
+        if (!manager) {
+            manager = await waitFor(() => getAchievementCache(), { timeout: 10000, interval: 150 });
+        }
+        if (!manager || typeof manager.GetAchievementProgress !== 'function') return false;
+
+        // Init() 完成前 m_CMInterface 是空的，此时排队会在 100ms 后抛错。
+        if (!manager.CMInterface) {
+            await waitFor(() => manager.CMInterface, { timeout: 10000, interval: 150 });
+        }
+        if (!manager.CMInterface) return false;
+
+        const appids = listLibraryApps()
+            .map((app) => app?.appid)
+            .filter(Number.isFinite);
+        if (appids.length === 0) return false;
+
+        out.log(`成就进度缓存未就绪，向 Steam 请求 ${appids.length} 款游戏的进度…`);
+        for (const appid of appids) {
+            try {
+                manager.GetAchievementProgress(appid);
+            } catch {
+                // 单款失败不影响其余
+            }
+        }
+
+        const ready = await waitFor(() => readProgress().status === 'ready', {
+            timeout: CACHE_BOOTSTRAP_TIMEOUT_MS,
+            interval: 250,
+        });
+        out.log(ready ? '成就进度缓存已就绪' : '等待 Steam 成就进度缓存超时');
+        return Boolean(ready);
+    })().catch((err) => {
+        warn('初始化 Steam 成就进度缓存失败', err);
+        return false;
+    });
+
+    return progressBootstrap;
+}
+
+/** 手动刷新时允许再试一次 */
+export function resetProgressBootstrap() {
+    progressBootstrap = null;
 }
 
 /* ── 游戏列表与美术资源 ─────────────────────────────────────────────────── */

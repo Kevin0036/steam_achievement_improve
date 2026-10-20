@@ -49,8 +49,8 @@
 
 | 版本 | 适合谁 | 文件 |
 | --- | --- | --- |
-| **主题版** | 已经装好 Millennium，或以后只想更新主题 | `AchievementCollection-v1.0.0.zip` |
-| **Windows 懒人包** | 原生 Steam，第一次安装 | `AchievementCollection-Lazy-v1.0.0-Windows.zip` |
+| **主题版** | 已经装好 Millennium，或以后只想更新主题 | `AchievementCollection-v1.0.1.zip` |
+| **Windows 懒人包** | 原生 Steam，第一次安装 | `AchievementCollection-Lazy-v1.0.1-Windows.zip` |
 
 到 [Releases](https://github.com/Kevin0036/steam_achievement_improve/releases/latest) 下载，每个 Release 都附带 `SHA256SUMS.txt`。
 
@@ -90,6 +90,7 @@
 
 - 主题版需要 Steam 客户端与 Millennium；懒人包已内置 Millennium。主题本身基于 SpaceTheme，库、商店、社区等页面的整体外观也会随之变化。
 - 成就卡包读取 Steam 客户端已有的成就与库数据；首次使用会把当前的全成就游戏作为基准，不会播放旧卡的入册动画。
+- 新装的 Steam 还没有成就进度缓存时，卡包会请 Steam 建立一次缓存，可能需要等待几秒。
 - 游戏新增成就、从「全成就」变回「未完成」后再次打满，会重新作为新收录入册。
 - 展柜封面依赖对应游戏存在可用的 header 资源；全部语言版本都缺失时，只能显示占位图。
 

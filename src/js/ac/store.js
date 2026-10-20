@@ -270,6 +270,12 @@ export async function load({ silent = false } = {}) {
     let assembled;
     try {
         assembled = assemble();
+        if (assembled.status !== 'ready') {
+            // 新装 Steam 还没有成就进度缓存：请 Steam 自己建一次，再重新组装。
+            const bootstrapped = await data.ensureProgressCache();
+            if (!isCurrent()) return;
+            if (bootstrapped) assembled = assemble();
+        }
     } catch (err) {
         if (!isCurrent()) return;
         out.fail('组装卡片时出错', err);
@@ -441,6 +447,7 @@ function fillMissingNames(cards, isCurrent) {
 export async function refresh() {
     generation.bump();
     data.resetInFlight();
+    data.resetProgressBootstrap();
     stopDateBackfill();
     log('手动刷新，已丢弃所有在途请求');
     await load({ silent: false });

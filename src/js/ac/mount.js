@@ -362,7 +362,7 @@ export const __debug = { status, isOurPath, injectRoute, injectMenuItem, openMod
 /* ── 自启动 ─────────────────────────────────────────────────────────────── */
 
 (async function bootstrap() {
-    const VERSION = '1.0.0';
+    const VERSION = '1.0.1';
 
     try {
         banner(STR.theme, VERSION);

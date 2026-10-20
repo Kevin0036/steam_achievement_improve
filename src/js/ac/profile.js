@@ -14,7 +14,7 @@ import { enhanceShowcase } from './showcase.js';
 import { banner, debounce, log, warn, Disposables, tagged, waitFor } from './utils.js';
 
 const THEME_NAME = '成就收藏册';
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
 const out = tagged('profile');
 
