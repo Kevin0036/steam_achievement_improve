@@ -11,9 +11,10 @@
  *   结果全部游戏都会变成「数据未知」。
  *
  *   ⚠️ 正常读取只碰 mapCache，不调用 GetAchievementProgress() / SaveCacheFile()。
- *      唯一例外：新装 Steam 还没有 achievement_progress.json 时，缓存会一直是
- *      undefined。此时 ensureProgressCache() 会调用一次 GetAchievementProgress()，
- *      让 Steam 自己发批量请求并写回缓存；缓存一旦就绪就不再调用。
+ *      唯一例外：Steam 的缓存可能完全不存在，也可能只覆盖一部分库内游戏
+ *      （它只在成就通知等时机刷新进度）。此时 ensureProgressCache() 会对
+ *      mapCache 里缺失的库内游戏调用 GetAchievementProgress()，让 Steam 自己
+ *      合并成一次批量请求并写回缓存；同一个 appid 在一次 Steam 会话里只排一次队。
  *
  * ── 全球完成率：Steam Player.GetGameAchievements 服务 ──────────────────
  *   通过客户端已有 CM 连接获取 player_percent_unlocked（0–100）。
@@ -86,20 +87,40 @@ export function getProgressEntry(appid) {
 
 /** 首次运行等待 Steam 建立缓存的最长时间 */
 const CACHE_BOOTSTRAP_TIMEOUT_MS = 20000;
+/** 已有部分缓存时，补齐缺失条目等待的最长时间（Steam 一次批量请求通常很快） */
+const CACHE_TOPUP_TIMEOUT_MS = 8000;
 
 let progressBootstrap = null;
+/** 本次 Steam 会话里已经排过队的 appid：避免每次进入卡包都重复请求 */
+const progressRequested = new Set();
 
 /**
- * 新装 Steam 或新账号第一次打开卡包时，achievement_progress.json 还不存在，
- * m_achievementProgress 会一直是 undefined —— Steam 只在排序或收到成就通知时
- * 才请求进度，所以卡包可能永远停在「等待数据」。
+ * 补齐库内游戏的成就进度缓存。
  *
- * 这里调用一次 Steam 自己的 GetAchievementProgress()，把库内游戏排进它的
- * 批量请求；请求完成后由 Steam 自己写入缓存，我们只等 mapCache 就绪。
- * 缓存已经可用时绝不调用。
+ * Steam 只在成就通知等时机刷新进度，所以 achievement_progress.json 只覆盖
+ * 一部分库内游戏是常态。以前这里只要缓存里**有任何一条**就返回，缺失的
+ * 游戏永远不会被请求，卡册因此少卡；现在按库内列表找出 mapCache 里没有的
+ * appid，交给 Steam 自己的 GetAchievementProgress() 排队。
+ *
+ * 同一个 appid 在一次 Steam 会话里最多排一次队；手动刷新会清空这个记录。
+ *
+ * @returns {Promise<{attempted:number[], added:number[], toppedUp:number[], ready:boolean}>}
+ *          attempted = 本次实际排队的 appid，added = 排队后出现在 mapCache 里的 appid，
+ *          toppedUp = 本次 Steam 会话里所有补过缓存的 appid（条目可能晚到）
  */
 export function ensureProgressCache() {
-    if (readProgress().status === 'ready') return Promise.resolve(true);
+    const before = readProgress();
+    const libraryAppids = [
+        ...new Set(listLibraryApps().map((app) => app?.appid).filter(Number.isFinite)),
+    ];
+    const missing = libraryAppids.filter(
+        (appid) => !before.entries.has(appid) && !progressRequested.has(appid),
+    );
+    const toppedUp = () => [...progressRequested];
+
+    if (missing.length === 0) {
+        return Promise.resolve({ attempted: [], added: [], toppedUp: toppedUp(), ready: before.status === 'ready' });
+    }
     if (progressBootstrap) return progressBootstrap;
 
     progressBootstrap = (async () => {
@@ -107,38 +128,67 @@ export function ensureProgressCache() {
         if (!manager) {
             manager = await waitFor(() => getAchievementCache(), { timeout: 10000, interval: 150 });
         }
-        if (!manager || typeof manager.GetAchievementProgress !== 'function') return false;
+        if (!manager || typeof manager.GetAchievementProgress !== 'function') {
+            return { attempted: [], added: [], toppedUp: toppedUp(), ready: false };
+        }
 
         // Init() 完成前 m_CMInterface 是空的，此时排队会在 100ms 后抛错。
         if (!manager.CMInterface) {
             await waitFor(() => manager.CMInterface, { timeout: 10000, interval: 150 });
         }
-        if (!manager.CMInterface) return false;
+        if (!manager.CMInterface) return { attempted: [], added: [], toppedUp: toppedUp(), ready: false };
 
-        const appids = listLibraryApps()
-            .map((app) => app?.appid)
-            .filter(Number.isFinite);
-        if (appids.length === 0) return false;
-
-        out.log(`成就进度缓存未就绪，向 Steam 请求 ${appids.length} 款游戏的进度…`);
-        for (const appid of appids) {
+        const attempted = [];
+        for (const appid of missing) {
             try {
                 manager.GetAchievementProgress(appid);
+                attempted.push(appid);
+                progressRequested.add(appid);
             } catch {
                 // 单款失败不影响其余
             }
         }
+        if (attempted.length === 0) {
+            return { attempted, added: [], toppedUp: toppedUp(), ready: readProgress().status === 'ready' };
+        }
 
-        const ready = await waitFor(() => readProgress().status === 'ready', {
-            timeout: CACHE_BOOTSTRAP_TIMEOUT_MS,
-            interval: 250,
+        const wasReady = before.status === 'ready';
+        out.log(
+            wasReady
+                ? `成就进度缓存缺少 ${attempted.length} 款库内游戏，向 Steam 请求补齐…`
+                : `成就进度缓存未就绪，向 Steam 请求 ${attempted.length} 款游戏的进度…`,
+        );
+
+        const wanted = new Set(attempted);
+        await waitFor(
+            () => {
+                const now = readProgress();
+                if (now.status !== 'ready') return false;
+                for (const appid of wanted) if (!now.entries.has(appid)) return false;
+                return true;
+            },
+            {
+                timeout: wasReady ? CACHE_TOPUP_TIMEOUT_MS : CACHE_BOOTSTRAP_TIMEOUT_MS,
+                interval: 250,
+            },
+        );
+
+        const after = readProgress();
+        const added = attempted.filter((appid) => after.entries.has(appid));
+        out.log(
+            added.length === attempted.length
+                ? `成就进度缓存已补齐 ${added.length} 款游戏`
+                : `补齐成就进度：${added.length}/${attempted.length} 款（其余可能没有成就数据）`,
+        );
+        return { attempted, added, toppedUp: toppedUp(), ready: after.status === 'ready' };
+    })()
+        .catch((err) => {
+            warn('初始化 Steam 成就进度缓存失败', err);
+            return { attempted: [], added: [], toppedUp: toppedUp(), ready: false };
+        })
+        .finally(() => {
+            progressBootstrap = null;
         });
-        out.log(ready ? '成就进度缓存已就绪' : '等待 Steam 成就进度缓存超时');
-        return Boolean(ready);
-    })().catch((err) => {
-        warn('初始化 Steam 成就进度缓存失败', err);
-        return false;
-    });
 
     return progressBootstrap;
 }
@@ -146,6 +196,7 @@ export function ensureProgressCache() {
 /** 手动刷新时允许再试一次 */
 export function resetProgressBootstrap() {
     progressBootstrap = null;
+    progressRequested.clear();
 }
 
 /* ── 游戏列表与美术资源 ─────────────────────────────────────────────────── */

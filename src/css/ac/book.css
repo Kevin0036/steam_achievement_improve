@@ -5,7 +5,7 @@
  *   · 书皮：深色皮面 + 细颗粒 + 缝线，颜色取 SpaceTheme 的中性灰阶；
  *   · 内页：黑卡纸 + 极淡的方格印刷线 + 书脊处的弯折阴影；
  *   · 每页一个下凹的卡槽，外面一圈印刷细框，底部是编号；
- *   · 书口厚度随翻到第几页变化（左边越翻越厚，右边越翻越薄）；
+ *   · 书口厚度随翻到第几页变化（左边越翻越薄，右边越翻越厚）；
  *   · 一条 SpaceTheme 强调色的丝带书签从书底露出来。
  *
  * 尺寸：.ac-album 是尺寸容器，书按 3:2 塞进去；.ac-book 自己也是尺寸容器，
@@ -80,7 +80,7 @@
     background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.45) 50%, rgba(0, 0, 0, 0));
 }
 
-/* 丝带书签：塞在书页之间，只露出书底那一截 */
+/* 丝带书签：塞在书页之间，只露出书底那一截；点一下或往下拉 = 翻到最后一页 */
 .ac-book__ribbon {
     position: absolute;
     bottom: -6cqh;
@@ -88,7 +88,21 @@
     z-index: 0;
     width: 2cqh;
     height: 16cqh;
+    cursor: grab;
+    touch-action: none;
+    outline: none;
     filter: drop-shadow(0 0.6cqh 0.8cqh rgba(0, 0, 0, 0.5));
+    transition: filter 180ms ease, transform 360ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.ac-book__ribbon:hover,
+.ac-book__ribbon:focus-visible {
+    filter: drop-shadow(0 0.6cqh 1.2cqh rgba(0, 0, 0, 0.55)) brightness(1.22);
+}
+
+.ac-book__ribbon[data-pulling] {
+    cursor: grabbing;
+    transition: filter 180ms ease;
 }
 
 .ac-book__ribbon::before {
@@ -255,21 +269,21 @@
     opacity: 0.55;
 }
 
-/* ── 叶：翻页的单位 ────────────────────────────────────────────────────── */
+/* ── 叶：翻页的单位（右开本：未翻的叶在左边，绕书脊向右翻） ──────────────── */
 
 .ac-leaf {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 50%;
+    left: 0;
     width: 50%;
-    transform-origin: 0 50%;
+    transform-origin: 100% 50%;
     transform-style: preserve-3d;
     transform: rotateY(0deg);
 }
 
 .ac-leaf[data-turned] {
-    transform: rotateY(-180deg);
+    transform: rotateY(180deg);
 }
 
 .ac-leaf.is-turning {
@@ -653,6 +667,38 @@
 /* 刚入册的卡：徽章宝珠上掠过一道光（和悬停时同一个动画） */
 .ac-card[data-shine] .ac-cf__badge::after {
     animation: ac-orb-shine 1.3s ease-out 0.05s both;
+}
+
+/* ── 书签快速翻阅：一叠真实书页从起点掠向另一端，末叶正好落成终点 ────────── */
+
+.ac-riffle {
+    position: absolute;
+    inset: 2.8cqh 1.5cqw;
+    z-index: 250;
+    perspective: 340cqw;
+    pointer-events: none;
+}
+
+/* 叶本体沿用 .ac-leaf 的尺寸与 3D 规则。
+   这里不能加 filter：滤镜会压平 preserve-3d，背面的卡会以镜像透出来。 */
+.ac-riffle__leaf {
+    will-change: transform;
+}
+
+.ac-riffle__leaf .ac-leaf__face {
+    box-shadow: 0.4cqh 0.3cqh 0.5cqh rgba(0, 0, 0, 0.35);
+}
+
+.ac-riffle__cover {
+    z-index: 0;
+}
+
+.ac-riffle__leaf .ac-page__shade {
+    opacity: 0.3;
+}
+
+.ac-book[data-riffle] .ac-card {
+    pointer-events: none;
 }
 
 /* ── 减少动态效果：翻页直接切换 ────────────────────────────────────────── */

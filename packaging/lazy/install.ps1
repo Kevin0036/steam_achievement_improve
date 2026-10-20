@@ -19,7 +19,7 @@ try {
     [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
     $global:OutputEncoding = New-Object Text.UTF8Encoding($false)
 } catch { }
-$script:ThemeVersion = '1.0.1'
+$script:ThemeVersion = '1.0.2'
 $script:MillenniumVersion = '3.6.2'
 $script:ThemeFolderName = 'AchievementCollection'
 $script:PackageDir = $PSScriptRoot
@@ -55,6 +55,18 @@ function Test-Admin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Get-PowerShellPath {
+    try {
+        $path = (Get-Process -Id $PID).Path
+        if ($path -and (Test-Path -LiteralPath $path -PathType Leaf)) { return $path }
+    } catch {
+        # Fall through to $PSHOME.
+    }
+    $fallback = Join-Path $PSHOME 'powershell.exe'
+    if (Test-Path -LiteralPath $fallback -PathType Leaf) { return $fallback }
+    return 'powershell.exe'
 }
 
 function Test-Writable([string]$Directory) {
@@ -115,7 +127,7 @@ function Invoke-Elevated([string]$Root) {
     if ($NoLaunch) { $arguments += ' -NoLaunch' }
     Write-Note '需要管理员权限才能写入 Steam 目录，正在请求提权……'
     try {
-        $process = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $arguments -Wait -PassThru
+        $process = Start-Process -FilePath (Get-PowerShellPath) -Verb RunAs -ArgumentList $arguments -Wait -PassThru
         exit $process.ExitCode
     } catch {
         Stop-Installer '未获得管理员权限，安装已取消。'

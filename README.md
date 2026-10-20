@@ -16,7 +16,9 @@
 
 在 Steam 库中新增一页「成就卡包」，把所有全成就游戏装订成一本可以左右翻阅的收藏册。
 
-卡片记录游戏封面、完成日期、成就数、稀有成就与游玩时长；点击卡片翻页，页码、书脊与书签会跟着移动。收藏再多，也能一页页翻过去。
+卡片记录游戏封面、完成日期、成就数、稀有成就与游玩时长。第一次打开会停在最新收录的一页；右页永远是完整卡面，翻到左页则露出卡背。
+
+点击卡片或滚动滚轮可以翻页，页码、书脊与书签会跟着移动。点击或下拉书签，会快速翻阅到离当前最远的一端（最新页或 No.001 首页）；回来时会记住上次翻到的位置。
 
 ### 新卡入册
 
@@ -49,8 +51,8 @@
 
 | 版本 | 适合谁 | 文件 |
 | --- | --- | --- |
-| **主题版** | 已经装好 Millennium，或以后只想更新主题 | `AchievementCollection-v1.0.1.zip` |
-| **Windows 懒人包** | 原生 Steam，第一次安装 | `AchievementCollection-Lazy-v1.0.1-Windows.zip` |
+| **主题版** | 已经装好 Millennium，或以后只想更新主题 | `AchievementCollection-v1.0.2.zip` |
+| **Windows 懒人包** | 原生 Steam，第一次安装 | `AchievementCollection-Lazy-v1.0.2-Windows.zip` |
 
 到 [Releases](https://github.com/Kevin0036/steam_achievement_improve/releases/latest) 下载，每个 Release 都附带 `SHA256SUMS.txt`。
 

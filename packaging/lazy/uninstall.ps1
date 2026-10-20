@@ -54,6 +54,18 @@ function Test-Admin {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Get-PowerShellPath {
+    try {
+        $path = (Get-Process -Id $PID).Path
+        if ($path -and (Test-Path -LiteralPath $path -PathType Leaf)) { return $path }
+    } catch {
+        # Fall through to $PSHOME.
+    }
+    $fallback = Join-Path $PSHOME 'powershell.exe'
+    if (Test-Path -LiteralPath $fallback -PathType Leaf) { return $fallback }
+    return 'powershell.exe'
+}
+
 function Test-Writable([string]$Directory) {
     if (-not (Test-Path -LiteralPath $Directory -PathType Container)) { return $false }
     $probe = Join-Path $Directory ('.ac-write-test-' + [Guid]::NewGuid().ToString('N'))
@@ -111,7 +123,7 @@ function Invoke-Elevated([string]$Root) {
     if ($Mode -ne 'menu') { $arguments += " -Mode $Mode" }
     Write-Note '需要管理员权限才能清理 Steam 目录，正在请求提权……'
     try {
-        $process = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $arguments -Wait -PassThru
+        $process = Start-Process -FilePath (Get-PowerShellPath) -Verb RunAs -ArgumentList $arguments -Wait -PassThru
         exit $process.ExitCode
     } catch {
         Stop-Uninstaller '未获得管理员权限，卸载已取消。'

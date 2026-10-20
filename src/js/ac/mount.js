@@ -14,6 +14,10 @@
  * 这个手法在本机有先例：`achievement-groups` 插件就是用
  * `beforePatch(jsxRuntime, 'jsx'|'jsxs', cb)` 往游戏详情页的 tabs 数组里塞标签页的。
  *
+ * 下拉菜单入口另有一层「菜单守护」：Supernav 的菜单实例在创建时就把 menuItems
+ * 固定下来了，仅靠 jsx 渲染时机注入会出现「有时在、有时不在」；守护钩住
+ * CreateContextMenuInstance / ShowMenu，在菜单真正创建或打开时补齐，见 installMenuGuard。
+ *
  * ── 四级降级 ─────────────────────────────────────────────────────────────
  *   1  主选      jsx-runtime 追加 Route（保留侧栏与游戏列表）
  *   2  降级 1    routerHook.addPatch('/library', …) —— 会替换整个库外壳，
@@ -36,6 +40,7 @@ const status = {
     routeInjected: false,
     menuInjected: false,
     menuInjectFailed: false,
+    menuGuardInstalled: false,
     gateInstalled: false,
     error: null,
 };
@@ -44,16 +49,59 @@ export const getMountStatus = () => ({ ...status });
 
 /* ── jsx-runtime 探测器 ─────────────────────────────────────────────────── */
 
-async function findJsxRuntime(api) {
-    const found = await waitForGlobal('SP_REACT', { timeout: 30000 });
-    if (!found) out.log('SP_REACT 未就绪，仍然尝试直接找 jsx-runtime 模块');
+/** 每秒检查一次「jsx/jsxs 是否被就地替换」的时长 */
+const WATCHDOG_FAST_MS = 90_000;
+/** 定期重扫模块表、看有没有新的 jsx-runtime 出现；超过这个窗口看门狗自行退出 */
+const WATCHDOG_SCAN_MS = 10 * 60_000;
+const SCAN_EVERY_TICKS = 10;
 
-    const runtime = api.findModuleByExport?.(
-        (value, key) => (key === 'jsx' || key === 'jsxs') && typeof value === 'function',
-    );
+/**
+ * 判定一个模块是不是 react/jsx-runtime：必须同时提供可调用的 jsx 与 jsxs。
+ * React 19 里这两个是同一个函数（`o.jsx = h, o.jsxs = h`），所以不能拿「两个函数不同」当判据。
+ */
+function isJsxRuntime(mod) {
+    if (!mod) return false;
+    try {
+        return typeof mod.jsx === 'function' && typeof mod.jsxs === 'function';
+    } catch {
+        return false;
+    }
+}
 
-    if (!runtime || typeof runtime.jsx !== 'function' || typeof runtime.jsxs !== 'function') return null;
-    return runtime;
+/**
+ * 找出模块表里**所有** jsx-runtime 模块。
+ *
+ * 这里刻意不只用 `findModuleByExport`（它只返回第一个命中）：Steam 的模块表里同时躺着
+ * React 18 与 React 19 两份运行时，落在没有补丁的那一份上的子树对我们的注入完全不可见 ——
+ * 表现正是「下拉菜单里的成就卡包有时在、有时不在」。所以把候选全部收齐、逐个挂钩。
+ */
+function findJsxRuntimes(api) {
+    const list = [];
+    const push = (mod) => {
+        if (isJsxRuntime(mod) && !list.includes(mod)) list.push(mod);
+    };
+
+    try {
+        if (typeof api.findAllModules === 'function') {
+            // findAllModules 的回调收到的是「模块对象」，与 findModuleByExport 的 (导出值, 导出名) 不同
+            for (const mod of api.findAllModules(isJsxRuntime) ?? []) push(mod);
+        }
+    } catch (err) {
+        warn('findAllModules 查找 jsx-runtime 失败', err);
+    }
+
+    if (list.length === 0) {
+        try {
+            push(
+                api.findModuleByExport?.(
+                    (value, key) => (key === 'jsx' || key === 'jsxs') && typeof value === 'function',
+                ),
+            );
+        } catch (err) {
+            warn('findModuleByExport 查找 jsx-runtime 失败', err);
+        }
+    }
+    return list;
 }
 
 /* ── 往 JSX 树里做最小追加 ──────────────────────────────────────────────── */
@@ -94,13 +142,11 @@ function injectRoute(type, props) {
  * Supernav 的下拉菜单不是每次渲染都重新生成的：组件**第一次挂载**时就用当时的
  * menuItems 建好一个菜单实例（CreateContextMenuInstance，bRetainOnHide），之后一直复用，
  * 再也不读新的 menuItems（sp.js 里 `we = Ne => { …!fe.current && (fe.current = …) }`）。
- * Steam 启动时 Supernav 比主题脚本先挂载，于是菜单里一直是没有我们这一项的旧列表，
- * 直到切换主题让它重新挂载才会出现。
+ * Steam 启动时 Supernav 比主题脚本先挂载，于是菜单里一直是没有我们这一项的旧列表。
  *
- * 解决办法：我们第一次碰到它时给它一个固定 key。key 从「无」变成这个值，
- * React 会把它卸载重挂一次，菜单实例随之按带着我们这一项的新列表重建；
- * 之后 key 再也不变，不会反复重挂。旧的菜单实例由 Steam 自己的卸载逻辑释放
- * （`useEffect(() => () => ReleaseHiddenMenu(fe.current))`）。
+ * 这一层做的是：第一次碰到它时给一个固定 key，强制 React 卸载重挂一次，
+ * 让常驻菜单实例按带着我们这一项的新列表重建。它依赖「Supernav 至少再渲染一次」，
+ * 所以只作为辅助；真正兜底的是下面的菜单管理器守护（与渲染时机无关）。
  */
 const SUPERNAV_KEY = 'ac-library-supernav';
 
@@ -117,6 +163,194 @@ function injectMenuItem(type, props) {
 
     if (!status.menuInjected) out.log('已把「成就卡包」加入 Library Supernav 下拉菜单');
     status.menuInjected = true;
+}
+
+/* ── 菜单守护：与 React 渲染时机解耦 ───────────────────────────────────── */
+
+/**
+ * 为什么不能只靠 jsx 补丁：
+ * Supernav 的菜单实例由 `CreateContextMenuInstance` 在**第一次挂载或第一次打开**时
+ * 用当时的 menuItems 建好。保留模式（bRetainOnHide，小模式/无菜单管理器时）下实例常驻，
+ * 永远不再读 menuItems；非保留模式下，点击处理器闭包里的也是**最近一次渲染**的列表。
+ * 只要 Supernav 在补丁装好后没有重新渲染过，它手里的列表就没有我们这一项 ——
+ * 表现正是「下拉菜单里的成就卡包有时在、有时不在」。
+ *
+ * 所以直接钩住上下文菜单管理器的两个方法（sp.js 模块 13240 / 3258 已核对）：
+ *   CreateContextMenuInstance —— 菜单创建时补齐；
+ *   ShowMenu                 —— 已存在的常驻实例在打开前就地替换它的 React 元素。
+ * 这两个时机与 React 的渲染计划无关，菜单每次创建/打开都会经过。
+ */
+const MENU_GUARD = Symbol.for('ac.cardpack.menuGuard');
+
+/** 菜单元素是不是 Library Supernav 的（看 items 里的 Home 路由，title 作为补充判据） */
+function withCardPackItem(element, title) {
+    const props = element?.props;
+    if (!props || !Array.isArray(props.menuItems)) return element;
+
+    const isLibrary =
+        title === SUPERNAV_TITLE || props.menuItems.some((item) => item?.route === ROUTES.libraryHome);
+    if (!isLibrary) return element;
+    if (props.menuItems.some((item) => item?.route === ROUTES.cardPack)) return element;
+
+    const React = getReact();
+    if (!React?.cloneElement) return element;
+
+    return React.cloneElement(element, {
+        menuItems: [
+            ...props.menuItems,
+            { name: `${MENU.icon} ${STR.page.heading}`, route: ROUTES.cardPack },
+        ],
+    });
+}
+
+/** findModuleByExport 返回的是「模块的导出表」，从里面把目标导出值挑出来 */
+function pickExport(mod, predicate) {
+    if (!mod || typeof mod !== 'object') {
+        return predicate(mod) ? mod : null;
+    }
+    for (const value of Object.values(mod)) {
+        try {
+            if (predicate(value)) return value;
+        } catch {
+            /* 忽略取属性时的异常 */
+        }
+    }
+    return null;
+}
+
+function installMenuGuard(api, disposables) {
+    let proto = null;
+
+    try {
+        const mod = api.findModuleByExport?.(
+            (value) =>
+                typeof value === 'function' &&
+                value.prototype &&
+                typeof value.prototype.CreateContextMenuInstance === 'function' &&
+                typeof value.prototype.ShowMenu === 'function' &&
+                typeof value.prototype.GetAllMenus === 'function',
+        );
+        const ctor = pickExport(
+            mod,
+            (value) =>
+                typeof value === 'function' &&
+                value.prototype &&
+                typeof value.prototype.CreateContextMenuInstance === 'function' &&
+                typeof value.prototype.ShowMenu === 'function' &&
+                typeof value.prototype.GetAllMenus === 'function',
+        );
+        if (ctor?.prototype) proto = ctor.prototype;
+    } catch (err) {
+        warn('查找上下文菜单管理器类失败', err);
+    }
+
+    if (!proto) {
+        // 退路：从窗口 → 管理器注册表取一个实例，再拿它的原型（同一个类）
+        try {
+            const mod = api.findModuleByExport?.(
+                (value) =>
+                    value &&
+                    typeof value === 'object' &&
+                    typeof value.GetContextMenuManagerFromWindow === 'function',
+            );
+            const registry = pickExport(
+                mod,
+                (value) =>
+                    value &&
+                    typeof value === 'object' &&
+                    typeof value.GetContextMenuManagerFromWindow === 'function',
+            );
+            const manager = registry?.GetContextMenuManagerFromWindow?.(window);
+            if (manager) proto = Object.getPrototypeOf(manager);
+        } catch (err) {
+            warn('从注册表获取菜单管理器失败', err);
+        }
+    }
+
+    if (!proto) {
+        warn('未找到上下文菜单管理器，菜单守护未安装（入口可能仍随渲染时机出现/消失）');
+        return false;
+    }
+
+    if (proto[MENU_GUARD]) {
+        status.menuGuardInstalled = true;
+        return true;
+    }
+
+    const originalCreate = proto.CreateContextMenuInstance;
+    const originalShow = proto.ShowMenu;
+    if (typeof originalCreate !== 'function' || typeof originalShow !== 'function') {
+        warn('菜单管理器原型缺少预期方法，菜单守护未安装');
+        return false;
+    }
+
+    const token = {};
+
+    proto.CreateContextMenuInstance = function (element, ...rest) {
+        try {
+            // 参数顺序：element, elementContext, clientX, clientY, options
+            element = withCardPackItem(element, rest[3]?.title);
+        } catch (err) {
+            warn('菜单创建守护抛错（已吞下）', err);
+        }
+        return originalCreate.call(this, element, ...rest);
+    };
+
+    proto.ShowMenu = function (instance) {
+        let repaired = false;
+
+        try {
+            const element = instance?.ReactElement;
+            const next = withCardPackItem(element, instance?.options?.title);
+            if (next !== element) {
+                // 常驻实例的 ReactElement 只有 getter，直接换底层字段；
+                // ShowMenu 随后会 Dispatch menus-changed，让弹层按新元素重渲染。
+                instance.m_rctElement = next;
+                repaired = true;
+            }
+        } catch (err) {
+            warn('菜单打开守护抛错（已吞下）', err);
+        }
+
+        let wasActive = false;
+        try {
+            wasActive = this.ActiveMenu === instance;
+        } catch {
+            /* 忽略 */
+        }
+
+        const result = originalShow.call(this, instance);
+
+        if (repaired && wasActive) {
+            try {
+                this.m_callbacksMenusChanged?.Dispatch?.();
+            } catch {
+                /* 忽略 */
+            }
+        }
+        return result;
+    };
+
+    try {
+        Object.defineProperty(proto, MENU_GUARD, { value: token, configurable: true });
+    } catch {
+        /* 标记失败不影响功能 */
+    }
+
+    disposables?.add?.(() => {
+        if (proto[MENU_GUARD] !== token) return;
+        proto.CreateContextMenuInstance = originalCreate;
+        proto.ShowMenu = originalShow;
+        try {
+            delete proto[MENU_GUARD];
+        } catch {
+            /* 忽略 */
+        }
+    });
+
+    status.menuGuardInstalled = true;
+    out.log('已安装上下文菜单守护：「成就卡包」在菜单创建/打开时补齐');
+    return true;
 }
 
 /* ── 降级 2：替换库外壳（默认关闭） ─────────────────────────────────────── */
@@ -215,74 +449,115 @@ export async function mount({ disposables } = {}) {
         return status;
     }
 
-    const runtime = await findJsxRuntime(api);
-    if (runtime) {
-        const handle = (type, props) => {
-            try {
-                injectRoute(type, props);
-                injectMenuItem(type, props);
-            } catch (err) {
-                // 绝不让异常冒泡到 React 的渲染流程里 —— 那会影响整个 Steam 界面
-                warn('jsx 补丁回调抛错（已吞下）', err);
-            }
-        };
+    const handle = (type, props) => {
+        try {
+            injectRoute(type, props);
+            injectMenuItem(type, props);
+        } catch (err) {
+            // 绝不让异常冒泡到 React 的渲染流程里 —— 那会影响整个 Steam 界面
+            warn('jsx 补丁回调抛错（已吞下）', err);
+        }
+    };
 
-        const patches = [];
+    /** runtime 模块 → 它上面 jsx / jsxs 两个补丁的登记表 */
+    const hooks = new Map();
+
+    function hookRuntime(runtime) {
+        if (hooks.has(runtime)) return;
+        const entry = { jsx: null, jsxs: null };
         for (const name of ['jsx', 'jsxs']) {
             try {
-                const patch = api.beforePatch(runtime, name, (args) => handle(args?.[0], args?.[1]));
-                patches.push({ name, patch, last: runtime[name] });
-                out.log(`已挂钩 react/jsx-runtime.${name}`);
+                entry[name] = {
+                    patch: api.beforePatch(runtime, name, (args) => handle(args?.[0], args?.[1])),
+                    last: runtime[name],
+                };
             } catch (err) {
                 warn(`挂钩 ${name} 失败`, err);
             }
         }
+        if (entry.jsx || entry.jsxs) hooks.set(runtime, entry);
+    }
 
-        if (patches.length > 0) {
-            status.level = 1;
+    for (const runtime of findJsxRuntimes(api)) hookRuntime(runtime);
 
-            // Steam 在某些时机（例如切换 UI 模式）会换掉这个模块，补丁会丢。
-            // 用一段时间的有界看门狗自动重挂，90 秒后停止，不留常驻定时器。
-            const started = Date.now();
-            const watchdog = window.setInterval(() => {
-                if (Date.now() - started > 90_000) {
-                    clearInterval(watchdog);
-                    out.log('jsx-runtime 看门狗已停止');
+    if (hooks.size > 0) {
+        status.level = 1;
+        out.log(`已挂钩 react/jsx-runtime（共 ${hooks.size} 个模块）`);
+
+        if (!installMenuGuard(api, disposables)) {
+            // sp.js 尚未注册到上下文菜单模块时，过一会儿再试；装上就停
+            let tries = 0;
+            const retry = window.setInterval(() => {
+                tries += 1;
+                if (status.menuGuardInstalled || tries > 30) {
+                    clearInterval(retry);
                     return;
                 }
-                for (const entry of patches) {
-                    if (runtime[entry.name] === entry.last) continue;
-                    out.log(`检测到 ${entry.name} 被替换，重新挂钩`);
-                    try {
-                        entry.patch?.unpatch?.();
-                    } catch {
-                        /* 忽略 */
-                    }
-                    try {
-                        entry.patch = api.beforePatch(runtime, entry.name, (args) =>
-                            handle(args?.[0], args?.[1]),
-                        );
-                        entry.last = runtime[entry.name];
-                    } catch (err) {
-                        warn(`重新挂钩 ${entry.name} 失败`, err);
-                    }
-                }
-            }, 1000);
-
-            disposables?.addInterval?.(watchdog);
-            disposables?.add?.(() => {
-                clearInterval(watchdog);
-                for (const entry of patches) {
-                    try {
-                        entry.patch?.unpatch?.();
-                    } catch {
-                        /* 忽略 */
-                    }
-                }
-            });
-
-            return status;
+                installMenuGuard(api, disposables);
+            }, 2000);
+            disposables?.addInterval?.(retry);
         }
+
+        const started = Date.now();
+        let tick = 0;
+        const watchdog = window.setInterval(() => {
+            tick += 1;
+            const elapsed = Date.now() - started;
+            if (elapsed > WATCHDOG_FAST_MS && elapsed > WATCHDOG_SCAN_MS) {
+                clearInterval(watchdog);
+                out.log('jsx-runtime 看门狗已停止');
+                return;
+            }
+
+            // 一：Steam 会把模块里的 jsx / jsxs 就地换掉，这时必须重新挂钩
+            if (elapsed <= WATCHDOG_FAST_MS) {
+                for (const [runtime, entry] of hooks) {
+                    for (const name of ['jsx', 'jsxs']) {
+                        const slot = entry[name];
+                        if (!slot || runtime[name] === slot.last) continue;
+                        out.log(`检测到 ${name} 被替换，重新挂钩`);
+                        try {
+                            slot.patch?.unpatch?.();
+                        } catch {
+                            /* 忽略 */
+                        }
+                        try {
+                            slot.patch = api.beforePatch(runtime, name, (args) =>
+                                handle(args?.[0], args?.[1]),
+                            );
+                            slot.last = runtime[name];
+                        } catch (err) {
+                            warn(`重新挂钩 ${name} 失败`, err);
+                        }
+                    }
+                }
+            }
+
+            // 二：模块表里可能还有我们没发现的 jsx-runtime（惰性加载的 chunk），定期补挂
+            if (elapsed <= WATCHDOG_SCAN_MS && tick % SCAN_EVERY_TICKS === 0) {
+                for (const runtime of findJsxRuntimes(api)) {
+                    if (hooks.has(runtime)) continue;
+                    out.log('发现新的 jsx-runtime 模块，补挂钩');
+                    hookRuntime(runtime);
+                }
+            }
+        }, 1000);
+
+        disposables?.addInterval?.(watchdog);
+        disposables?.add?.(() => {
+            clearInterval(watchdog);
+            for (const entry of hooks.values()) {
+                for (const name of ['jsx', 'jsxs']) {
+                    try {
+                        entry[name]?.patch?.unpatch?.();
+                    } catch {
+                        /* 忽略 */
+                    }
+                }
+            }
+        });
+
+        return status;
     }
 
     // 主选不可用
@@ -362,7 +637,7 @@ export const __debug = { status, isOurPath, injectRoute, injectMenuItem, openMod
 /* ── 自启动 ─────────────────────────────────────────────────────────────── */
 
 (async function bootstrap() {
-    const VERSION = '1.0.1';
+    const VERSION = '1.0.2';
 
     try {
         banner(STR.theme, VERSION);
@@ -389,8 +664,10 @@ export const __debug = { status, isOurPath, injectRoute, injectMenuItem, openMod
         out.log('环境探测', snapshot().hits);
 
         disposables.addListener(window, 'pagehide', () => {
+            // 只暂停后台补全，**不**在这里卸载 jsx 补丁。
+            // Steam 的窗口有时会触发 pagehide 而文档并没有真正卸载（放到后台又恢复），
+            // 一旦 unpatched，下拉菜单里的入口就再也回不来了；看门狗本身是有界的，会自行退出。
             storeModule.pause();
-            disposables.disposeAll();
         });
     } catch (err) {
         // 绝不让异常冒泡到 Steam 的渲染流程里

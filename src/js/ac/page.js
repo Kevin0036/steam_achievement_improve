@@ -7,15 +7,17 @@
  * 展示层只读 store，不认识任何 Steam API。
  * 页面本体是一本摊开的收藏册（book.js），这里只负责：
  *   · 状态页（读取中 / 等待数据 / 空 / 出错）画成一本合上的册子；
- *   · 把卡片按**完成时间倒序**交给 book（最近完成的摊开在第一页）；
+ *   · 把卡片按**完成时间倒序**交给 book；book 从 No.001 开始正序装订（最近完成的在最后）；
  *   · 完成日期是逐张补上来的：补的过程中只就地换那一张卡，
  *     全部补完后再重新装订一次，并把当前正在看的那张留在原处；
  *   · 新全成就的游戏先不放进册子，等它的完成日期到了，交给 book.introduce() 播入册动画，
- *     播完才记为「已入册」—— 中途离开的话，下次进来还会再播。
+ *     播完才记为「已入册」—— 中途离开的话，下次进来还会再播；
+ *   · 翻到哪一页会记进缓存，下次进来摊开在同一页。
  */
 
 import { getReact, getReactDom, getThemeOption } from './env.js';
 import * as store from './store.js';
+import * as cache from './cache.js';
 import { createBook } from './book.js';
 import { tagged } from './utils.js';
 import { STR } from './strings.js';
@@ -109,6 +111,9 @@ export function Page() {
     const builtRef = React.useRef({ order: '', owner: '', state: '', perPage: 0 });
     /** 正在播的入册动画（一个令牌，防止旧书的回调影响新书） */
     const introRef = React.useRef(null);
+    /** 上次离开时翻到哪一页；首次挂载从缓存读，之后每次翻页就地更新 */
+    const positionRef = React.useRef(undefined);
+    if (positionRef.current === undefined) positionRef.current = cache.readPosition();
 
     // 首次挂载：读数据 + 取当前账号（再挂载时走 silent，避免用缓存先铺一层造成闪烁）
     React.useEffect(() => {
@@ -163,15 +168,24 @@ export function Page() {
 
         if (!bookRef.current) {
             host.replaceChildren();
-            bookRef.current = createBook(host, { cards: shown, owner: state.owner ?? {}, perPage });
+            bookRef.current = createBook(host, {
+                cards: shown,
+                owner: state.owner ?? {},
+                perPage,
+                initial: positionRef.current,
+                onPage: (position) => {
+                    positionRef.current = position;
+                    cache.writePosition(position);
+                },
+            });
             builtRef.current = { order: orderKey, owner: ownerKey, state: '', perPage };
             out.log(`收藏册已装订：${shown.length} 张卡（每页 ${perPage} 张）`);
         } else if (!state.dates.running && orderKey !== builtRef.current.order) {
             // 日期补完了，重新按完成时间装订。
-            // 还停在第一页（没翻过）就直接摊开最近完成的那张；翻过了就把正在看的那张留在原处。
+            // 还停在第一页（没翻过）就留在第一页；翻过了就把正在看的那张留在原处。
             const book = bookRef.current;
-            const keepAppid = book.index === 0 ? null : book.cards[book.index]?.appid ?? null;
-            book.replaceCards(shown, { keepAppid, atStart: keepAppid == null });
+            const atStart = book.page === 0;
+            book.replaceCards(shown, atStart ? { atStart } : { keepAppid: book.position.appid });
             builtRef.current.order = orderKey;
             out.log('完成日期已补全，收藏册重新装订');
         } else {

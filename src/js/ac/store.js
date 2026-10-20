@@ -268,13 +268,17 @@ export async function load({ silent = false } = {}) {
 
     // 2) 读客户端数据（这是唯一的数据真相来源）
     let assembled;
+    let toppedUp = new Set();
     try {
         assembled = assemble();
-        if (assembled.status !== 'ready') {
-            // 新装 Steam 还没有成就进度缓存：请 Steam 自己建一次，再重新组装。
-            const bootstrapped = await data.ensureProgressCache();
+        if (assembled.status !== 'ready' || assembled.noCacheCount > 0) {
+            // 缓存完全为空：等 Steam 建好；只是缺一部分：只为缺失的库内游戏排队补齐。
+            const result = await data.ensureProgressCache();
             if (!isCurrent()) return;
-            if (bootstrapped) assembled = assemble();
+            toppedUp = new Set(result?.toppedUp ?? result?.attempted ?? []);
+            if (assembled.status !== 'ready' || (result?.added?.length ?? 0) > 0) {
+                assembled = assemble();
+            }
         }
     } catch (err) {
         if (!isCurrent()) return;
@@ -331,7 +335,21 @@ export async function load({ silent = false } = {}) {
     });
 
     const summary = summarize(cards, data.listLibraryApps().length);
-    const fresh = detectFresh(cards, assembled.incomplete);
+
+    // 补缓存才浮出来的老游戏不是「新全成就」：直接记为已入册，不播入册动画。
+    // 真正刚完成的游戏会先被 Steam 的成就通知写进 mapCache，不会走到这里。
+    const shelved = cache.readShelved();
+    if (shelved && toppedUp.size > 0) {
+        let changed = false;
+        for (const card of cards) {
+            if (toppedUp.has(card.appid) && !shelved.has(card.appid)) {
+                shelved.add(card.appid);
+                changed = true;
+            }
+        }
+        if (changed) cache.writeShelved(shelved);
+    }
+    const fresh = detectFresh(cards, assembled.incomplete).filter((appid) => !toppedUp.has(appid));
     if (fresh.length > 0) out.log(`新收录 ${fresh.length} 款：${fresh.join(', ')}`);
 
     setState(

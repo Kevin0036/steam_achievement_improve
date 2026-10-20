@@ -59,10 +59,11 @@ export const STR = {
     book: {
         title: '成就收藏册',
         subtitle: 'ACHIEVEMENT COLLECTION',
-        hint: '轻点卡片翻页',
+        hint: '滚轮或轻点卡片翻页 · 下拉书签跳到另一端',
         endTitle: '未完待续',
         endDesc: '下一款完美通关的游戏，会收进这一页',
-        label: '成就收藏册，左右两页，点击卡片翻页',
+        bookmark: '跳到最远的一端',
+        label: '成就收藏册，左右两页，滚轮或点击卡片翻页',
         pageStatus: (page, total) => `第 ${page} / ${total} 页`,
         introduced: (names) => `新收录：${names.join('、')}`,
     },

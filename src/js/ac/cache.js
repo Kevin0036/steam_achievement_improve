@@ -16,6 +16,8 @@
  *               读取失败的不落盘：下次打开卡包会重试。
  *   shelved  —— 已经收进册子的 appid。和当前全成就列表一比，多出来的就是「新收录」，
  *               首次进入卡包时播放入册动画（见 book.js introduce）。
+ *   position —— 上次离开时翻到哪一页。记 appid（该页第一张卡）和页码，回来时优先按 appid
+ *               锚定，卡片重排 / 每页数量改了也不会飘走。
  */
 
 import { CACHE_VERSION } from './selectors.js';
@@ -27,6 +29,7 @@ const NS = 'ac';
 const KEY_STATE = `${NS}:v${CACHE_VERSION}:state`;
 const KEY_DATES = `${NS}:v${CACHE_VERSION}:completed`;
 const KEY_SHELVED = `${NS}:v${CACHE_VERSION}:shelved`;
+const KEY_POSITION = `${NS}:v${CACHE_VERSION}:position`;
 const RARE_CACHE_VERSION = 4;
 // 完成日期缓存换过两次格式：:dates 是在成就接口还没接通时写下的（失败名单不可信），
 // :completion 整份共用一个 30 天期限。两者都直接弃用，见 readDates()。
@@ -178,6 +181,27 @@ export function writeShelved(appids) {
     writeJson(KEY_SHELVED, { appids: [...appids] });
 }
 
+/* ── 上次翻到的位置 ─────────────────────────────────────────────────────── */
+
+/** @returns {{page:number, appid:number|null} | null} */
+export function readPosition() {
+    const parsed = readJson(KEY_POSITION);
+    if (!parsed) return null;
+    return {
+        page: Number.isFinite(parsed.page) ? Math.max(0, Math.trunc(parsed.page)) : 0,
+        appid: Number.isFinite(parsed.appid) ? parsed.appid : null,
+    };
+}
+
+/** @param {{page:number, appid:number|null}} position */
+export function writePosition(position) {
+    if (!Number.isFinite(position?.page)) return;
+    writeJson(KEY_POSITION, {
+        page: Math.max(0, Math.trunc(position.page)),
+        appid: Number.isFinite(position.appid) ? position.appid : null,
+    });
+}
+
 /* ── 清理 ───────────────────────────────────────────────────────────────── */
 
 /** 回滚用：删掉本项目写下的全部 localStorage 键，无任何副作用 */
@@ -198,4 +222,4 @@ export function clearAll() {
     }
 }
 
-export const CACHE_KEYS = { KEY_STATE, KEY_DATES, KEY_SHELVED };
+export const CACHE_KEYS = { KEY_STATE, KEY_DATES, KEY_SHELVED, KEY_POSITION };
