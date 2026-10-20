@@ -715,8 +715,9 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                         .catch(() => {})
                         .then(() => {
                             animations.delete(anim);
-                            // 落下的叶压到下一叶下面；下一叶仍在它上面，接续盖过去
-                            if (!disposed) leaf.style.zIndex = String(200 - i);
+                            // 后落下的叶压在前一叶上面：最后一叶落定后正好是终点那一页，
+                            // 撤掉整层时不会再有「终点内容突然跳出来」的一帧。
+                            if (!disposed) leaf.style.zIndex = String(200 + i);
                         });
                 }),
             );
