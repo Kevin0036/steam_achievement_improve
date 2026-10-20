@@ -1,0 +1,7 @@
+.window-controls {
+    opacity: 0 !important;
+}
+
+.window-controls:hover {
+    opacity: 1 !important;
+}

@@ -1,0 +1,219 @@
+/* ============================================================================
+ * 成就收藏册 · 功能 A：完满主义者展柜美化
+ * ----------------------------------------------------------------------------
+ * 目标页面：steamcommunity.com 个人资料页上的 `showcase_achievementscompletionist_*`
+ *           （Valve 服务端渲染，客户端里没有这一段 DOM）。
+ *
+ * 作用域：**只动完满主义者展柜本身**。展柜容器、标题栏、统计行的字体字号都保持 Valve 原样，
+ * 这样它和个人资料页上其它展柜仍是一家人；我们只改格子（封面 + 信息条 + 徽章）。
+ *
+ * 版式（参考图 1）：
+ *   · 封面与信息条是**同一张圆角卡片**：圆角、裁切、阴影、悬停抬升都挂在格子容器上，
+ *     封面不单独缩放 —— 二者永远一起移动，不会再出现上下错位。
+ *   · 信息条是一条实色徽章蓝，左侧「99 项成就」，右侧徽章略高出信息条上沿。
+ *   · 去掉「X 项为稀有」、去掉组计数，所有全成就游戏统一一枚徽章。
+ *   · 悬停时一道流光从左到右扫过整张卡片，只播一次；移开再悬停才会重播。
+ *
+ * 所有选择器都带 `html body.profile_page` 前缀，把特异性抬过
+ * profilev2.css 里 `html.responsive …` 的变体，不依赖样式表加载顺序。
+ * ==========================================================================*/
+
+@import url("./tokens.css");
+
+/* ── 网格：保留 Valve 的两列 / 窄屏单列，只放宽一点间距 ─────────────────── */
+
+html body.profile_page .showcase_achievementscompletionist_slots {
+    gap: 14px 10px;
+}
+
+/* ── 格子 = 一张卡片 ───────────────────────────────────────────────────── */
+
+html body.profile_page .showcase_achievementscompletionist_game {
+    --ac-bar-h: 36px;
+
+    overflow: hidden;
+    border-radius: 6px;
+    background: #0e0f12;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 4px 12px rgba(0, 0, 0, 0.35);
+    /* 自己一层合成层：transform 过程中圆角裁切不会闪 */
+    transform: translateZ(0);
+    transition:
+        transform 0.28s var(--ac-ease-out),
+        box-shadow 0.28s var(--ac-ease-out);
+}
+
+html body.profile_page .showcase_achievementscompletionist_game:hover {
+    transform: translateY(-3px);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.14),
+        0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+html body.profile_page .showcase_achievementscompletionist_game > a {
+    padding-bottom: var(--ac-bar-h);
+    text-decoration: none;
+}
+
+/* 悬停流光：一道斜向高光从左到右扫过整张卡片（封面 + 信息条），只扫一次。
+   动画挂在 :hover 上 —— 移开鼠标动画就被撤掉，再悬停才会重新播放。 */
+html body.profile_page .showcase_achievementscompletionist_game::after {
+    content: "";
+    position: absolute;
+    top: -10%;
+    bottom: -10%;
+    left: 0;
+    z-index: 2;
+    width: 42%;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.14) 26%,
+        rgba(255, 255, 255, 0.46) 44%,
+        rgba(255, 255, 255, 0.46) 56%,
+        rgba(255, 255, 255, 0.14) 74%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    opacity: 0;
+    transform: translateX(-130%) skewX(-18deg);
+    pointer-events: none;
+}
+
+html body.profile_page .showcase_achievementscompletionist_game:hover::after {
+    animation: ac-showcase-sheen 0.7s cubic-bezier(0.3, 0.1, 0.3, 1) 1 both;
+}
+
+@keyframes ac-showcase-sheen {
+    from {
+        opacity: 1;
+        transform: translateX(-130%) skewX(-18deg);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(300%) skewX(-18deg);
+    }
+}
+
+/* 封面：只提一点亮度，不缩放、不位移 */
+html body.profile_page .showcase_achievementscompletionist_game img.game_capsule {
+    transition: filter 0.28s ease;
+}
+
+html body.profile_page .showcase_achievementscompletionist_game:hover img.game_capsule {
+    filter: brightness(1.07) saturate(1.05);
+}
+
+/* 锁区等原因拿不到任何封面时，用同尺寸的占位块撑住版式（文字由 showcaseart.js 放入） */
+html body.profile_page .ac-showcase-cover-missing {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 460 / 215;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.32);
+    background:
+        radial-gradient(90% 120% at 30% 20%, rgba(102, 108, 255, 0.14), transparent 60%),
+        linear-gradient(160deg, #1b1f2a 0%, #0e0f12 65%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* ── 信息条：实色徽章蓝 ────────────────────────────────────────────────── */
+
+html body.profile_page .showcase_achievementscompletionist_game_bar {
+    box-sizing: border-box;
+    height: var(--ac-bar-h);
+    padding: 0 10px 0 12px;
+    justify-content: flex-start;
+    font-weight: 400;
+    color: #fff;
+    background: linear-gradient(180deg, var(--ac-blue-hi) 0%, var(--ac-blue) 55%, var(--ac-blue-lo) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+html body.profile_page .showcase_achievementscompletionist_game_counts {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    /* 给右侧的徽章让位 */
+    padding-right: 44px;
+    text-align: left;
+}
+
+html body.profile_page .showcase_achievementscompletionist_game_counts .num_achievements {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: 0.3px;
+    color: #fff;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+}
+
+/* 「X 项为稀有」不显示 —— 信息条只说一件事 */
+html body.profile_page .showcase_achievementscompletionist_game_counts .num_rare {
+    display: none;
+}
+
+/* ── 徽章：Valve 的奖杯整组撤掉，换成统一的一枚 ─────────────────────────── */
+
+html body.profile_page .showcase_achievementscompletionist_game_ribbons {
+    position: absolute;
+    right: 9px;
+    bottom: 3px;
+    width: 40px;
+    height: 47px;
+    pointer-events: none;
+}
+
+/* 原来的奖杯（含 .stacked 叠层）与组计数一并隐藏：不区分 DLC，也不显示未完成 */
+html body.profile_page .showcase_achievementscompletionist_game_ribbons .showcase_completion_ribbons {
+    display: none;
+}
+
+html body.profile_page .showcase_achievementscompletionist_game_ribbons::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--ac-badge-img) center bottom / contain no-repeat;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+    transition: transform 0.28s var(--ac-ease-out);
+    transform-origin: 50% 70%;
+}
+
+html body.profile_page .showcase_achievementscompletionist_game:hover .showcase_achievementscompletionist_game_ribbons::before {
+    transform: translateY(-1px) scale(1.05);
+}
+
+/* ── 统计行：沿用 Valve 的细体白字，只处理文案与下划线 ───────────────────── */
+
+html body.profile_page .profile_customization:has(.showcase_achievementscompletionist_slots) .showcase_stat {
+    text-decoration: none;
+}
+
+/* 「完美通关的 DLC」等不需要的栏位由 showcase.js 打标后隐藏 */
+html body.profile_page .showcase_stat[data-ac-stat="hidden"] {
+    display: none;
+}
+
+/* ── 减少动态效果 ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    html body.profile_page .showcase_achievementscompletionist_game,
+    html body.profile_page .showcase_achievementscompletionist_game_ribbons::before {
+        transition: none;
+    }
+
+    html body.profile_page .showcase_achievementscompletionist_game:hover,
+    html body.profile_page .showcase_achievementscompletionist_game:hover .showcase_achievementscompletionist_game_ribbons::before {
+        transform: none;
+    }
+
+    html body.profile_page .showcase_achievementscompletionist_game:hover::after {
+        animation: none;
+    }
+}

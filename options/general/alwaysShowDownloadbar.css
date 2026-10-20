@@ -1,0 +1,23 @@
+:root {
+    --st-option-alwaysShowDownloadbar: on;
+}
+
+._3x1HklzyDs4TEjACrRO2tB ._1ijTaXJJA5YWl_fW2IxcaT {
+    margin-bottom: calc(90px + 6px + 49px + 16px) !important;
+}
+
+body.QsvsRVwbsApgKt1MhM0fz:has(._3E5iVG630BkOHTaJJaMEMw) ._3x1HklzyDs4TEjACrRO2tB ._1ijTaXJJA5YWl_fW2IxcaT {
+    margin-bottom: calc(90px + 6px + 49px + 44px + 16px + 6px) !important;
+}
+
+
+body:not(:has(._1ijTaXJJA5YWl_fW2IxcaT)) ._1_yS5UP7el0aN4vntx3dx,
+body ._1_yS5UP7el0aN4vntx3dx:not(:has(.wi0pDywRgOCxhG7OqQNaA)) {
+    height: 49px !important;
+}
+
+body:not(:has(._1ijTaXJJA5YWl_fW2IxcaT)) ._1_yS5UP7el0aN4vntx3dx ._3vCzSrrXZzZjVJFZNg9SGu,
+body ._1_yS5UP7el0aN4vntx3dx:not(:has(.wi0pDywRgOCxhG7OqQNaA)) ._3vCzSrrXZzZjVJFZNg9SGu {
+    visibility: visible !important;
+    height: 100% !important;
+}

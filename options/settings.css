@@ -1,0 +1,256 @@
+/*
+& General
+*/
+
+/*
+! Titlebar
+*/
+.MillenniumDesktopSidebar_Content .Window.Controls::before {
+    content: "Titlebar";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Sidebar
+*/
+.MillenniumDesktopSidebar_Content .Always.show.sidebar::before {
+    content: "Sidebar";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Userpannel
+*/
+.MillenniumDesktopSidebar_Content .General.\-.Wallet.balance::before {
+    content: "Userpannel";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Other
+*/
+.MillenniumDesktopSidebar_Content .General.\-.Font::before {
+    content: "Other";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Experimental
+*/
+.MillenniumDesktopSidebar_Content .General.\-.Userpannel::before {
+    content: "Experimental";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+
+/*
+& Store
+*/
+
+/*
+! Home
+*/
+.MillenniumDesktopSidebar_Content .Store.\-.SteamDeck.Giftcard::before {
+    content: "Home";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Gamepage
+*/
+.MillenniumDesktopSidebar_Content .Store.\-.Broadcast::before {
+    content: "Gamepage";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Cart
+*/
+.MillenniumDesktopSidebar_Content .Store.\-.Recommendations::before {
+    content: "Cart";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Points Shop
+*/
+.MillenniumDesktopSidebar_Content .Store.\-.Landing.Header::before {
+    content: "Points Shop";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Other
+*/
+.MillenniumDesktopSidebar_Content .Store.\-.URL.bar::before {
+    content: "Other";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+
+/*
+& Library
+*/
+
+/*
+! Pinned
+*/
+.MillenniumDesktopSidebar_Content .Library.\-.Steam-Custom-Artworks.Support::before {
+    content: "Pinned";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+/*
+! Home
+*/
+.MillenniumDesktopSidebar_Content .Library.\-.What\'s.New::before {
+    content: "Home";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Gamepage
+*/
+.MillenniumDesktopSidebar_Content .Library.\-.Banner.position::before {
+    content: "Gamepage";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+
+/*
+& Community
+*/
+
+/*
+! Profile
+*/
+.MillenniumDesktopSidebar_Content .Community.\-.VAC-Ban.visibility::before {
+    content: "Profile";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}
+
+
+/*
+! Other
+*/
+.MillenniumDesktopSidebar_Content .Community.\-.Profile.pages.header::before {
+    content: "Other";
+    color: #8b929a;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: .5px;
+    line-height: 36px;
+    text-transform: uppercase;
+    user-select: none;
+    margin-right: 26px;
+}

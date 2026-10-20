@@ -1,0 +1,79 @@
+/* ============================================================================
+ * 成就收藏册 · 设计令牌
+ * ----------------------------------------------------------------------------
+ * 展柜（功能 A）与卡包（功能 B）共用。
+ *
+ * 配色原则：**底色跟 SpaceTheme 走，颜色只留给「荣誉」本身**。
+ *   · 界面骨架（页面、书皮、内页）全部取 SpaceTheme 的中性灰阶，
+ *     直接引用它的 --st-* 变量；SpaceTheme 未加载时（例如社区页的边缘情况）退回同值。
+ *   · 唯一的强调色是徽章本身的「徽章蓝 + 奶金」，以及卡片的彩虹边框。
+ *
+ * 字体：SpaceTheme 用 `* { font-family: … !important }` 统一了整个客户端（默认 Be Vietnam Pro），
+ * 这里不跟它抢，只给出同一套回退链，保证 SpaceTheme 换字体时我们跟着换。
+ *
+ * 这个文件通过 skin.json 的 Patches 全局注入（MatchRegexString: ".*"），
+ * 所以只放变量与通用工具类，不要在这里写任何带页面假设的选择器。
+ * ==========================================================================*/
+
+@import url("./art.css");
+
+:root {
+    /* ── 中性骨架（= SpaceTheme） ─────────────────────────────────────────── */
+    --ac-bg: rgb(var(--st-background, 10, 10, 10));
+    --ac-surface-1: rgb(var(--st-color-1, 17, 17, 17));
+    --ac-surface-2: rgb(var(--st-color-4, 24, 24, 24));
+    --ac-surface-3: rgb(var(--st-color-2, 30, 30, 30));
+    --ac-line: rgba(255, 255, 255, 0.07);
+    --ac-line-strong: rgba(255, 255, 255, 0.14);
+    --ac-text: #ebedf0;
+    --ac-text-dim: #a3a8b0;
+    --ac-text-faint: #6c7179;
+    --ac-radius: var(--st-border-radius, 8px);
+
+    /* ── 荣誉色 ─────────────────────────────────────────────────────────── */
+    /* 徽章蓝：与 SpaceTheme 的 --st-blue (75,137,239) 同一色相，略压暗做实色条 */
+    --ac-blue-hi: #4c88f2;
+    --ac-blue: #3a72e6;
+    --ac-blue-lo: #2c5fd6;
+
+    /* 奶金：只出现在徽章、卡片标题、日期上 */
+    --ac-gold: #ffd659;
+    --ac-gold-soft: #f3d38a;
+
+    /* 卡片边框的彩虹（参考图 4）：金 → 青柠 → 青 → 天蓝 */
+    --ac-rainbow: linear-gradient(
+        112deg,
+        #ffd23f 0%,
+        #d9f04f 30%,
+        #73e6b6 58%,
+        #5ec8f2 78%,
+        #6aa8ff 100%
+    );
+    /* 「完美通关」字与月桂：青柠 → 青 */
+    --ac-perfect: linear-gradient(90deg, #b9f45a 0%, #6ff09a 45%, #3fe2e6 100%);
+
+    /* ── 字体 ─────────────────────────────────────────────────────────── */
+    --ac-font: "Be Vietnam Pro", "Motiva Sans", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
+
+    /* ── 动效 ─────────────────────────────────────────────────────────── */
+    --ac-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --ac-ease-page: cubic-bezier(0.55, 0.05, 0.25, 1);
+}
+
+/* ============================================================================
+ * 通用工具类
+ * ==========================================================================*/
+
+/* 屏幕阅读器专用 */
+.ac-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}

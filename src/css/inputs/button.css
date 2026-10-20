@@ -1,0 +1,70 @@
+button,
+button span,
+.btn_large,
+.btn_large span,
+.btn_medium,
+.btn_medium span,
+.btn_small,
+.btn_small span,
+[class^="btn_"],
+[class^="btn_"] span,
+[role=button] {
+    border-radius: var(--st-border-radius) !important;
+}
+
+
+body button.DialogButton {
+    margin: 0;
+}
+
+
+
+.btn_medium > span, input.btn_medium {
+    padding: 0 12px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    line-height: 32px !important;
+    box-shadow: unset !important;
+}
+
+
+.btn_green_steamui,
+[class^="btn_green_"],
+._5b8C30zCFXs- {
+    padding: 0 !important;
+    color: #fff !important;
+    text-shadow: unset !important;
+    border-radius: var(--st-border-radius) !important;
+    background: unset !important;
+    background-color: rgb(var(--st-green)) !important;
+}
+.btn_green_steamui:hover,
+[class^="btn_green_"]:hover,
+._5b8C30zCFXs-:hover {
+    background: unset !important;
+    background-color: rgb(var(--st-green-hover)) !important;
+}
+.btn_green_steamui span,
+[class^="btn_green_"] span,
+._5b8C30zCFXs- span {
+    background: unset !important;
+    background-color: unset !important;
+}
+
+
+.btn_blue_steamui {
+    padding: 0 !important;
+    color: #fff !important;
+    text-shadow: unset !important;
+    border-radius: var(--st-border-radius) !important;
+    background: unset !important;
+    background-color: rgb(var(--st-blue)) !important;
+}
+.btn_blue_steamui:hover {
+    background: unset !important;
+    background-color: rgb(var(--st-blue-hover)) !important;
+}
+.btn_blue_steamui span {
+    background: unset !important;
+    background-color: unset !important;
+}

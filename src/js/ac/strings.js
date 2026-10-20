@@ -1,0 +1,92 @@
+/**
+ * 成就收藏册 · 全部界面文案
+ *
+ * 本地化集中点：要改文案只改这一个文件。
+ *
+ * 已知取舍：展柜里的「99 项成就」是 Valve 服务端按其本地化渲染的
+ * （英文客户端显示 "99 Achievements"）。我们**不改写**它，
+ * 所以非中文客户端上会是「中英混排」。README 里写明了这一点。
+ */
+
+export const STR = {
+    theme: '成就收藏册',
+
+    /* ── 卡包页面 ───────────────────────────────────────────────────────── */
+    page: {
+        title: '成就卡包',
+        heading: '成就卡包',
+
+        // 状态页：都画在一本合上的册子上（见 cardpack.css 的 .ac-state）
+        loadingTitle: '正在装订…',
+        loadingDesc: '从 Steam 客户端的本地成就缓存里整理收藏卡，不会产生额外的数据请求。',
+
+        notReadyTitle: '正在等待 Steam 数据…',
+        notReadyDesc:
+            '客户端的成就进度缓存还没有就绪（可能是客户端还没完成初始化）。' +
+            '数据没到齐时不会显示空册子。',
+        notReadyRetry: '重试',
+
+        emptyTitle: '还没有可以收录的游戏',
+        emptyDesc: '把任意一款游戏的成就全部解锁，它就会装订进这本收藏册。',
+
+        errorTitle: '整理收藏卡时出错',
+        errorDescFallback: '已保留现有的收藏册。',
+        errorRetry: '重试',
+
+        // 册子上的状态提示（只在需要时说一句，不喧宾夺主）
+        waitingNote: '正在等待 Steam 数据，当前显示的是上次缓存的内容',
+        staleAction: '刷新',
+        datesNote: (done, total) => `正在读取完成日期… ${done} / ${total}`,
+        datesNoteDone: (ok, failed) =>
+            failed > 0 ? `完成日期已读取 ${ok} 个，${failed} 个未取得（这些卡片不显示日期）` : `完成日期已读取 ${ok} 个`,
+        datesDisabled: '完成日期读取已在主题设置里关闭',
+    },
+
+    /* ── 收藏卡（cardview.js） ──────────────────────────────────────────── */
+    card: {
+        perfect: '完美通关',
+        badge: '完美通关徽章',
+        dateTitle: '完成日期：该游戏最后一个成就的解锁时间',
+        rare: (n) => `稀有成就 ${n} 项（全球解锁率低于 10%）`,
+        common: (n) => `普通成就 ${n} 项`,
+        unrated: (n) => `未统计全球完成率 ${n} 项`,
+        playtime: (text) => `游玩时长 ${text}`,
+        front: (name) => `${name} · 收藏卡正面，点击翻到下一页`,
+        back: (name) => `${name} · 收藏卡背面，点击翻回上一页`,
+    },
+
+    /* ── 收藏册（book.js） ──────────────────────────────────────────────── */
+    book: {
+        title: '成就收藏册',
+        subtitle: 'ACHIEVEMENT COLLECTION',
+        hint: '轻点卡片翻页',
+        endTitle: '未完待续',
+        endDesc: '下一款完美通关的游戏，会收进这一页',
+        label: '成就收藏册，左右两页，点击卡片翻页',
+        pageStatus: (page, total) => `第 ${page} / ${total} 页`,
+        introduced: (names) => `新收录：${names.join('、')}`,
+    },
+
+    /* ── 展柜 ───────────────────────────────────────────────────────────── */
+    showcase: {
+        // 统计行里「已完成的游戏和组」改成这句；数字不动
+        perfectGames: '完美通关的游戏',
+        // 锁区等原因连备用封面都取不到时的占位文字
+        coverMissing: '封面暂不可用',
+    },
+
+    /* ── 自检 ───────────────────────────────────────────────────────────── */
+    selftest: {
+        header: '成就收藏册 · 挂钩点自检',
+        selectors: 'DOM 挂钩点',
+        globals: '全局对象探测路径',
+        dataSource: '主数据源',
+        entry: '卡包入口',
+        model: '判定用例',
+        ok: 'OK',
+        missing: '缺失',
+        skipped: '跳过',
+    },
+};
+
+export default STR;

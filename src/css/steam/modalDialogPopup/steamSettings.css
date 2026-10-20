@@ -1,0 +1,490 @@
+/*
+& Custom sidebar icons
+*/
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO ._1rD8X96FdnksZLvRRlEiCR::before {
+    font-size: 18px;
+    color: #b8bcbf;
+}
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO:hover ._1rD8X96FdnksZLvRRlEiCR::before {
+    color: #fff;
+}
+
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO ._1rD8X96FdnksZLvRRlEiCR svg {
+    display: none;
+}
+
+/*^ Account tab */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/account"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\e93b";
+}
+
+/*^ Friends & Chat */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/friends"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f5b3";
+}
+
+/*^ Family */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/family"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f5c3";
+}
+
+/*^ Security */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/security"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f6c8";
+}
+
+/*^ Notifications */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/notifications"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\e019";
+}
+
+/*^ Interface */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/interface"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f05f6";
+}
+
+/*^ Store */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/store"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f26b";
+}
+
+/*^ Library */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/library"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f4dd";
+}
+
+/*^ Downloads */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/downloads"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f151";
+}
+
+/*^ Storage */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/storage"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f0319";
+}
+
+/*^ Cloud */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/cloud"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\e3c4";
+}
+
+/*^ Ingame */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/ingame"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\eeb9";
+}
+
+/*^ Compatibility */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/compatibility"] ._1rD8X96FdnksZLvRRlEiCR svg {
+    display: block;
+}
+
+/*^ Accessibility */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/accessibility"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f104";
+}
+
+/*^ Controller */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/controller"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\eeb9";
+}
+
+/*^ Gamerecording */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/gamerecording"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f662";
+    font-family: FluentSystemIcons-Regular !important;
+}
+
+/*^ Voice */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/voice"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f552";
+}
+
+/*^ Remoteplay */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/remoteplay"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\e455";
+}
+
+/*^ Broadcast */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/broadcast"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f4fb";
+}
+
+/*^ Music */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/music"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\e863";
+}
+
+/*^ Developer */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/developer"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f2f0";
+}
+
+/*^ Valve Internal */
+body ._2kwFFHckg8jvnwJfg9-la8 ._1-vlriAtKYDViAEunue4VO[id*="/settings/internal"] ._1rD8X96FdnksZLvRRlEiCR::before {
+    content: "\f2f0";
+}
+
+
+
+/*
+& Account Tab
+*/
+/*
+! Avatar
+*/
+body .DialogBody ._2SLehb0Hvx-jWmuv0gPqB- ._2Qyhcy1iiwhD1Mn6m4teKQ {
+    margin: 0 12px 0 0;
+}
+
+
+/*
+! Add Funds & Privacy & Account Details buttons
+*/
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx {
+    gap: 6px;
+    padding: 0 12px 6px;
+    background-color: rgb(var(--st-color-2));
+}
+
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P {
+    display: grid;
+    gap: 6px;
+    grid-auto-columns: auto 1fr;
+    grid-auto-rows: auto 1fr;
+    grid-template-areas:
+    "icon title"
+    "desc desc";
+    justify-items: start;
+    max-width: unset;
+    margin: 0;
+    padding: 12px;
+    background-color: rgb(var(--st-color-4)) !important;
+    box-shadow: unset !important;
+}
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P:hover {
+    background-color: rgb(var(--st-color-3)) !important;
+}
+
+
+/** Custom icons */
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P::before {
+    grid-area: icon;
+    opacity: 1;
+    position: unset;
+    font-size: 24px;
+    color: #fff;
+    box-shadow: unset;
+}
+
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P svg {
+    display: none;
+}
+
+/*^ Add Funds */
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P:nth-child(1)::before {
+    content: "\f55a";
+}
+
+/*^ Privacy */
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P:nth-child(2)::before {
+    content: "\f408";
+}
+
+/*^ Account Details */
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P:nth-child(3)::before {
+    content: "\e941";
+}
+
+
+/** Title */
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P ._3wadwgMy2-9k8uOKh3iSdT {
+    grid-area: title;
+    text-align: left;
+    line-height: 24px;
+}
+
+/** Description */
+body .DialogBody .onPxgvGKxGbKdE7dDWrMx ._2HosnnI_K6IvS1QMGhq46P ._3Wb9yDmYPUJksCr7HmaT9H {
+    grid-area: desc;
+    text-align: left;
+}
+
+
+
+/*
+& Family
+*/
+/*
+! Create or join button
+*/
+body .DialogBody .WIVHxIb79kMHNG7iA_Q9H {
+    margin: 12px 0;
+}
+
+
+body .DialogBody .WIVHxIb79kMHNG7iA_Q9H ._3W3GOfKp-DI8NI_UMouX-S {
+    display: none;
+}
+
+
+/*
+! List
+*/
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 {
+    margin-bottom: 12px;
+    padding: 12px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+}
+
+
+/** Title */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 ._3K8Afwm4bvd9vSIzAz9siX {
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 0;
+}
+
+/*^ Icon */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 ._3K8Afwm4bvd9vSIzAz9siX ._1RfVQWVozb8NJ_wmCLAtxP {
+    display: flex;
+}
+
+
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 ._3K8Afwm4bvd9vSIzAz9siX ._1RfVQWVozb8NJ_wmCLAtxP::before {
+    content: "\f5c3" !important;
+    font-size: 22px;
+    color: #b8bcbf;
+}
+
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 ._3K8Afwm4bvd9vSIzAz9siX ._1RfVQWVozb8NJ_wmCLAtxP svg {
+    display: none;
+}
+
+
+/** Button */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 ._3epr8QYWw_FqFgMx38YEEm {
+    margin-bottom: 12px;
+}
+
+
+/** Member list */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection {
+    padding: 12px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-3));
+}
+
+/*^ Title */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection .SettingsDialogSubHeader {
+    margin-bottom: 12px;
+    padding: 0;
+    letter-spacing: unset;
+    background: unset;
+}
+
+/*^ Member */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection ._2LyGIHuQ8SFKb5T262YUvg {
+    margin: 0 0 6px !important;
+    padding: 12px !important;
+    background-color: rgb(var(--st-color-4));
+}
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection ._2LyGIHuQ8SFKb5T262YUvg:last-of-type {
+    margin-bottom: 0 !important;
+}
+
+/* User Infos */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection ._2LyGIHuQ8SFKb5T262YUvg ._2oSTSohQ1CZIgVn7E6_0Ft {
+    gap: 12px;
+    margin-right: auto;
+}
+
+
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection ._2LyGIHuQ8SFKb5T262YUvg ._2oSTSohQ1CZIgVn7E6_0Ft .nOdcT-MoOaXGePXLyPe0H {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: normal;
+}
+
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection ._2LyGIHuQ8SFKb5T262YUvg ._2oSTSohQ1CZIgVn7E6_0Ft ._2Ri005Wg_uXDTa71kdRbcN {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: normal;
+}
+
+/* Type */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection ._2LyGIHuQ8SFKb5T262YUvg ._3VzCnvA_1SxskuCqmZkkHA ._1uvKF_UbD6VhnVdaRkXhbu {
+    display: none;
+}
+
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection ._2LyGIHuQ8SFKb5T262YUvg ._3VzCnvA_1SxskuCqmZkkHA ._3C9nRrwzQk9qHlJx6NaXDI {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+}
+
+/* Me */
+body .DialogBody ._3RNLmzBdpcg55exL2SwhT1 .DialogSettingsSection ._2LyGIHuQ8SFKb5T262YUvg ._2W_HQa5Rhf-hHITgV5H0bu {
+    width: unset;
+    height: unset;
+    padding: 6px 12px;
+    text-transform: uppercase;
+    border-radius: var(--st-border-radius);
+    color: #fff;
+    background-color: rgb(var(--st-green));
+}
+
+
+
+/*
+& Notifications
+*/
+/*
+! Client & Friend Notifications header
+*/
+body .DialogBody ._2zGUtyw-lRSsEUPY1qaqf7 {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin: 0;
+    padding: 0 24px 0 0;
+    border-top-left-radius: var(--st-border-radius);
+    border-top-right-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+}
+
+body .DialogBody ._2zGUtyw-lRSsEUPY1qaqf7 .SettingsDialogSubHeader {
+    border-radius: 0;
+    background: none;
+}
+
+/*^ Show Toast / Play Sound labels */
+body .DialogBody ._2zGUtyw-lRSsEUPY1qaqf7 ._27r3CjIYhU20TsukVgm25C {
+    padding-bottom: 6px;
+}
+
+
+/*
+! Flash window
+*/
+body .DialogBody .DialogControlsSection > ._1RCWDLVLFja1TdD1P53BMq {
+    margin: 0;
+    padding: 12px 12px 6px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 22px;
+    letter-spacing: .5px;
+    border-top-left-radius: var(--st-border-radius);
+    border-top-right-radius: var(--st-border-radius);
+    color: #fff;
+    background-color: rgb(var(--st-color-2));
+}
+
+body .DialogBody .DialogControlsSection > .Panel > .Shared_Radio_Group {
+    margin: 0;
+    padding: 12px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-3));
+}
+
+
+/*
+! Store News & Personal Activity
+*/
+body .DialogBody .kslgScf2gDsE4jgFDZHEW ._3yay2uMeJpDxY5cg2GaJp4 {
+    display: none;
+}
+
+/*^ Notify me via / Email / Toast / Mobile / Feed labels */
+body .DialogBody .kslgScf2gDsE4jgFDZHEW .HVw3CRf81mlOgayKXNIIB {
+    margin: -1px 0 0;
+    padding: 0 24px 6px;
+    background-color: rgb(var(--st-color-2));
+}
+
+/*^ Items full width with checkboxes on the right */
+body .DialogBody .kslgScf2gDsE4jgFDZHEW .Jgod1QRim6eNfvia2_3Ac ._2tALpM7z8naXJ35Pp5fNAG {
+    flex: 1;
+    width: 100%;
+}
+
+body .DialogBody .kslgScf2gDsE4jgFDZHEW .Jgod1QRim6eNfvia2_3Ac ._2tALpM7z8naXJ35Pp5fNAG ._2VcTlXFC64Jtg9gvtT6cmY {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+body .DialogBody .kslgScf2gDsE4jgFDZHEW .Jgod1QRim6eNfvia2_3Ac ._2tALpM7z8naXJ35Pp5fNAG ._2VcTlXFC64Jtg9gvtT6cmY .PSZtxj2h3MlyYv-c9dgke {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+
+
+/*
+& Library
+*/
+/*
+! Display size
+*/
+body .DialogBody .DialogControlsSection > .DialogBodyText._2NyRKE2oI1jbaiJwFLf7CY {
+    margin: 0;
+    padding: 12px 12px 6px;
+    border-top-left-radius: var(--st-border-radius);
+    border-top-right-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+}
+
+body .DialogBody .DialogControlsSection > .Panel:has(+ ._3pM_dXquibd9REIjArfe7m) {
+    margin-bottom: 12px !important;
+    padding-bottom: 12px !important;
+    border-bottom-left-radius: var(--st-border-radius);
+    border-bottom-right-radius: var(--st-border-radius);
+}
+
+/*^ Separator */
+body .DialogBody .DialogControlsSection > ._3pM_dXquibd9REIjArfe7m {
+    display: none;
+}
+
+
+
+/*
+& Downloads
+*/
+/*
+! Game update timing
+*/
+body .DialogBody .DialogControlsSection > ._3Vl2zkYPoCpw1q_1n28D3z {
+    margin: -1px 0 0;
+    padding: 0 12px 6px;
+    background-color: rgb(var(--st-color-2));
+}
+
+/** Title */
+body .DialogBody .DialogControlsSection > ._3Vl2zkYPoCpw1q_1n28D3z > ._1RCWDLVLFja1TdD1P53BMq {
+    margin: 0;
+    padding: 12px 12px 1px;
+    font-weight: 500;
+    border-top-left-radius: var(--st-border-radius);
+    border-top-right-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-3));
+}
+
+/** Description */
+body .DialogBody .DialogControlsSection > ._3Vl2zkYPoCpw1q_1n28D3z > ._3w92Ej5Kq7nbt5WACQ6jwI {
+    margin: -1px 0 0;
+    padding: 6px 12px 0;
+    background-color: rgb(var(--st-color-3));
+}
+
+/** Dropdown & exceptions button */
+body .DialogBody .DialogControlsSection > ._3Vl2zkYPoCpw1q_1n28D3z > ._1m4hl8tdIUyt1rAnE4y5ZQ {
+    margin: -1px 0 0;
+    padding: 12px;
+    border-bottom-left-radius: var(--st-border-radius);
+    border-bottom-right-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-3));
+}

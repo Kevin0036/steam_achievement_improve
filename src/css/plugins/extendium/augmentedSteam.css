@@ -1,0 +1,30 @@
+.game_bg.application .es_regional_icon {
+    background-image: unset !important;
+}
+
+.game_bg.application .es_regional--always.svelte-tc81l5 {
+    float: left !important;
+}
+
+
+
+
+/*
+! Quick fix for store gamepage in info sidebar
+*/
+.appPage.svelte-1dpbpco {
+    margin: 0 !important;
+}
+
+
+/*
+& Price comparison
+*/
+.es_regional--always.svelte-3g3bhh {
+    float: left;
+    margin-top: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: unset;
+    background-color: rgb(var(--st-color-1));
+}

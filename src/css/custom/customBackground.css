@@ -1,0 +1,23 @@
+:has([href*="id/SpaceEnergy/badges"]) .profile_animated_background>video {
+    display: none;
+}
+
+
+
+
+:has([href*="id/SpaceEnergy/badges"]) .profile_animated_background {
+    position: fixed;
+    height: 100vh;
+    min-height: unset;
+    border-radius: var(--st-border-radius) 0 0 var(--st-border-radius);
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+
+
+
+:has([href*="id/SpaceEnergy/badges"]) .profile_animated_background {
+    background-image: url("https://robertsspaceindustries.com/i/82b3eb537021a2124407a7a57596a36138818581/TZjG7hXReeVtMUKUjmBfQjnyWFuUc9NEHqhLa6UjruiQa3MvnoH2WL8dEpM7rYDVdwnqgMdUshvZzq1UXXa4guctJGNbvf5JF51zWkxB9dQXUjAZnZcZpUBmvhBWPPAyoHfGFCZvY4ysDQ/star-citizen-rsi-aurora-mk1-landed-4k.webp");
+}

@@ -1,0 +1,506 @@
+/* ============================================================================
+ * 成就收藏册 · 收藏卡（正面 / 背面）
+ * ----------------------------------------------------------------------------
+ * 比例 5 / 7（标准实体收藏卡）。卡片自己是一个尺寸容器（container-type），
+ * 里面所有尺寸都用 cqw（卡宽的 1%）——卡片放多大，排版就等比缩放多大，
+ * 不会出现某个尺寸下文字挤压、徽章错位的情况。
+ *
+ * 正面构造见 cardview.js 顶部注释（参照参考图 4，去掉底部小黑盒标识）。
+ * ==========================================================================*/
+
+.ac-card {
+    --rx: 0deg;
+    --ry: 0deg;
+    --px: 0.5;
+    --py: 0.5;
+    --mx: 50%;
+    --my: 50%;
+    --lift: 1;
+    --card-r: 5.6cqw;
+
+    position: relative;
+    width: 100%;
+    aspect-ratio: 5 / 7;
+    container-type: inline-size;
+    cursor: pointer;
+    outline: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ── 悬停检视：倾斜层 + 投影层 ─────────────────────────────────────────── */
+
+.ac-card__tilt {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--card-r);
+    transform: perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry)) scale(var(--lift));
+    transition: transform 0.6s var(--ac-ease-out);
+    will-change: transform;
+}
+
+.ac-card[data-hover] {
+    --lift: 1.035;
+}
+
+.ac-card[data-hover] .ac-card__tilt {
+    transition: transform 0.14s ease-out;
+}
+
+/* 卡片落在卡槽里的投影：悬停时卡片「拿起来」，投影变远变虚，并向倾斜的反方向偏 */
+.ac-card__shadow {
+    position: absolute;
+    inset: 3% 5% 1%;
+    border-radius: var(--card-r);
+    background: rgba(0, 0, 0, 0.6);
+    filter: blur(1.4cqw);
+    transform: translate(0, 1cqw);
+    opacity: 0.55;
+    transition:
+        transform 0.6s var(--ac-ease-out),
+        filter 0.6s var(--ac-ease-out),
+        opacity 0.6s var(--ac-ease-out);
+}
+
+.ac-card[data-hover] .ac-card__shadow {
+    filter: blur(4.5cqw);
+    opacity: 0.75;
+    transform: translate(calc((0.5 - var(--px)) * 7cqw), calc((0.5 - var(--py)) * 6cqw + 5.5cqw)) scale(0.96);
+    transition-duration: 0.14s;
+}
+
+/* 跟随指针的反光：一个柔和的光斑 + 一条斜向流光 */
+.ac-card__glare {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background:
+        radial-gradient(circle at var(--mx) var(--my), rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.06) 30%, transparent 58%),
+        linear-gradient(
+            115deg,
+            transparent calc(var(--px) * 60% + 8%),
+            rgba(255, 255, 255, 0.16) calc(var(--px) * 60% + 18%),
+            transparent calc(var(--px) * 60% + 30%)
+        );
+    mix-blend-mode: overlay;
+    transition: opacity 0.4s ease;
+}
+
+.ac-card[data-hover] .ac-card__glare {
+    opacity: 1;
+}
+
+.ac-card:focus-visible .ac-card__tilt {
+    outline: 2px solid rgba(var(--st-accent-1, 102, 108, 255), 0.9);
+    outline-offset: 0.8cqw;
+}
+
+/* ── 正反面共用：彩虹边框 ──────────────────────────────────────────────── */
+
+.ac-cf,
+.ac-cb {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    padding: 2.3cqw;
+    border-radius: var(--card-r);
+    background: var(--ac-rainbow);
+    /* 边框颜色随指针缓慢流动，像实体卡的镭射边 */
+    background-size: 170% 170%;
+    background-position: calc(var(--px) * 100%) calc(var(--py) * 100%);
+    box-shadow:
+        inset 0 0 0 0.25cqw rgba(255, 255, 255, 0.35),
+        0 0 0 0.2cqw rgba(0, 0, 0, 0.25);
+}
+
+/* ── 正面 ──────────────────────────────────────────────────────────────── */
+
+.ac-cf {
+    --ac-tone: hsl(222 10% 24%);
+}
+
+.ac-cf__inner {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 3.6cqw;
+    background:
+        radial-gradient(62% 40% at 50% 31%, color-mix(in srgb, var(--ac-tone), #fff 12%), transparent 75%),
+        linear-gradient(180deg, var(--ac-tone) 40%, color-mix(in srgb, var(--ac-tone), #000 22%) 100%);
+    box-shadow: inset 0 0 0 0.3cqw rgba(0, 0, 0, 0.28);
+    color: #fff;
+    font-family: var(--ac-font);
+    transition: background-color 0.6s ease;
+}
+
+/* 插画：上半部分，渐隐进底色 */
+.ac-cf__art {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 60%;
+    object-fit: cover;
+    object-position: center 30%;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.6) 78%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.6) 78%, transparent 100%);
+}
+
+.ac-cf__art[data-missing] {
+    display: none;
+}
+
+/* 以徽章为中心的放射光 */
+.ac-cf__rays {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 50% 31%, rgba(255, 244, 214, 0.22), rgba(255, 244, 214, 0) 30%),
+        repeating-conic-gradient(
+            from 0deg at 50% 31%,
+            rgba(255, 255, 255, 0.07) 0deg 4.5deg,
+            rgba(255, 255, 255, 0) 4.5deg 15deg
+        );
+    -webkit-mask-image: radial-gradient(circle at 50% 31%, #000 0%, rgba(0, 0, 0, 0.7) 32%, transparent 68%);
+    mask-image: radial-gradient(circle at 50% 31%, #000 0%, rgba(0, 0, 0, 0.7) 32%, transparent 68%);
+}
+
+/* 星芒 */
+.ac-cf__sparkles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.ac-cf__spark {
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    width: var(--s);
+    aspect-ratio: 1;
+    background: linear-gradient(160deg, #fffbe8, #ffd659);
+    -webkit-mask: var(--ac-sparkle) center / contain no-repeat;
+    mask: var(--ac-sparkle) center / contain no-repeat;
+    filter: drop-shadow(0 0 0.8cqw rgba(255, 214, 89, 0.6));
+    transform: translate(-50%, -50%);
+    animation: ac-twinkle 3.6s ease-in-out var(--d) infinite;
+}
+
+/* 细碎星点：很淡，压在文字上也不抢 */
+.ac-cf__spark--dust {
+    background: #fff;
+    filter: none;
+    animation-name: ac-twinkle-dust;
+    animation-duration: 5s;
+}
+
+@keyframes ac-twinkle-dust {
+    0%, 100% { opacity: 0.32; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 0.08; transform: translate(-50%, -50%) scale(0.6); }
+}
+
+@keyframes ac-twinkle {
+    0%, 100% { opacity: 0.95; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 0.35; transform: translate(-50%, -50%) scale(0.7); }
+}
+
+/* 徽章 */
+.ac-cf__badge {
+    position: absolute;
+    top: 19.5%;
+    left: 50%;
+    width: 35%;
+    aspect-ratio: 100 / 118;
+    transform: translateX(-50%);
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 1.4cqw 1.8cqw rgba(0, 0, 0, 0.35));
+}
+
+/* 宝珠上掠过的一道光：悬停时播放一次 */
+.ac-cf__badge::after {
+    content: "";
+    position: absolute;
+    top: 26.9%;
+    left: 34.8%;
+    width: 30.4%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: linear-gradient(125deg, transparent 35%, rgba(255, 255, 255, 0.75) 48%, transparent 60%) 140% 0 / 300% 100% no-repeat;
+    mix-blend-mode: overlay;
+    opacity: 0;
+}
+
+.ac-card[data-hover] .ac-cf__badge::after {
+    animation: ac-orb-shine 1.3s ease-out 0.05s both;
+}
+
+@keyframes ac-orb-shine {
+    0% { opacity: 1; background-position: 140% 0; }
+    100% { opacity: 1; background-position: -40% 0; }
+}
+
+/* 文字区：贴底排布 */
+.ac-cf__body {
+    position: absolute;
+    right: 6cqw;
+    bottom: 8cqw;
+    left: 6cqw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.ac-cf__title {
+    display: -webkit-box;
+    max-width: 100%;
+    margin-bottom: 2.4cqw;
+    overflow: hidden;
+    font-size: 4.6cqw;
+    font-weight: 500;
+    line-height: 1.32;
+    letter-spacing: 0.03em;
+    color: var(--ac-gold);
+    text-shadow: 0 0.3cqw 0.8cqw rgba(0, 0, 0, 0.3);
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-wrap: balance;
+}
+
+.ac-cf__perfect {
+    display: flex;
+    align-items: center;
+    gap: 1.4cqw;
+    margin-bottom: 2.8cqw;
+}
+
+.ac-cf__perfect span {
+    padding-left: 0.08em;
+    font-size: 10.4cqw;
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    background: var(--ac-perfect);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0.5cqw 0.8cqw rgba(0, 0, 0, 0.28));
+}
+
+.ac-cf__laurel {
+    flex: none;
+    width: 5.8cqw;
+    height: 13.5cqw;
+    background: linear-gradient(180deg, #d4f56c, #74ee9c);
+    -webkit-mask: var(--ac-laurel) center / contain no-repeat;
+    mask: var(--ac-laurel) center / contain no-repeat;
+    filter: drop-shadow(0 0.5cqw 0.8cqw rgba(0, 0, 0, 0.25));
+}
+
+.ac-cf__laurel--r {
+    background: linear-gradient(180deg, #6ff0b0, #3fe2e6);
+    transform: scaleX(-1);
+}
+
+.ac-cf__owner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2cqw;
+    max-width: 100%;
+    margin-bottom: 3.6cqw;
+    font-size: 3.9cqw;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.ac-cf__avatar {
+    flex: none;
+    width: 6.6cqw;
+    height: 6.6cqw;
+    object-fit: cover;
+    border-radius: 1.3cqw;
+    box-shadow: 0 0 0 0.25cqw rgba(255, 255, 255, 0.12);
+}
+
+.ac-cf__avatar[data-missing] {
+    display: none;
+}
+
+.ac-cf__persona {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(255, 255, 255, 0.86);
+}
+
+.ac-cf__date {
+    flex: none;
+    color: var(--ac-gold);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
+.ac-cf__rule {
+    width: 100%;
+    height: 1px;
+    margin-bottom: 3.8cqw;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2) 14%, rgba(255, 255, 255, 0.2) 86%, transparent);
+}
+
+.ac-cf__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+}
+
+.ac-cf__stats[data-count="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 70%;
+}
+
+.ac-cf__stats[data-count="4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ac-cf__stats[data-count="1"] {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.ac-cf__stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.6cqw;
+}
+
+.ac-cf__icon {
+    width: 6.2cqw;
+    height: 6.2cqw;
+    -webkit-mask: var(--ac-trophy) center / contain no-repeat;
+    mask: var(--ac-trophy) center / contain no-repeat;
+    filter: drop-shadow(0 0.3cqw 0.5cqw rgba(0, 0, 0, 0.3));
+}
+
+.ac-cf__stat--gold .ac-cf__icon {
+    background: linear-gradient(160deg, #fff3a8, #f7c53a 55%, #d38f12);
+}
+
+.ac-cf__stat--silver .ac-cf__icon {
+    background: linear-gradient(160deg, #ffffff, #d0d8e2 55%, #8f9bab);
+}
+
+.ac-cf__stat--unrated .ac-cf__icon {
+    display: grid;
+    box-sizing: border-box;
+    place-items: center;
+    border: 0.32cqw solid rgba(218, 226, 237, 0.75);
+    border-radius: 50%;
+    background: rgba(218, 226, 237, 0.12);
+    -webkit-mask: none;
+    mask: none;
+}
+
+.ac-cf__stat--unrated .ac-cf__icon::before {
+    content: '?';
+    color: #d9e1eb;
+    font-size: 4.2cqw;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ac-cf__stat--time .ac-cf__icon {
+    background: #fff;
+    -webkit-mask-image: var(--ac-stopwatch);
+    mask-image: var(--ac-stopwatch);
+}
+
+.ac-cf__num {
+    font-size: 5.6cqw;
+    line-height: 1;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.ac-cf__num b {
+    font-weight: 700;
+}
+
+.ac-cf__num span {
+    margin-left: 0.1em;
+    font-size: 0.86em;
+    font-weight: 500;
+    opacity: 0.45;
+}
+
+.ac-cf__stat--gold .ac-cf__num b {
+    color: var(--ac-gold);
+}
+
+.ac-cf__stat--silver .ac-cf__num b {
+    color: #e6edf5;
+}
+
+.ac-cf__stat--unrated .ac-cf__num b {
+    color: #d9e1eb;
+}
+
+/* ── 背面：游戏的竖版胶囊封面 ──────────────────────────────────────────── */
+
+.ac-cb__inner {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 3.6cqw;
+    background: linear-gradient(160deg, #24262e, #15161a);
+}
+
+.ac-cb__art {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ac-cb__art[data-missing] {
+    display: none;
+}
+
+/* 覆膜质感：左上一层淡淡的高光 + 内描边 */
+.ac-cb__gloss {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+        linear-gradient(150deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 34%),
+        linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0) 26%);
+    box-shadow: inset 0 0 0 0.3cqw rgba(0, 0, 0, 0.3);
+}
+
+/* ── 减少动态效果 ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-card__tilt,
+    .ac-card__shadow {
+        transition: none;
+    }
+
+    .ac-card[data-hover] {
+        --rx: 0deg !important;
+        --ry: 0deg !important;
+    }
+
+    .ac-cf__spark,
+    .ac-card[data-hover] .ac-cf__badge::after {
+        animation: none;
+    }
+}

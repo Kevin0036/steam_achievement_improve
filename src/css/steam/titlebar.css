@@ -1,0 +1,151 @@
+/* On Focus blue line */
+._3pXasCUulX4jjqO79s4q_F._2MkHZqf7MrgW3f8qGHiI8Z {
+    display: none;
+}
+
+
+
+._3Z7VQ1IMk4E3HsHvrkLNgo {
+    box-shadow: none !important;
+    background: none !important;
+}
+._39oUCO1OuizVPwcnnv88no {
+    height: 46px;
+}
+
+
+
+/* URL bar */
+._1bGewp3tfzqAF6fVTFFUOz .UkR3sY319PuaUNuUWks2K {
+    margin-bottom: 12px;
+    padding: 6px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+    box-shadow: none;
+}
+
+
+
+/* wierd top bar */
+._2CmrnGY-Amtd83ScJkFvx2 {
+    display: none !important;
+}
+
+
+/*
+! Menu
+*/
+._1Ky59qmywxOUtNcI1cgmkX {
+    gap: unset;
+    margin-top: 0 !important;
+    padding-left: 16px;
+}
+
+/* Item */
+._1Ky59qmywxOUtNcI1cgmkX ._2Lu3d-5qLmW4i19ysTt2jT {
+    padding: 6px 7px;
+    color: transparent;
+}
+._1Ky59qmywxOUtNcI1cgmkX ._2Lu3d-5qLmW4i19ysTt2jT:nth-of-type(1) {
+    z-index: 99999;
+    padding: 0 6px 0 0;
+    color: #8b929a;
+}
+
+/* Item on hover */
+._1Ky59qmywxOUtNcI1cgmkX:hover ._2Lu3d-5qLmW4i19ysTt2jT {
+    color: #8b929a;
+}
+._1Ky59qmywxOUtNcI1cgmkX ._2Lu3d-5qLmW4i19ysTt2jT:hover {
+    color: #fff;
+}
+
+/* Text Logo */
+.bSKGlAJG2UVWTsntEJY2v {
+    font-size: 0;
+}
+.bSKGlAJG2UVWTsntEJY2v::after {
+    display: flex;
+    align-items: center;
+    margin-left: -4px;
+    content: "Space" !important;
+    font-weight: 500;
+    font-size: 12px !important;
+    color: rgb(135, 140, 255);
+}
+._2UyOBeiSdBayaFdRa39N2O:nth-of-type(1)::after {
+    display: flex;
+    align-items: center;
+    content: "Theme" !important;
+    font-weight: 900;
+    color: rgb(102, 108, 255);
+}
+
+
+/*
+! Navigation
+*/
+._3Z3ohQ8-1NKnCZkbS6fvy {
+    position: absolute;
+    top: 23px;
+    left: 50%;
+    width: fit-content;
+    height: 46px;
+    padding: 0;
+    transform: translate(-50%, -50%);
+}
+
+/* Back & Forward */
+._3Z3ohQ8-1NKnCZkbS6fvy ._2D64jIEK7wpUR_NlObDW76 svg {
+    padding: 0 12px;
+}
+._3Z3ohQ8-1NKnCZkbS6fvy ._2D64jIEK7wpUR_NlObDW76 svg:nth-child(2) {
+    order: 2;
+}
+
+._3Z3ohQ8-1NKnCZkbS6fvy ._7AlhCx3XGzBeIrQaCneUD {
+    height: 20px;
+    font-size: unset;
+}
+._7AlhCx3XGzBeIrQaCneUD._1gqEjB5QsKT_NftD1dEsdZ:not(._2cO0HdvLEGAdhosLekWsmo) ._19axKcqYRuaJ8vdYKYmtTQ {
+    color: rgb(var(--st-accent-1));
+    text-shadow: none;
+}
+._7AlhCx3XGzBeIrQaCneUD._1gqEjB5QsKT_NftD1dEsdZ:not(._2cO0HdvLEGAdhosLekWsmo) ._19axKcqYRuaJ8vdYKYmtTQ::after {
+    height: 3.2px;
+    background: rgb(var(--st-accent-1));
+}
+
+
+
+/*
+! Size
+*/
+._3Z7VQ1IMk4E3HsHvrkLNgo:has(._39oUCO1OuizVPwcnnv88no ._3cykd-VfN_xBxf3Qxriccm) {
+    @media (max-width: 1188px) {
+        /** Titlebar */
+        ._39oUCO1OuizVPwcnnv88no {
+            height: 80px !important;
+            align-items: flex-start;
+        }
+
+        /*^ Steam Logo / buttons */
+        ._39oUCO1OuizVPwcnnv88no ._1Ky59qmywxOUtNcI1cgmkX {
+            height: 46px;
+        }
+
+        /*^ Navigation */
+        ._3Z3ohQ8-1NKnCZkbS6fvy {
+            position: absolute;
+            top: 36px;
+            left: 0;
+            width: -webkit-fill-available;
+            height: 28px;
+            transform: none;
+        }
+
+        ._3Z3ohQ8-1NKnCZkbS6fvy ._2D64jIEK7wpUR_NlObDW76 {
+            justify-content: center;
+        }
+    }
+}

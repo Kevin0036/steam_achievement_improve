@@ -1,0 +1,31 @@
+@import url("./friends/chat.css");
+@import url("./friends/groupChat.css");
+@import url("./friends/list.css");
+
+
+
+.singleWindowFocusBar {
+    mask: unset;
+    -webkit-mask: unset;
+    background: unset;
+}
+
+
+.TitleBar {
+    top: -32px;
+    width: calc(100% + 32px);
+    margin-left: -16px;
+}
+.LegacyPopup .TitleBar {
+    top: 0;
+    width: 100%;
+    margin-left: 0;
+}
+
+
+.friendsListContainer,
+.multiChatDialog {
+    overflow: unset !important;
+    height: calc(100% - 48px);
+    margin: 32px 16px 16px;
+}

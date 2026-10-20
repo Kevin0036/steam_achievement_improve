@@ -1,0 +1,46 @@
+.age_gate #app_agegate {
+    margin: 0 auto;
+}
+
+.age_gate #app_agegate .main_content_ctn {
+    padding: 42px;
+    border: none;
+}
+
+
+
+/* Date Input */
+.age_gate #app_agegate .agegate_birthday_selector {
+    background-color: transparent;
+}
+
+/* Text */
+.age_gate #app_agegate .agegate_birthday_desc {
+    padding-bottom: 6px;
+}
+
+/* Select */
+.age_gate #app_agegate .agegate_birthday_selector select {
+    height: unset;
+    margin: 0 3px;
+    padding: 6px;
+    outline: none;
+    border-radius: var(--st-border-radius);
+    color: rgb(var(--st-blue));
+    background-color: rgb(var(--st-color-2));
+}
+
+
+
+/* Buttons */
+.age_gate #app_agegate .agegate_text_container.btns {
+    height: unset;
+    margin: 12px auto 0;
+}
+
+
+
+/* Image */
+.age_gate #app_agegate .img_ctn {
+    display: none;
+}

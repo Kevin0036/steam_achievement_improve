@@ -1,0 +1,164 @@
+@import url("./inputs/inputs.css");
+@import url("./steam/modalDialogPopup.css");
+
+
+
+/* Scrollbar */
+*::-webkit-scrollbar {
+    width: 16px !important;
+}
+  
+*::-webkit-scrollbar-track {
+    border-radius: var(--st-border-radius) !important;
+}
+  
+*::-webkit-scrollbar-thumb {
+    border-radius: var(--st-border-radius) !important;
+    border: 5px solid transparent !important;
+    background-clip: content-box !important;
+    background-color: rgb(var(--st-accent-1)) !important;
+}
+  
+*::-webkit-scrollbar-thumb:hover {
+    border: 4px solid transparent !important;
+    background-color: rgb(var(--st-accent-2)) !important;
+}
+
+
+
+/* Titlebar controls */
+.title-area,
+.title-area .title-area-highlight,
+.title-area .title-area-children {
+    height: 32px !important;
+    mask: unset;
+    -webkit-mask: unset;
+    background: unset;
+}
+div.ModalPosition_TopBar {
+    display: none;
+}
+
+/* Buttons */
+.title-area .title-bar-actions {
+    max-height: unset;
+    height: 32px;
+}
+
+.title-area .title-area-icon {
+    width: 42px;
+    height: 32px;
+}
+.title-area .title-area-icon:hover {
+    background: rgb(var(--st-color-2));
+}
+
+
+/* Icons */
+.title-area .title-area-icon .SVGIcon_Button line,
+.title-area .title-area-icon .SVGIcon_Button rect,
+.title-area .title-area-icon .SVGIcon_Button polyline {
+    stroke: rgb(var(--st-accent-1));
+}
+
+.title-area .title-area-icon:hover .SVGIcon_Button line,
+.title-area .title-area-icon:hover .SVGIcon_Button rect,
+.title-area .title-area-icon:hover .SVGIcon_Button polyline {
+    stroke: rgb(var(--st-accent-2));
+}
+
+
+/* Close button */
+.title-area .title-area-icon.closeButton:hover {
+    background: rgb(var(--st-accent-1));
+}
+.title-area .title-area-icon.closeButton:hover .SVGIcon_Button line {
+    stroke: rgb(var(--st-color-2));
+}
+
+
+
+/* Resize icon */
+.window_resize_grip {
+    opacity: 0 !important;
+    width: 16px !important;
+    height: 16px !important;
+}
+
+
+/* Avatar */
+body .avatarHolder {
+    transform: unset !important;
+    padding: 2px !important;
+}
+
+body .avatarHolder.Large {
+    height: 76px !important;
+    width: 76px !important;
+    padding: 4px !important;
+}
+
+body .avatarHolder:has(.avatarFrame) {
+    padding: 0 !important;
+}
+
+
+body .avatarHolder .avatarStatus.right {
+    display: none !important;
+}
+
+
+body .avatarHolder .avatar {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    border-radius: var(--st-border-radius) !important;
+    box-shadow: none !important;
+}
+
+body .avatarHolder.online .avatar {
+    outline: 2px solid rgb(var(--st-blue)) !important;
+}
+body .avatarHolder.Large.online .avatar {
+    outline-width: 4px !important;
+}
+
+body .avatarHolder.awayOrSnooze .avatar {
+    outline: 2px solid rgb(var(--st-yellow)) !important;
+}
+body .avatarHolder.Large.awayOrSnooze .avatar {
+    outline-width: 4px !important;
+}
+
+body .avatarHolder.ingame .avatar {
+    outline: 2px solid rgb(var(--st-green)) !important;
+}
+body .avatarHolder.Large.ingame .avatar {
+    outline-width: 4px !important;
+}
+
+body .avatarHolder.offline .avatar {
+    outline: 2px solid #515151 !important;
+}
+body .avatarHolder.Large.offline .avatar {
+    outline-width: 4px !important;
+}
+
+body .avatarHolder:has(.avatarFrame) .avatar {
+    outline: unset !important;
+    border-radius: 0 !important;
+}
+
+
+
+/* Links */
+body :not(:has(ul>li))>a[href]:not(:has(> *)) {
+    font-weight: 400 !important;
+}
+body :not(:has(ul>li))>a[href]:not(:has(> *), .whiteLink) {
+    color: rgb(var(--st-blue)) !important;
+}
+body :not(:has(ul>li))>a[href]:not(:has(> *)):hover {
+    color: rgb(var(--st-blue-hover)) !important;
+}

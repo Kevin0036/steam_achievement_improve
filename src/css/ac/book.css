@@ -1,0 +1,672 @@
+/* ============================================================================
+ * 成就收藏册 · 书本
+ * ----------------------------------------------------------------------------
+ * 一本摊开的黑卡纸集邮册（stockbook）：
+ *   · 书皮：深色皮面 + 细颗粒 + 缝线，颜色取 SpaceTheme 的中性灰阶；
+ *   · 内页：黑卡纸 + 极淡的方格印刷线 + 书脊处的弯折阴影；
+ *   · 每页一个下凹的卡槽，外面一圈印刷细框，底部是编号；
+ *   · 书口厚度随翻到第几页变化（左边越翻越厚，右边越翻越薄）；
+ *   · 一条 SpaceTheme 强调色的丝带书签从书底露出来。
+ *
+ * 尺寸：.ac-album 是尺寸容器，书按 3:2 塞进去；.ac-book 自己也是尺寸容器，
+ *       书里的一切都用 cqh / cqw（书高 / 书宽的 1%），整本书等比缩放。
+ * 翻页的结构与次序见 book.js 顶部注释。
+ * ==========================================================================*/
+
+.ac-album {
+    --ac-turn: 1000ms;
+    --ac-paper: #1c1d21;
+
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    min-height: 420px;
+    overflow: hidden;
+    container-type: size;
+    background:
+        radial-gradient(60% 60% at 50% 46%, rgba(255, 255, 255, 0.04), transparent 70%),
+        var(--ac-surface-1);
+    font-family: var(--ac-font);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.ac-book {
+    position: relative;
+    width: min(94cqw, 132cqh);
+    aspect-ratio: 3 / 2;
+    container-type: size;
+}
+
+/* ── 书皮 ──────────────────────────────────────────────────────────────── */
+
+.ac-book__board {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 1.6cqh;
+    background:
+        var(--ac-grain),
+        radial-gradient(120% 140% at 30% 15%, #272a33 0%, #1a1c22 55%, #121317 100%);
+    background-size: 120px 120px, auto;
+    background-blend-mode: soft-light, normal;
+    box-shadow:
+        0 3.6cqh 7cqh rgba(0, 0, 0, 0.55),
+        0 0.9cqh 1.8cqh rgba(0, 0, 0, 0.4),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* 缝线 */
+.ac-book__board::before {
+    content: "";
+    position: absolute;
+    inset: 1.25cqh;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 1cqh;
+}
+
+/* 书脊：中间一道压痕 */
+.ac-book__board::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2.4cqh;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.45) 50%, rgba(0, 0, 0, 0));
+}
+
+/* 丝带书签：塞在书页之间，只露出书底那一截 */
+.ac-book__ribbon {
+    position: absolute;
+    bottom: -6cqh;
+    left: 55%;
+    z-index: 0;
+    width: 2cqh;
+    height: 16cqh;
+    filter: drop-shadow(0 0.6cqh 0.8cqh rgba(0, 0, 0, 0.5));
+}
+
+.ac-book__ribbon::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgb(54, 58, 140) 0%,
+        rgb(var(--st-accent-1, 102, 108, 255)) 48%,
+        rgb(54, 58, 140) 100%
+    );
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%);
+    opacity: 0.88;
+}
+
+/* ── 书页 ──────────────────────────────────────────────────────────────── */
+
+.ac-book__pages {
+    position: absolute;
+    inset: 2.8cqh 1.5cqw;
+    z-index: 2;
+    perspective: 340cqw;
+}
+
+/* 所有「一页纸」的共同外观：固定页（扉页 / 尾页）与每一叶的两面 */
+.ac-page {
+    position: absolute;
+    overflow: hidden;
+}
+
+.ac-page--base {
+    top: 0;
+    bottom: 0;
+    width: 50%;
+}
+
+.ac-page--base.ac-page--left { left: 0; }
+.ac-page--base.ac-page--right { left: 50%; }
+
+.ac-page--left { border-radius: 1cqh 0 0 1cqh; }
+.ac-page--right { border-radius: 0 1cqh 1cqh 0; }
+
+/* 黑卡纸 + 方格印刷线 + 纤维颗粒 */
+.ac-page__paper {
+    position: absolute;
+    inset: 0;
+    background:
+        var(--ac-grain),
+        linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(180deg, #1f2024, var(--ac-paper) 40%, #19191d);
+    background-size: 120px 120px, 3.3cqh 3.3cqh, 3.3cqh 3.3cqh, auto;
+    background-position: 0 0, center, center, 0 0;
+    background-blend-mode: soft-light, normal, normal, normal;
+}
+
+/* 书脊处的弯折阴影 + 书口的一点受光 */
+.ac-page__paper::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+
+.ac-page--right .ac-page__paper::after {
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.24) 2.5%, rgba(0, 0, 0, 0.07) 7%, rgba(0, 0, 0, 0) 14%),
+        linear-gradient(270deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 3%);
+}
+
+.ac-page--left .ac-page__paper::after {
+    background:
+        linear-gradient(270deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.24) 2.5%, rgba(0, 0, 0, 0.07) 7%, rgba(0, 0, 0, 0) 14%),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 3%);
+}
+
+/* 书口厚度：固定页向外多叠几层「纸边」（右边垫的是扉页，左边垫的是「未完待续」） */
+.ac-book[data-right-depth="1"] .ac-page--base.ac-page--right { box-shadow: 2px 0 0 -1px #2a2b30; }
+.ac-book[data-right-depth="2"] .ac-page--base.ac-page--right { box-shadow: 2px 0 0 -1px #2a2b30, 4px 0 0 -2px #16171a; }
+.ac-book[data-right-depth="3"] .ac-page--base.ac-page--right { box-shadow: 2px 0 0 -1px #2a2b30, 4px 0 0 -2px #16171a, 6px 0 0 -3px #2a2b30; }
+.ac-book[data-right-depth="4"] .ac-page--base.ac-page--right { box-shadow: 2px 0 0 -1px #2a2b30, 4px 0 0 -2px #16171a, 6px 0 0 -3px #2a2b30, 8px 0 0 -4px #16171a; }
+.ac-book[data-left-depth="1"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px #2a2b30; }
+.ac-book[data-left-depth="2"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px #2a2b30, -4px 0 0 -2px #16171a; }
+.ac-book[data-left-depth="3"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px #2a2b30, -4px 0 0 -2px #16171a, -6px 0 0 -3px #2a2b30; }
+.ac-book[data-left-depth="4"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px #2a2b30, -4px 0 0 -2px #16171a, -6px 0 0 -3px #2a2b30, -8px 0 0 -4px #16171a; }
+
+/* 页码（卡片编号） */
+.ac-page__folio {
+    position: absolute;
+    bottom: 4.2cqh;
+    font-size: 1.55cqh;
+    font-weight: 600;
+    letter-spacing: 0.32em;
+    color: rgba(255, 255, 255, 0.24);
+    font-variant-numeric: tabular-nums;
+}
+
+.ac-page--right .ac-page__folio { right: 8%; }
+.ac-page--left .ac-page__folio { left: 8%; }
+
+/* ── 卡槽：下凹的卡位 + 一圈印刷细框 ────────────────────────────────────── */
+
+.ac-slot {
+    position: absolute;
+    top: 46.5%;
+    left: 50%;
+    height: 74cqh;
+    aspect-ratio: 5 / 7;
+    transform: translate(-50%, -50%);
+}
+
+/* 印刷细框（双线） */
+.ac-slot::before {
+    content: "";
+    position: absolute;
+    inset: -3.2cqh;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0.6cqh;
+    box-shadow: inset 0 0 0 0.55cqh rgba(0, 0, 0, 0), inset 0 0 0 calc(0.55cqh + 1px) rgba(255, 255, 255, 0.035);
+    pointer-events: none;
+}
+
+/* 下凹的卡位 */
+.ac-slot::after {
+    content: "";
+    position: absolute;
+    inset: -0.9cqh;
+    z-index: -1;
+    border-radius: 3.8cqh;
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow:
+        inset 0 0.3cqh 0.8cqh rgba(0, 0, 0, 0.7),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+        0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+/* ── 单页四张：只缩放卡槽、重新排布，卡片本身一个像素都不动 ─────────────── */
+
+.ac-book[data-per-page="4"] .ac-slot {
+    height: 36cqh;
+}
+
+.ac-book[data-per-page="4"] .ac-slot[data-slot="0"] { top: 28.5%; left: 32%; }
+.ac-book[data-per-page="4"] .ac-slot[data-slot="1"] { top: 28.5%; left: 68%; }
+.ac-book[data-per-page="4"] .ac-slot[data-slot="2"] { top: 68.5%; left: 32%; }
+.ac-book[data-per-page="4"] .ac-slot[data-slot="3"] { top: 68.5%; left: 68%; }
+
+/* 卡槽缩到 36cqh 后，印刷框和凹槽按同一比例收紧 */
+.ac-book[data-per-page="4"] .ac-slot::before {
+    inset: -1.25cqh;
+    border-radius: 0.35cqh;
+    box-shadow:
+        inset 0 0 0 0.22cqh rgba(0, 0, 0, 0),
+        inset 0 0 0 calc(0.22cqh + 1px) rgba(255, 255, 255, 0.035);
+}
+
+.ac-book[data-per-page="4"] .ac-slot::after {
+    inset: -0.45cqh;
+    border-radius: 1.9cqh;
+}
+
+/* 最后一页没放满时，空卡槽只保留印刷框和凹槽 */
+.ac-slot--empty::before {
+    opacity: 0.55;
+}
+
+/* ── 叶：翻页的单位 ────────────────────────────────────────────────────── */
+
+.ac-leaf {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 50%;
+    transform-origin: 0 50%;
+    transform-style: preserve-3d;
+    transform: rotateY(0deg);
+}
+
+.ac-leaf[data-turned] {
+    transform: rotateY(-180deg);
+}
+
+.ac-leaf.is-turning {
+    transition: transform var(--ac-turn) var(--ac-ease-page);
+}
+
+.ac-leaf__face {
+    inset: 0;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.ac-leaf__face--back {
+    transform: rotateY(180deg);
+}
+
+/* 朝向背面的那一面、翻页途中的叶，都不接收指针 */
+.ac-leaf:not([data-turned]) .ac-leaf__face--back,
+.ac-leaf[data-turned] .ac-leaf__face--front,
+.ac-leaf.is-turning .ac-leaf__face,
+.ac-book[data-turning] .ac-card {
+    pointer-events: none;
+}
+
+/* ── 翻页明暗 ──────────────────────────────────────────────────────────── */
+
+.ac-page__shade {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.ac-page--right > .ac-page__shade {
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.35) 45%, rgba(0, 0, 0, 0.2) 100%);
+}
+
+.ac-page--left > .ac-page__shade {
+    background: linear-gradient(270deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.35) 45%, rgba(0, 0, 0, 0.2) 100%);
+}
+
+/* 被揭开 / 即将被盖住的那一页：只在书脊一侧有一道投影 */
+.ac-page--right[data-shade="reveal"] > .ac-page__shade,
+.ac-page--right[data-shade="cover"] > .ac-page__shade {
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.3) 30%, rgba(0, 0, 0, 0) 75%);
+}
+
+.ac-page--left[data-shade="reveal"] > .ac-page__shade,
+.ac-page--left[data-shade="cover"] > .ac-page__shade {
+    background: linear-gradient(270deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.3) 30%, rgba(0, 0, 0, 0) 75%);
+}
+
+[data-shade="dim"] > .ac-page__shade { animation: ac-shade-dim var(--ac-turn) var(--ac-ease-page) both; }
+[data-shade="light"] > .ac-page__shade { animation: ac-shade-light var(--ac-turn) var(--ac-ease-page) both; }
+[data-shade="reveal"] > .ac-page__shade { animation: ac-shade-reveal var(--ac-turn) var(--ac-ease-page) both; }
+[data-shade="cover"] > .ac-page__shade { animation: ac-shade-cover var(--ac-turn) var(--ac-ease-page) both; }
+
+@keyframes ac-shade-dim {
+    0% { opacity: 0; }
+    50% { opacity: 0.85; }
+    100% { opacity: 1; }
+}
+
+@keyframes ac-shade-light {
+    0% { opacity: 1; }
+    50% { opacity: 0.85; }
+    100% { opacity: 0; }
+}
+
+@keyframes ac-shade-reveal {
+    0% { opacity: 1; }
+    45% { opacity: 0.55; }
+    100% { opacity: 0; }
+}
+
+@keyframes ac-shade-cover {
+    0% { opacity: 0; }
+    55% { opacity: 0.45; }
+    100% { opacity: 0.9; }
+}
+
+/* ── 扉页 ──────────────────────────────────────────────────────────────── */
+
+.ac-page--title .ac-page__paper::before {
+    content: "";
+    position: absolute;
+    inset: 4.4cqh;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 0 0 0.6cqh rgba(0, 0, 0, 0), inset 0 0 0 calc(0.6cqh + 1px) rgba(255, 255, 255, 0.04);
+}
+
+.ac-title {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.ac-title__badge {
+    width: 15cqh;
+    aspect-ratio: 100 / 118;
+    margin-bottom: 4.4cqh;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 1.2cqh 1.8cqh rgba(0, 0, 0, 0.5));
+}
+
+/* 书名：银色烫印 */
+.ac-title__name {
+    padding-left: 0.34em;
+    font-size: 4.6cqh;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.34em;
+    background: linear-gradient(180deg, #f6f3ec 0%, #d9d4c8 55%, #a9a497 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0.25cqh 0.4cqh rgba(0, 0, 0, 0.5));
+}
+
+.ac-title__sub {
+    margin-top: 1.6cqh;
+    padding-left: 0.52em;
+    font-size: 1.35cqh;
+    font-weight: 500;
+    letter-spacing: 0.52em;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.ac-title__rule {
+    width: 9cqh;
+    height: 1px;
+    margin: 4cqh 0 3.4cqh;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+}
+
+.ac-title__owner {
+    display: flex;
+    align-items: center;
+    gap: 1.3cqh;
+    font-size: 1.9cqh;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.ac-title__avatar {
+    width: 3.6cqh;
+    height: 3.6cqh;
+    object-fit: cover;
+    border-radius: 0.7cqh;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.ac-title__hint {
+    position: absolute;
+    right: 0;
+    bottom: 8cqh;
+    left: 0;
+    font-size: 1.45cqh;
+    letter-spacing: 0.24em;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.24);
+}
+
+/* ── 尾页：一个还空着的卡位 ────────────────────────────────────────────── */
+
+.ac-end {
+    position: absolute;
+    top: 46.5%;
+    left: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 74cqh;
+    aspect-ratio: 5 / 7;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    border: 1px dashed rgba(255, 255, 255, 0.13);
+    border-radius: 3cqh;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.ac-end__mark {
+    width: 12cqh;
+    aspect-ratio: 100 / 118;
+    margin-bottom: 3.4cqh;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: grayscale(1) brightness(0.55);
+    opacity: 0.32;
+}
+
+.ac-end__title {
+    padding-left: 0.3em;
+    font-size: 2.6cqh;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.ac-end__desc {
+    max-width: 80%;
+    margin-top: 1.6cqh;
+    font-size: 1.45cqh;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.28);
+}
+
+/* ── 新卡入册（时间轴在 book.js 的 fly() 里，这里只放外观） ──────────────── */
+
+/* 等着入册的卡槽：卡先藏起来，下凹的卡位泛起一圈暖光 */
+.ac-slot[data-incoming] .ac-card {
+    visibility: hidden;
+}
+
+.ac-slot[data-incoming]::after {
+    animation: ac-slot-await 1.3s ease-in-out infinite alternate;
+}
+
+@keyframes ac-slot-await {
+    from {
+        box-shadow:
+            inset 0 0.3cqh 0.8cqh rgba(0, 0, 0, 0.7),
+            inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+            0 0 0 0 rgba(255, 214, 89, 0);
+    }
+    to {
+        box-shadow:
+            inset 0 0.3cqh 0.8cqh rgba(0, 0, 0, 0.7),
+            inset 0 0 0 1px rgba(255, 214, 89, 0.35),
+            0 0 3cqh 0.3cqh rgba(255, 214, 89, 0.18);
+    }
+}
+
+/* 入册期间书页不接收指针 */
+.ac-book[data-intro] .ac-card {
+    pointer-events: none;
+}
+
+/* 压暗整本书，把视线收到正中的卡上 */
+.ac-intro-veil {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    border-radius: 1.6cqh;
+    background: radial-gradient(70% 80% at 50% 50%, rgba(6, 7, 10, 0.45), rgba(6, 7, 10, 0.72));
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 卡片身后的光：暖金色的光晕 + 一圈慢慢转动的放射光（和卡面徽章后面的放射光同一种） */
+.ac-intro-burst {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 4;
+    width: 128cqh;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, rgba(255, 236, 170, 0.5) 0%, rgba(255, 214, 89, 0.2) 22%, rgba(255, 214, 89, 0) 52%),
+        repeating-conic-gradient(from 0deg, rgba(255, 244, 214, 0.16) 0deg 5deg, rgba(255, 244, 214, 0) 5deg 16deg);
+    -webkit-mask-image: radial-gradient(circle, #000 0%, rgba(0, 0, 0, 0.75) 30%, transparent 66%);
+    mask-image: radial-gradient(circle, #000 0%, rgba(0, 0, 0, 0.75) 30%, transparent 66%);
+    opacity: 0;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+/* 星芒从卡片身后炸开、飞过卡片上方 */
+.ac-intro-sparks {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 6;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.ac-intro__spark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: linear-gradient(160deg, #fffbe8, #ffd659);
+    -webkit-mask: var(--ac-sparkle) center / contain no-repeat;
+    mask: var(--ac-sparkle) center / contain no-repeat;
+    filter: drop-shadow(0 0 0.8cqh rgba(255, 214, 89, 0.7));
+    opacity: 0;
+}
+
+/* 替身卡：落点就是卡槽本身，出场位置由 transform 推到书的正中 */
+.ac-intro {
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.ac-intro__card {
+    position: absolute;
+    inset: 0;
+    perspective: 1600px;
+    will-change: transform, opacity;
+}
+
+.ac-intro__shadow {
+    position: absolute;
+    inset: 4% 6% 0;
+    border-radius: 3cqh;
+    background: rgba(0, 0, 0, 0.7);
+    filter: blur(2.6cqh);
+    opacity: 0;
+}
+
+.ac-intro__flip {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    will-change: transform;
+}
+
+.ac-intro__face {
+    position: absolute;
+    inset: 0;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.ac-intro__face--back {
+    transform: rotateY(180deg);
+}
+
+.ac-intro__face .ac-card {
+    cursor: default;
+}
+
+/* 翻到正面时扫过的一道流光 */
+.ac-intro__sheen {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    overflow: hidden;
+    border-radius: var(--card-r);
+    pointer-events: none;
+}
+
+.ac-intro__sheen > i {
+    position: absolute;
+    top: -10%;
+    bottom: -10%;
+    left: 0;
+    width: 38%;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.12) 30%,
+        rgba(255, 250, 230, 0.55) 50%,
+        rgba(255, 255, 255, 0.12) 70%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transform: translateX(-160%) skewX(-18deg);
+}
+
+/* 落槽那一下：卡位上亮起一圈金光再散开 */
+.ac-intro-ring {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: 3cqh;
+    box-shadow:
+        0 0 0 0.35cqh rgba(255, 220, 120, 0.9),
+        0 0 4cqh 1cqh rgba(255, 214, 89, 0.45);
+    pointer-events: none;
+}
+
+/* 刚入册的卡：徽章宝珠上掠过一道光（和悬停时同一个动画） */
+.ac-card[data-shine] .ac-cf__badge::after {
+    animation: ac-orb-shine 1.3s ease-out 0.05s both;
+}
+
+/* ── 减少动态效果：翻页直接切换 ────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-leaf.is-turning {
+        transition: none;
+    }
+
+    [data-shade] > .ac-page__shade {
+        animation: none !important;
+    }
+
+    .ac-slot[data-incoming]::after {
+        animation: none;
+    }
+}

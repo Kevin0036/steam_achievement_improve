@@ -1,0 +1,886 @@
+.home_page_body_ctn .home_pagecontent_ctn {
+    padding: calc(16px / 2) 50px;
+}
+
+
+
+/*
+& Send a Gift Card button
+*/
+.home_page_body_ctn .home_gift_card_link {
+    overflow: hidden;
+    flex-direction: row-reverse;
+    gap: 6px;
+    margin: 0 0 12px auto;
+    padding: 6px 12px;
+    border-radius: var(--st-border-radius);
+    background: unset;
+    background-color: rgb(var(--st-blue), .4);
+}
+.home_page_body_ctn .home_gift_card_link:hover {
+    box-shadow: 0 6px 24px -8px rgb(var(--st-blue), .4);
+}
+
+
+/** Image */
+.home_page_body_ctn .home_gift_card_link .home_gift_card_img {
+    height: 46px;
+    margin-right: -23px;
+}
+
+
+
+/*
+& Banner
+*/
+.menu_takeover_background {
+    display: none;
+}
+
+.store_bg_overlay {
+    display: none !important;
+}
+
+
+.promo_link {
+    width: 100%;
+    max-width: var(--st-store-max-width);
+    margin-left: 50%;
+    border-radius: var(--st-border-radius);
+    transform: translateX(-50%);
+}
+
+.page_background_holder,
+.fullscreen-bg__video {
+    object-fit: cover;
+    width: 100%;
+    max-width: var(--st-store-max-width);
+    height: 500px;
+    right: 50% !important;
+    left: 50% !important;
+    border-radius: var(--st-border-radius);
+    transform: translateX(-50%);
+}
+
+
+
+/*
+& Your Personal Calendar
+*/
+.home_page_body_ctn .personal_calendar_ctn ._326_uhqq2I-hJwNRSqIZK4 {
+    gap: 0;
+}
+
+
+/** Background image */
+.home_page_body_ctn .personal_calendar_ctn .personal_calendar_background {
+    display: none;
+}
+
+
+/** Header */
+.home_page_body_ctn .personal_calendar_ctn ._2su8lGbBoTlZdVmMWOxDR3 {
+    padding: 12px;
+    border-radius: var(--st-border-radius) var(--st-border-radius) 0 0;
+    background-color: rgb(var(--st-color-2));
+}
+
+/*^ New tag */
+.home_page_body_ctn .personal_calendar_ctn ._2su8lGbBoTlZdVmMWOxDR3 .lX3GvxrkYaEqKJRpIhPsk {
+    align-items: center;
+    padding: 0 6px;
+        font-size: 13px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-accent-2));
+}
+
+/*^ Title */
+.home_page_body_ctn .personal_calendar_ctn ._2su8lGbBoTlZdVmMWOxDR3 ._3RqS6vEZhqX3_4AIeJFajW {
+    margin-bottom: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 20px;
+}
+
+/*^ Desciption */
+.home_page_body_ctn .personal_calendar_ctn ._2su8lGbBoTlZdVmMWOxDR3 ._1qbTrTsvR9qbMi-Navsk-D {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 12px;
+    color: #a9a9a9;
+}
+
+
+/** Content */
+.home_page_body_ctn .personal_calendar_ctn ._2M3SnYGvMvplWUC8yGhowo {
+    padding: 0 12px 12px;
+    border-radius: 0 0 var(--st-border-radius) var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+}
+
+.home_page_body_ctn .personal_calendar_ctn ._2M3SnYGvMvplWUC8yGhowo ._3J8-bW87K3pb8EpRNYq0JG {
+    gap: 6px;
+}
+
+
+/** Card */
+.home_page_body_ctn .personal_calendar_ctn ._2VUpHDtxN8lR1LDahY_cI2>* {
+    margin: 0;
+}
+
+.home_page_body_ctn .personal_calendar_ctn ._3Cc2bMRML2lEkSyi2IAZ9G .tqaXEuWN2wV5_8lmSkMng {
+    gap: 6px;
+    padding: 12px;
+    border-radius: var(--st-border-radius);
+    background: unset;
+    background-color: rgb(var(--st-color-3));
+}
+
+/*^ Games */
+.home_page_body_ctn .personal_calendar_ctn ._3Cc2bMRML2lEkSyi2IAZ9G ._2nBfmktG8nbBOFnhjq6OS5 {
+    gap: 6px;
+    padding: 0;
+}
+
+/* Image */
+.home_page_body_ctn .personal_calendar_ctn ._3Cc2bMRML2lEkSyi2IAZ9G img,
+.home_page_body_ctn .personal_calendar_ctn ._3Cc2bMRML2lEkSyi2IAZ9G video {
+    border-radius: var(--st-border-radius);
+}
+
+/*^ More */
+.home_page_body_ctn .personal_calendar_ctn ._3Cc2bMRML2lEkSyi2IAZ9G ._1wt5Ne6MrJfPVdFz5fGlop {
+    padding: 4px 12px;
+    color: #fff !important;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-5));
+    box-shadow: unset;
+}
+
+
+
+/*
+& Discovery
+*/
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP {
+    height: unset;
+    padding: 12px;
+    background-color: rgb(var(--st-color-2));
+    box-shadow: unset;
+}
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP:hover {
+    transform: scale(1);
+}
+
+
+/*
+! Text overlay
+*/
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP ._2-tz2hqtOXPPtMnVPHNSdx {
+    box-sizing: unset;
+    position: absolute;
+    top: 50%;
+    gap: 6px;
+    width: 40%;
+    height: fit-content;
+    background: unset;
+    transform: translateY(-50%);
+    transition: all 0.2s ease-in-out;
+}
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP:hover ._2-tz2hqtOXPPtMnVPHNSdx {
+    filter: unset;
+    transform: translateY(-50%) scale(1.03);
+}
+
+
+/** Title */
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP ._2-tz2hqtOXPPtMnVPHNSdx ._1mKVZY4-l46AZiZvctCEmx {
+    width: fit-content;
+    font-size: 20px;
+    line-height: 20px;
+}
+
+
+/** Desciption */
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP ._2-tz2hqtOXPPtMnVPHNSdx .O2jA-VCFl9bmblncfI4k2 {
+    width: auto;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 12px;
+    color: #a9a9a9;
+}
+
+
+/*
+! Background games
+*/
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP ._1DaxYFphX9KPH-YWeuNTvO {
+    overflow: hidden;
+    width: 50%;
+    border-radius: 8px;
+    background: unset;
+    transform: unset;
+}
+
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP ._1DaxYFphX9KPH-YWeuNTvO ._2qPvUCeD7uiBSn261-Gg25 {
+    position: relative;
+    width: fit-content;
+    gap: 12px;
+}
+
+
+/** Card */
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP ._1DaxYFphX9KPH-YWeuNTvO ._3G65z75zOTQeHrXxszHO4b {
+    overflow: hidden;
+    position: relative;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border-radius: 8px;
+    box-shadow: unset;
+
+    ._3OUOaqR0a3uYqsWOZbfSSh {
+        z-index: 1;
+    }
+}
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP ._1DaxYFphX9KPH-YWeuNTvO ._3G65z75zOTQeHrXxszHO4b::before {
+    content: "";
+    z-index: 0;
+    position: absolute;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    backdrop-filter: blur(4px);
+}
+
+/*^ Grid image */
+.home_page_body_ctn ._3PAP1PfUymQrLEveRsxQxP ._1DaxYFphX9KPH-YWeuNTvO ._1QVat7gXKVzPNiStElIJCt img {
+    width: 74px;
+    border-radius: 8px;
+}
+
+
+
+/*
+& Browse Steam section
+*/
+/* .home_page_content:has(#browse_steam_header) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: var(--st-store-max-width);
+    min-height: unset;
+} */
+
+
+/*
+! Title
+*/
+/* .home_page_content #browse_steam_header {
+    margin: 0;
+    padding: 0;
+} */
+
+
+/*
+! Buttons
+*/
+/* .home_page_content:has(#browse_steam_header) .button_container {
+    gap: 12px;
+}
+
+
+.home_page_content:has(#browse_steam_header) .button_container .big_button {
+    height: 54px;
+    padding: 6px;
+    font-weight: 800;
+    letter-spacing: unset;
+    border: 3px solid rgb(var(--st-blue));
+    border-radius: var(--st-border-radius);
+    color: rgb(var(--st-blue));
+    background: unset;
+    background-color: rgb(var(--st-blue), .2);
+    box-shadow: unset;
+}
+.home_page_content:has(#browse_steam_header) .button_container .big_button:hover {
+    background: unset;
+    background-color: rgb(var(--st-blue), .4);
+} */
+
+
+
+/*
+& New & Trending, Top Sellers list section
+*/
+.home_page_body_ctn .home_tab_bg_ctn {
+    border: unset;
+    background: unset;
+}
+
+
+/*
+! Tabs
+*/
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn {
+    box-sizing: border-box;
+    gap: 0;
+    margin: 0 0 12px;
+    padding: 6px 12px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+}
+
+
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .home_tabs_row_ctn {
+    gap: 6px;
+}
+
+
+/** Items */
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .home_tab_button,
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .tab_control {
+    opacity: 1;
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 14px;
+    border: none !important;
+    border-radius: var(--st-border-radius);
+    color: #a9a9a9;
+    background: unset;
+    background-color: rgb(var(--st-color-3));
+}
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .home_tab_button:hover,
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .tab_control:hover {
+    background-color: rgb(var(--st-color-4));
+}
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .home_tab_button.active {
+    color: #fff;
+    background-color: rgb(var(--st-color-1));
+}
+
+
+/** Divider */
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .topsellers_controls::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 100%;
+    height: 3px;
+    margin-top: 6px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-1));
+}
+
+
+/** Controls */
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn {
+    position: relative;
+    justify-content: flex-start;
+}
+
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .topsellers_controls {
+    gap: 6px;
+    width: 100%;
+    margin-top: calc(6px + 3px + 6px);
+}
+
+/*^ Checkbox Items */
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .tab_control:has(input[checked]) {
+    color: #fff;
+}
+
+/* Checkbox */
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .tab_control input {
+    height: 18px;
+    margin-right: 2px;
+}
+
+/*^ Help */
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .top_sellers_info {
+    height: 100%;
+    margin-left: auto;
+}
+
+/* Custom icon */
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .top_sellers_info::before {
+    content: "\f4ab";
+    font-size: 22px;
+    color: #8e8e8e;
+    font-family: FluentSystemIcons-Filled !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+}
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .top_sellers_info:hover::before {
+    color: #fff;
+}
+
+.home_page_body_ctn .home_tab_bg_ctn .tabs_menu_ctn .tab_controls_ctn .top_sellers_info img {
+    display: none;
+}
+
+
+/*
+! Content
+*/
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns {
+    gap: 12px;
+    min-height: unset;
+}
+
+
+/*
+! List
+*/
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns .row_list_view .tab_content_items {
+    gap: 6px;
+    padding: 0;
+    background: unset;
+}
+
+
+/** Items */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns .row_list_view .tab_content_items .tab_row_item {
+    gap: 12px;
+    padding: 12px;
+    background-color: rgb(var(--st-color-2));
+}
+
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns .row_list_view .tab_content_items .tab_row_item.focus {
+    transform: scale(1.01);
+    background: unset;
+    background-color: rgb(var(--st-color-2));
+    box-shadow: 0px 4px 8px 0px rgba(var(--st-background), 0.5);
+}
+
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns .row_list_view .tab_content_items .tab_row_item:nth-last-child(-n+4) {
+    display: none;
+}
+
+/*^ Image */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns .row_list_view .tab_content_items .tab_item_header {
+    overflow: hidden;
+    max-width: 194px;
+    border-radius: var(--st-border-radius);
+}
+
+/*^ Content */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns .row_list_view .tab_content_items .tab_item_content {
+    padding: 0;
+}
+
+
+/*
+! Sidebar/Preview
+*/
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns .home_rightcol {
+    width: 36%;
+}
+
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container {
+    position: unset;
+}
+
+
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_preview {
+    position: unset;
+    display: none;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 8px;
+    background-color: rgb(var(--st-color-2));
+}
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_preview.focus {
+    display: flex;
+    flex-direction: column;
+}
+
+
+/** Details */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_preview_details {
+    padding: 0;
+    background: unset;
+}
+
+/*^ Title */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_title {
+    margin: 0;
+    padding: 0;
+    font-size: 22px;
+    font-weight: 600;
+    color: #fff;
+}
+
+/*^ Reviews */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_review_summary {
+    display: flex;
+    gap: 4px;
+    width: unset;
+    margin: 0;
+    padding: 0;
+    color: #97A0A8;
+    background: unset;
+}
+
+
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_review_summary span:not(.game_review_summary) {
+    color: #c6d4df;
+}
+
+
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_review_summary .game_review_summary {
+    order: 2;
+    margin-left: auto;
+}
+
+/*^ Tags */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tags {
+    gap: 6px;
+}
+
+/*^ Divider */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tags::after {
+    content: "";
+    width: 100%;
+    height: 3px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-1));
+}
+
+
+/** Video */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container video.tab_preview_video {
+    margin: 0;
+    border-radius: 8px;
+    background: unset;
+}
+
+
+/** Screenshots */
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_screenshots_ctn {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_screenshots_ctn>div {
+    border-radius: 8px;
+}
+
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns #tab_preview_container .tab_screenshots_ctn .screenshot.empty {
+    text-align: center;
+    font-weight: 600;
+    color: #8e8e8e;
+    background-color: rgb(var(--st-background));
+}
+
+
+/*
+! See more
+*/
+.home_page_body_ctn .home_tab_bg_ctn .home_tabs_columns .see_more_link {
+    margin-top: 12px;
+    padding: 6px 12px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+& Your recent play *** section
+*/
+.page_content_ctn.dark {
+    background-color: unset !important;
+}
+
+.page_content_ctn.dark .home_page_content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: unset;
+    margin: calc(16px * 2) 0 0;
+}
+
+.page_content_ctn.dark .home_content {
+    padding: 0;
+}
+
+
+/*
+! Title
+*/
+.page_content_ctn.dark .home_content h2,
+.page_content_ctn.dark .home_content h2 span {
+    margin: 0 0 6px;
+    padding: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+
+/*
+! Games
+*/
+.page_content_ctn.dark .home_content .home_content_items {
+    display: flex;
+    gap: 12px;
+}
+
+
+.page_content_ctn.dark .home_content .home_content_item {
+    float: unset;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+    margin: 0 !important;
+    padding: 12px !important;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+    box-shadow: unset !important;
+}
+
+
+/** Images */
+.page_content_ctn.dark .home_content .home_content_item img {
+    border-radius: var(--st-border-radius);
+}
+
+
+/** Live Tag */
+.page_content_ctn.dark .home_content .home_content_item .broadcast_live_stream_icon {
+    top: 16px;
+    left: 16px;
+}
+
+
+/** Game Name */
+.page_content_ctn.dark .home_content .home_content_item .home_content_item_info {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6px;
+    height: -webkit-fill-available;
+}
+
+
+.page_content_ctn.dark .home_content .home_content_item .home_smallcap_title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+
+
+/*
+& Since you *** section
+*/
+.home_page_content.gp_contiguous_singles {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: unset;
+    margin: calc(16px * 2) 0 0;
+}
+
+
+/*
+! Game
+*/
+.home_page_content.gp_contiguous_singles .home_content {
+    position: relative;
+    margin: 0;
+    padding: 12px;
+    border-radius: var(--st-border-radius);
+    background-color: rgb(var(--st-color-2));
+}
+
+
+/** Title */
+.home_page_content.gp_contiguous_singles .home_content .single_title {
+    font-size: 22px;
+    font-weight: 600;
+}
+
+/*^ Reason */
+.home_page_content.gp_contiguous_singles .home_content .home_content_reason {
+    margin-bottom: 12px;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+
+/** Images */
+.home_page_content.gp_contiguous_singles .home_content .gamelink {
+    position: unset;
+    display: flex;
+}
+
+
+.home_page_content.gp_contiguous_singles .home_content .gamelink .screenshots {
+    z-index: unset;
+    display: flex;
+    gap: 6px;
+    margin-left: 6px;
+}
+
+
+.home_page_content.gp_contiguous_singles .home_content .gamelink a {
+    display: flex;
+    margin: 0;
+    width: unset;
+    background: unset;
+}
+
+.home_page_content.gp_contiguous_singles .home_content .gamelink img {
+    width: auto;
+    height: 142px;
+    max-height: unset;
+    border-radius: var(--st-border-radius);
+    box-shadow: unset;
+}
+
+
+/** Live Tag */
+.home_page_content.gp_contiguous_singles .broadcast_live_stream_icon {
+    top: unset;
+    left: unset;
+    margin: 5px;
+}
+
+
+/** Price */
+.home_page_content.gp_contiguous_singles .home_content .discount_block_ctn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+}
+
+
+/*
+! Button Bar
+*/
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar {
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 6px 12px;
+}
+
+
+/** Button */
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar * {
+    margin: 0;
+}
+
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar>:nth-child(1) {
+    margin-right: auto !important;
+}
+
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar .single_buttonbar_group {
+    gap: 6px;
+}
+
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border-radius: var(--st-border-radius);
+    background: unset !important;
+    background-color: rgb(var(--st-color-3)) !important;
+}
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar a:hover {
+    background-color: rgb(var(--st-color-4)) !important;
+}
+
+
+/** Custom Icon Buttons */
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar span {
+    display: none;
+}
+
+/*^ Visit Page */
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar>:nth-child(1)::before {
+    content: "\f58d";
+    font-size: 22px;
+    color: #8e8e8e;
+    font-family: FluentSystemIcons-Filled !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+}
+
+/*^ Wishlist */
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar .single_buttonbar_group a[onclick*="AddToWishlistButton"] {
+    width: unset;
+    padding: 0 12px;
+    background-color: rgb(var(--st-blue), .2) !important;
+}
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar .single_buttonbar_group a[onclick*="AddToWishlistButton"]:hover {
+    background-color: rgb(var(--st-blue), .4) !important;
+}
+
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar .single_buttonbar_group a[onclick*="AddToWishlistButton"]::before {
+    content: "\f1f6";
+    font-size: 22px;
+    color: rgb(var(--st-blue));
+    font-family: FluentSystemIcons-Regular !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+}
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar .single_buttonbar_group a[onclick*="AddToWishlistButton"]:hover::before,
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar .single_buttonbar_group a[onclick*="AddToWishlistButton"].btn_disabled::before {
+    font-family: FluentSystemIcons-Filled !important;
+}
+
+/*^ Ignore */
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar .single_buttonbar_group a[onclick*="IgnoreButton"]::before {
+    content: "\e9da";
+    font-size: 22px;
+    color: #8e8e8e;
+    font-family: FluentSystemIcons-Filled !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+}
+
+/*^ See more */
+.home_page_content.gp_contiguous_singles .home_content.single_buttonbar>:nth-last-child(1)::before {
+    content: "\e833";
+    font-size: 22px;
+    color: #8e8e8e;
+    font-family: FluentSystemIcons-Filled !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+}

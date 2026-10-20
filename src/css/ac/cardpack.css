@@ -1,0 +1,139 @@
+/* ============================================================================
+ * 成就收藏册 · 功能 B：库内「成就卡包」页面
+ * ----------------------------------------------------------------------------
+ * 挂载点：Steam 库内层路由 /library/achievementcards（见 src/js/ac/mount.js）。
+ * 页面只有一本书（book.css + card.css），没有工具条、没有统计摘要。
+ *
+ * 命名空间：所有类名以 `ac-` 开头，所有注入节点带 data-ac 属性，
+ * 方便在 Steam 更新后定位与清理。
+ * ==========================================================================*/
+
+@import url("./tokens.css");
+@import url("./book.css");
+@import url("./card.css");
+
+/* ── 页面外壳：撑满库的内容区 ──────────────────────────────────────────── */
+
+.ac-cardpack {
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    /* 库里的挂载容器若没有确定高度，height:100% 会退化成 0 ——
+       这里给一个下限，册子（.ac-album 同样是 420px 下限）至少看得见 */
+    min-height: 420px;
+    color: var(--ac-text);
+    background: var(--ac-surface-1);
+    font-family: var(--ac-font);
+}
+
+/* 册子本体就挂在这个容器里 */
+.ac-book-host {
+    position: absolute;
+    inset: 0;
+}
+
+/* ── 状态页（读取中 / 等待数据 / 空 / 出错）：一本合上的书 ─────────────── */
+
+/* ── 状态页（读取中 / 等待数据 / 空 / 出错）：一本合上的书 ─────────────── */
+
+.ac-state {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    container-type: size;
+}
+
+.ac-state__cover {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: min(46cqw, 62cqh);
+    aspect-ratio: 3 / 4;
+    padding: 6%;
+    box-sizing: border-box;
+    text-align: center;
+    border-radius: 1.2cqh 2cqh 2cqh 1.2cqh;
+    background:
+        var(--ac-grain),
+        radial-gradient(120% 140% at 30% 15%, #272a33 0%, #1a1c22 55%, #121317 100%);
+    background-size: 120px 120px, auto;
+    background-blend-mode: soft-light, normal;
+    box-shadow:
+        0 3cqh 6cqh rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 1.6cqh 0 0 -1cqh rgba(0, 0, 0, 0.35);
+}
+
+.ac-state__cover::before {
+    content: "";
+    position: absolute;
+    inset: 1.4cqh;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 0.9cqh;
+    pointer-events: none;
+}
+
+.ac-state__badge {
+    width: 22%;
+    aspect-ratio: 100 / 118;
+    margin-bottom: 7%;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 1cqh 1.6cqh rgba(0, 0, 0, 0.5));
+}
+
+.ac-state__title {
+    font-size: max(15px, 2.6cqh);
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.ac-state__desc {
+    max-width: 82%;
+    margin-top: 1.4em;
+    font-size: max(12px, 1.6cqh);
+    line-height: 1.75;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.ac-state__progress {
+    width: 56%;
+    height: 2px;
+    margin-top: 2.2em;
+    overflow: hidden;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.ac-state__progress > i {
+    display: block;
+    height: 100%;
+    width: var(--p, 0%);
+    background: rgb(var(--st-accent-1, 102, 108, 255));
+    transition: width 0.3s ease;
+}
+
+.ac-state__actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 2em;
+}
+
+.ac-state__btn {
+    padding: 7px 16px;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--ac-text);
+    cursor: pointer;
+    border: 1px solid var(--ac-line-strong);
+    border-radius: var(--ac-radius);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.ac-state__btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
