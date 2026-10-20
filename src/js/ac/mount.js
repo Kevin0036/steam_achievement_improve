@@ -42,6 +42,9 @@ const status = {
     menuInjectFailed: false,
     menuGuardInstalled: false,
     gateInstalled: false,
+    routeGuardInstalled: false,
+    routeRepairs: 0,
+    jsxReplacements: 0,
     error: null,
 };
 
@@ -49,11 +52,15 @@ export const getMountStatus = () => ({ ...status });
 
 /* ── jsx-runtime 探测器 ─────────────────────────────────────────────────── */
 
-/** 每秒检查一次「jsx/jsxs 是否被就地替换」的时长 */
-const WATCHDOG_FAST_MS = 90_000;
-/** 定期重扫模块表、看有没有新的 jsx-runtime 出现；超过这个窗口看门狗自行退出 */
-const WATCHDOG_SCAN_MS = 10 * 60_000;
-const SCAN_EVERY_TICKS = 10;
+/** 检查 jsx/jsxs 是否被 Steam 换掉的间隔 */
+const WATCHDOG_TICK_MS = 500;
+/** 每 N 次检查重扫一次模块表，看有没有新的 jsx-runtime 出现 */
+const SCAN_EVERY_TICKS = 20;
+/** 路由缺失后连续多少个检查周期才动手修复，避开正常的页面切换过渡 */
+const ROUTE_GUARD_MISSES = 2;
+const ROUTE_GUARD_MS = 700;
+/** 两次路由修复之间的冷却，避免修复失败时反复强制渲染 */
+const ROUTE_REPAIR_COOLDOWN_MS = 3000;
 
 /**
  * 判定一个模块是不是 react/jsx-runtime：必须同时提供可调用的 jsx 与 jsxs。
@@ -414,6 +421,177 @@ function isOurPath() {
     }
 }
 
+/* ── 路由守护：路由表缺项时就地补回 ─────────────────────────────────────── */
+
+/** 路由缺失在 DOM 上的体现：路径是我们的，但卡册根节点不存在 */
+function hasAlbum() {
+    try {
+        return document.querySelector('[data-ac="cardpack"]') != null;
+    } catch {
+        return false;
+    }
+}
+
+/** 从 #root 取 React 的 HostRoot fiber（Steam 的 React 挂载点） */
+function getRootFiber() {
+    try {
+        const root = document.getElementById('root');
+        if (!root) return null;
+        const key = Object.keys(root).find((name) => name.startsWith('__reactContainer$'));
+        const fiber = key ? root[key] : null;
+        if (!fiber) return null;
+        return fiber.current ?? fiber;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * 找库内层路由表（装着 /library/home 的那个 Switch）的 fiber。
+ *
+ * 用逐层广度优先而不是从某个 DOM 文本往上爬：「Unknown Route」是兜底 Route 的内容，
+ * 本地化后未必还是这串英文；而 Switch 一定在库外壳里，几十层之内必能命中。
+ * 层级上限与访问上限是为了在极端情况下不把主线程拖住。
+ */
+function findRouteSwitchFiber() {
+    let level = [getRootFiber()];
+    let visited = 0;
+
+    for (let depth = 0; depth <= 40 && level.length > 0 && visited < 80000; depth += 1) {
+        const next = [];
+        for (const start of level) {
+            if (!start) continue;
+            for (let fiber = start; fiber; fiber = fiber.sibling) {
+                visited += 1;
+                try {
+                    if (isLibraryRouteSwitch(fiber.memoizedProps)) return fiber;
+                } catch {
+                    /* 忽略取 props 时的异常 */
+                }
+                if (fiber.child) next.push(fiber.child);
+            }
+        }
+        level = next;
+    }
+    return null;
+}
+
+/** 把缺失的 Route 直接补进 Switch 现有的 props，让下一次渲染就能命中 */
+function injectRouteIntoFiber(fiber) {
+    const props = fiber.memoizedProps;
+    const children = props?.children;
+    if (!Array.isArray(children)) return false;
+
+    const exists = children.some((child) => child?.props?.path === ROUTES.cardPack);
+    const pending = fiber.pendingProps;
+    const pendingChildren = pending && pending !== props ? pending.children : null;
+    const pendingExists =
+        Array.isArray(pendingChildren) &&
+        pendingChildren.some((child) => child?.props?.path === ROUTES.cardPack);
+    if (exists && (pendingChildren === null || pendingExists)) return false;
+
+    // Route 类型直接借自同一张路由表，保证 react-router 的 context 判定一致
+    const Route = children[0]?.type;
+    const React = getReact();
+    if (!Route || !React?.createElement) return false;
+
+    const element = React.createElement(
+        Route,
+        { key: 'ac-cardpack-route', path: ROUTES.cardPack },
+        React.createElement(Page, null),
+    );
+
+    const insert = (list) => {
+        if (!Array.isArray(list)) return;
+        if (list.some((child) => child?.props?.path === ROUTES.cardPack)) return;
+        const fallbackIndex = list.findIndex((child) => !child?.props?.path);
+        if (fallbackIndex >= 0) list.splice(fallbackIndex, 0, element);
+        else list.push(element);
+    };
+
+    insert(children);
+    if (Array.isArray(pendingChildren)) insert(pendingChildren);
+    return true;
+}
+
+/** 从一个 fiber 往上找最近的类组件，触发一次真正的重渲染 */
+function forceFiberUpdate(fiber) {
+    let node = fiber;
+    for (let depth = 0; node && depth < 40; depth += 1) {
+        const stateNode = node.stateNode;
+        if (stateNode && typeof stateNode.forceUpdate === 'function') {
+            try {
+                stateNode.forceUpdate();
+                return true;
+            } catch {
+                /* 换上一层再试 */
+            }
+        }
+        node = node.return;
+    }
+    return false;
+}
+
+/**
+ * 就地修复：Steam 若在补丁失效的窗口里建好了路由表，这个元素会一直被复用，
+ * 单靠重新挂钩不会补上缺失的 Route —— 直接把 Route 插进它的 props 再强制渲染。
+ */
+function repairLibraryRoute() {
+    const fiber = findRouteSwitchFiber();
+    if (!fiber) return '未找到库内层路由表';
+
+    const injected = injectRouteIntoFiber(fiber);
+    if (!injected) {
+        return forceFiberUpdate(fiber)
+            ? '路由已在表中，已强制重渲染'
+            : '路由已在表中，但未找到可重渲染的组件';
+    }
+
+    return forceFiberUpdate(fiber)
+        ? '已补回缺失的 Route 并重渲染'
+        : '已补回缺失的 Route（等待下一次渲染生效）';
+}
+
+/**
+ * 路由守护：只在「已经在卡册路径上、但卡册没挂载」时动手。
+ * 连续两个周期都没挂载才判定异常，避开正常页面切换的过渡帧；
+ * 两次修复之间留冷却，避免修复失败时反复强制渲染。
+ */
+function installRouteGuard(verifyHooks, disposables) {
+    let misses = 0;
+    let lastRepairAt = 0;
+
+    const tick = () => {
+        if (!isOurPath() || hasAlbum()) {
+            misses = 0;
+            return;
+        }
+
+        misses += 1;
+        if (misses < ROUTE_GUARD_MISSES) return;
+
+        const now = Date.now();
+        if (now - lastRepairAt < ROUTE_REPAIR_COOLDOWN_MS) return;
+        lastRepairAt = now;
+        misses = 0;
+
+        try {
+            // 先把可能被 Steam 换掉的 jsx 补丁重新挂上，再修已经建好的那棵路由表
+            verifyHooks?.();
+            const result = repairLibraryRoute();
+            status.routeRepairs += 1;
+            out.log(`[route-guard] 卡册路由缺失，已尝试修复：${result}`);
+        } catch (err) {
+            warn('[route-guard] 修复失败（已吞下）', err);
+        }
+    };
+
+    const timer = window.setInterval(tick, ROUTE_GUARD_MS);
+    disposables?.addInterval?.(timer);
+    status.routeGuardInstalled = true;
+    out.log('路由守护已安装：回到卡册时若路由表缺项，会就地补回');
+}
+
 /* ── 降级 3：模态 ───────────────────────────────────────────────────────── */
 
 function openModal(api) {
@@ -461,21 +639,144 @@ export async function mount({ disposables } = {}) {
 
     /** runtime 模块 → 它上面 jsx / jsxs 两个补丁的登记表 */
     const hooks = new Map();
+    let lastReplaceLog = 0;
+
+    /**
+     * 用访问器守住 jsx / jsxs：Steam 在导航时会把这几个导出就地换成新函数，
+     * 仅靠定时重挂会留下一个「换掉后、重挂前」的窗口；这个窗口里创建的路由表
+     * 会永远缺我们的 Route（表现就是回库后 Unknown Route）。访问器让替换
+     * 当场被重新包住，不再依赖轮询时机。
+     */
+    function installRuntimeHook(runtime, name) {
+        let original = runtime[name];
+        if (typeof original !== 'function') return null;
+        let wrapped = null;
+
+        const rebuild = () => {
+            const fn = original;
+            wrapped = function (...args) {
+                try {
+                    handle(args?.[0], args?.[1]);
+                } catch (err) {
+                    warn('jsx 补丁回调抛错（已吞下）', err);
+                }
+                return fn.apply(this, args);
+            };
+            try {
+                Object.assign(wrapped, fn);
+                wrapped.toString = () => fn.toString();
+            } catch {
+                /* 函数属性复制失败不影响调用 */
+            }
+        };
+        rebuild();
+
+        const descriptor = Object.getOwnPropertyDescriptor(runtime, name);
+        const viaAccessor = !descriptor || descriptor.configurable;
+
+        if (viaAccessor) {
+            try {
+                Object.defineProperty(runtime, name, {
+                    configurable: true,
+                    enumerable: descriptor?.enumerable ?? true,
+                    get: () => wrapped,
+                    set: (next) => {
+                        if (typeof next !== 'function' || next === wrapped) return;
+                        original = next;
+                        rebuild();
+                        status.jsxReplacements += 1;
+                        const now = Date.now();
+                        if (now - lastReplaceLog > 5000) {
+                            lastReplaceLog = now;
+                            out.log('jsx 运行时被替换，已自动重新包上补丁');
+                        }
+                    },
+                });
+            } catch (err) {
+                warn(`用访问器守护 ${name} 失败`, err);
+                return null;
+            }
+        } else if (descriptor?.writable) {
+            runtime[name] = wrapped;
+        } else {
+            return null;
+        }
+
+        return {
+            get current() {
+                return wrapped;
+            },
+            get original() {
+                return original;
+            },
+            restore() {
+                try {
+                    if (viaAccessor) {
+                        Object.defineProperty(runtime, name, {
+                            configurable: true,
+                            enumerable: descriptor?.enumerable ?? true,
+                            writable: true,
+                            value: original,
+                        });
+                    } else if (runtime[name] === wrapped) {
+                        runtime[name] = original;
+                    }
+                } catch {
+                    /* 忽略 */
+                }
+            },
+        };
+    }
 
     function hookRuntime(runtime) {
         if (hooks.has(runtime)) return;
         const entry = { jsx: null, jsxs: null };
         for (const name of ['jsx', 'jsxs']) {
             try {
-                entry[name] = {
-                    patch: api.beforePatch(runtime, name, (args) => handle(args?.[0], args?.[1])),
-                    last: runtime[name],
-                };
+                entry[name] = installRuntimeHook(runtime, name);
             } catch (err) {
                 warn(`挂钩 ${name} 失败`, err);
             }
         }
         if (entry.jsx || entry.jsxs) hooks.set(runtime, entry);
+    }
+
+    /** 供看门狗和路由守护共用：把被 Steam 换掉的导出立刻重新包住 */
+    function verifyRuntimeHooks() {
+        for (const [runtime, entry] of hooks) {
+            for (const name of ['jsx', 'jsxs']) {
+                const slot = entry[name];
+                if (!slot) continue;
+                let live;
+                try {
+                    live = runtime[name];
+                } catch {
+                    continue;
+                }
+                if (live === slot.current) continue;
+                try {
+                    entry[name] = installRuntimeHook(runtime, name);
+                    status.jsxReplacements += 1;
+                    out.log(`检测到 ${name} 被替换，已重新挂钩`);
+                } catch (err) {
+                    warn(`重新挂钩 ${name} 失败`, err);
+                }
+            }
+        }
+    }
+
+    /** 模块表里可能还有没发现（或 Steam 整个换掉）的 jsx-runtime，补挂上 */
+    function rescanRuntimeHooks() {
+        for (const runtime of findJsxRuntimes(api)) {
+            if (hooks.has(runtime)) continue;
+            out.log('发现新的 jsx-runtime 模块，补挂钩');
+            hookRuntime(runtime);
+        }
+    }
+
+    function ensureRuntimeHooks() {
+        verifyRuntimeHooks();
+        rescanRuntimeHooks();
     }
 
     for (const runtime of findJsxRuntimes(api)) hookRuntime(runtime);
@@ -498,58 +799,27 @@ export async function mount({ disposables } = {}) {
             disposables?.addInterval?.(retry);
         }
 
-        const started = Date.now();
         let tick = 0;
         const watchdog = window.setInterval(() => {
             tick += 1;
-            const elapsed = Date.now() - started;
-            if (elapsed > WATCHDOG_FAST_MS && elapsed > WATCHDOG_SCAN_MS) {
-                clearInterval(watchdog);
-                out.log('jsx-runtime 看门狗已停止');
-                return;
-            }
 
-            // 一：Steam 会把模块里的 jsx / jsxs 就地换掉，这时必须重新挂钩
-            if (elapsed <= WATCHDOG_FAST_MS) {
-                for (const [runtime, entry] of hooks) {
-                    for (const name of ['jsx', 'jsxs']) {
-                        const slot = entry[name];
-                        if (!slot || runtime[name] === slot.last) continue;
-                        out.log(`检测到 ${name} 被替换，重新挂钩`);
-                        try {
-                            slot.patch?.unpatch?.();
-                        } catch {
-                            /* 忽略 */
-                        }
-                        try {
-                            slot.patch = api.beforePatch(runtime, name, (args) =>
-                                handle(args?.[0], args?.[1]),
-                            );
-                            slot.last = runtime[name];
-                        } catch (err) {
-                            warn(`重新挂钩 ${name} 失败`, err);
-                        }
-                    }
-                }
-            }
+            // 一：Steam 会把模块里的 jsx / jsxs 就地换掉，必须一直守着。
+            // 之前只在启动后 90 秒内检查，之后导航时补丁会悄悄丢失，
+            // 菜单项还在，但库内层路由表里已经没有我们的 Route —— 回到卡册就是 Unknown Route。
+            verifyRuntimeHooks();
 
             // 二：模块表里可能还有我们没发现的 jsx-runtime（惰性加载的 chunk），定期补挂
-            if (elapsed <= WATCHDOG_SCAN_MS && tick % SCAN_EVERY_TICKS === 0) {
-                for (const runtime of findJsxRuntimes(api)) {
-                    if (hooks.has(runtime)) continue;
-                    out.log('发现新的 jsx-runtime 模块，补挂钩');
-                    hookRuntime(runtime);
-                }
-            }
-        }, 1000);
+            if (tick % SCAN_EVERY_TICKS === 0) rescanRuntimeHooks();
+        }, WATCHDOG_TICK_MS);
 
         disposables?.addInterval?.(watchdog);
+        out.log('jsx-runtime 守护持续运行：Steam 替换导出后会自动重挂');
+        installRouteGuard(ensureRuntimeHooks, disposables);
         disposables?.add?.(() => {
-            clearInterval(watchdog);
             for (const entry of hooks.values()) {
                 for (const name of ['jsx', 'jsxs']) {
                     try {
-                        entry[name]?.patch?.unpatch?.();
+                        entry[name]?.restore?.();
                     } catch {
                         /* 忽略 */
                     }
@@ -632,7 +902,7 @@ function registerGlobalEntry(api, disposables) {
     }
 }
 
-export const __debug = { status, isOurPath, injectRoute, injectMenuItem, openModal, SUPERNAV_TITLE };
+export const __debug = { status, isOurPath, injectRoute, injectMenuItem, openModal, repairLibraryRoute, SUPERNAV_TITLE };
 
 /* ── 自启动 ─────────────────────────────────────────────────────────────── */
 
@@ -666,7 +936,7 @@ export const __debug = { status, isOurPath, injectRoute, injectMenuItem, openMod
         disposables.addListener(window, 'pagehide', () => {
             // 只暂停后台补全，**不**在这里卸载 jsx 补丁。
             // Steam 的窗口有时会触发 pagehide 而文档并没有真正卸载（放到后台又恢复），
-            // 一旦 unpatched，下拉菜单里的入口就再也回不来了；看门狗本身是有界的，会自行退出。
+            // 一旦 unpatched，下拉菜单里的入口就再也回不来了。
             storeModule.pause();
         });
     } catch (err) {
