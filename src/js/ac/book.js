@@ -3,12 +3,12 @@
  *
  * 版式：一本摊开的集邮册，两种装订方式：
  *
- *   · 最新优先（默认，右开本）：右页 = 当前这一页的正面（完整卡面），左页 = 下一叶的背面
+ *   · 最新优先（右开本）：右页 = 当前这一页的正面（完整卡面），左页 = 下一叶的背面
  *     （游戏胶囊封面）。阅读方向跟着右页走；翻页时左页绕书脊向右转过去。
  *     按完成时间**正序**装订：第一页是 No.001，往后编号递增，最近完美通关的游戏在册子的最后。
  *     没有记忆页码时直接摊在最新一页。
  *
- *   · 顺序入册（左开本）：扉页在左、第 1 页正面在右，翻页时右页绕书脊向左转过去。
+ *   · 顺序入册（默认，左开本）：扉页在左、第 1 页正面在右，翻页时右页绕书脊向左转过去。
  *     卡片按**入册先后**编号（旧卡的编号和位置永远不变，新卡接在最后）。
  *     没有记忆页码时从扉页 / 第 1 页打开。
  *
@@ -25,7 +25,8 @@
  * 交互：
  *   · 鼠标悬停在卡片上 → 3D 检视（跟随指针倾斜 + 反光），离开回正；
  *   · 单击左页卡片 → 向后翻一页；单击右页卡片 → 向前翻回一页；
- *   · 滚轮 → 快速翻页，连续滚动会一叶接一叶地翻过去；
+ *   · 滚轮 → 按滚动距离翻页：一个事件最多折算一格，滚一格绝不会翻两页；
+ *     快速滚动会连发很多事件，累计的距离排队翻多页；反向滚动立刻改向；
  *   · 点书签 / 向下拉书签 → 快速掠向离得最远的一端；
  *   · 键盘：卡片可聚焦，Enter / 空格 等同于单击。不绑定方向键。
  *
@@ -43,9 +44,8 @@ import { createYearPage, normalizeSelection, openYearPicker, yearKeyOf } from '.
 
 const TURN_MS = 1000; // 与 book.css 里的 --ac-turn 保持一致
 const WHEEL_TURN_MS = 460; // 滚轮翻一页：比点击快，但不至于看不清
-const WHEEL_RAPID_MS = 260; // 滚轮还在连续滚时，后续的叶翻得更快
 const WHEEL_STEP = 100; // 累计多少滚轮距离翻一页（Windows 上一格通常是 100 / 120）
-const WHEEL_QUEUE_MAX = 6;
+const WHEEL_MAX_QUEUE = 6; // 一次连续滚动最多排队翻这么多页，再多就等这一轮翻完
 const RIFFLE_LEAVES = 7; // 书签快速翻阅时真正掠过的叶数（远跳时中间页会快进，首末叶始终对得上）
 const RIFFLE_TURN_MS = 480; // 每一叶掠过的时间
 const RIFFLE_STAGGER_MS = 62; // 相邻两叶的起翻间隔
@@ -92,7 +92,7 @@ function depthLevel(count) {
  * @param {Array}  options.cards  最新优先：按**完成时间倒序**；顺序入册：按**入册先后正序**
  * @param {object} [options.owner] { persona, avatar }
  * @param {number} [options.perPage] 每页卡片数：1（默认）或 4
- * @param {'newest'|'sequential'} [options.binding] 装订方式，默认 newest（最新优先）
+ * @param {'newest'|'sequential'} [options.binding] 装订方式，默认 sequential（顺序入册）
  * @param {boolean} [options.showStats] 扉页是否显示收藏卡 / 金杯 / 银杯统计，默认 true
  * @param {boolean} [options.yearPages] 按完成年份分组，并在每组前插入一张年份手账（正面徽章 / 背面年度最爱）
  * @param {Record<string, {badges: Array, banners: Array}>} [options.yearSelections] 年份页已选槽位
@@ -107,7 +107,7 @@ function depthLevel(count) {
  *             get pageCount(): number, get yearSelections(): object,
  *             get position(): {page: number, appid: number|null} }}
  */
-export function createBook(container, { cards, owner = {}, perPage: requestedPerPage = 1, binding = 'newest', showStats = true, yearPages = false, yearSelections = null, onYearChange = null, initial = null, onPage = null }) {
+export function createBook(container, { cards, owner = {}, perPage: requestedPerPage = 1, binding = 'sequential', showStats = true, yearPages = false, yearSelections = null, onYearChange = null, initial = null, onPage = null }) {
     const doc = container.ownerDocument;
     const win = doc.defaultView;
     const perPage = Number(requestedPerPage) === 4 ? 4 : 1;
@@ -275,9 +275,10 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     const leaves = new Map();
     const timers = new Set();
     const animations = new Set();
-    /** 滚轮翻页：还没翻完的页数，和「正在一串连续翻页里」的标记 */
+    /** 滚轮：累计的滚动距离，以及排队等着翻的页（+1 向前 / -1 向后） */
+    let wheelAccum = 0;
     let wheelQueue = [];
-    let wheelRunning = false;
+    let wheelPumping = false;
     /** 书签正在被拉住 / 正在播放快速翻阅 */
     let pull = null;
     let riffleStage = null;
@@ -693,40 +694,20 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         const focusAfter = album.contains(doc.activeElement);
         flip(dir).then((moved) => {
             if (moved) afterTurn(focusAfter);
-            // 点击翻页时如果滚轮已经排了队，等这一页翻完接着翻
-            if (!disposed && !wheelRunning && wheelQueue.length > 0) runWheelQueue(wheelQueue.shift());
         });
     }
 
-    /** 滚轮翻页：连续滚动时一叶接一叶地翻，队列空了再播报最终位置 */
-    async function runWheelQueue(first) {
-        if (wheelRunning || disposed || introducing) {
-            wheelQueue = [];
-            return;
-        }
-        wheelRunning = true;
-        let dir = first;
-        let moved = false;
-        while (!disposed && dir) {
-            if (introducing) break;
-            if ((dir > 0 && k >= pageCount()) || (dir < 0 && k <= 0)) break;
-            const fast = wheelQueue.length > 0;
-            const done = await flip(dir, fast ? WHEEL_RAPID_MS : WHEEL_TURN_MS);
-            if (!done) break;
-            moved = true;
-            notifyPage();
-            dir = wheelQueue.shift() ?? 0;
-        }
-        wheelQueue = [];
-        wheelRunning = false;
-        if (moved && !disposed) {
-            resetTilt();
-            announcePosition();
-        }
+    function resetWheel() {
+        wheelAccum = 0;
+        wheelQueue.length = 0;
     }
 
-    let wheelAccum = 0;
-
+    /**
+     * 滚轮翻页按距离算，但**每个事件最多折算一格**：
+     * 鼠标滚一格（delta 100 / 120）只会翻一页，不会因为加速度或惯性一下翻两页；
+     * 快速滚动会连发很多事件，累计的距离会排队翻多页。
+     * 队列逐页串行播放，反向滚动直接清掉还没翻的页并改向。
+     */
     function onWheel(event) {
         if (disposed || introducing || event.ctrlKey) return;
         let delta = event.deltaY;
@@ -734,21 +715,55 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         if (event.deltaMode === 1) delta *= 16;
         else if (event.deltaMode === 2) delta *= album.clientHeight || 600;
         event.preventDefault();
-        if (Math.sign(delta) !== Math.sign(wheelAccum)) wheelAccum = 0;
-        wheelAccum += delta;
-        const steps = Math.trunc(wheelAccum / WHEEL_STEP);
-        if (!steps) return;
-        wheelAccum -= steps * WHEEL_STEP;
-        wheelAccum = Math.max(-WHEEL_STEP * 3, Math.min(WHEEL_STEP * 3, wheelAccum));
-        // 一次事件最多排两页，别让触控板的一记甩动直接穿过整本书
-        const dir = Math.sign(steps);
-        const count = Math.min(Math.abs(steps), 2);
-        for (let s = 0; s < count; s += 1) {
-            if (busy || wheelRunning) {
-                if (wheelQueue.length < WHEEL_QUEUE_MAX) wheelQueue.push(dir);
-            } else {
-                runWheelQueue(dir);
+        if (riffleStage) {
+            resetWheel();
+            return;
+        }
+
+        const dir = Math.sign(delta);
+        const pending = wheelQueue[0] ?? Math.sign(wheelAccum);
+        if (pending && dir !== pending) resetWheel();
+        if (wheelQueue.length >= WHEEL_MAX_QUEUE) {
+            wheelAccum = 0;
+            return;
+        }
+
+        wheelAccum += dir * Math.min(Math.abs(delta), WHEEL_STEP);
+        while (Math.abs(wheelAccum) >= WHEEL_STEP && wheelQueue.length < WHEEL_MAX_QUEUE) {
+            wheelAccum -= dir * WHEEL_STEP;
+            wheelQueue.push(dir);
+        }
+        pumpWheel();
+    }
+
+    async function pumpWheel() {
+        if (wheelPumping) return;
+        wheelPumping = true;
+        try {
+            while (!disposed && wheelQueue.length > 0) {
+                if (introducing || riffleStage) {
+                    resetWheel();
+                    return;
+                }
+                // 点击翻页 / 书签正在动：等它停稳再接着翻，别打断当前动画
+                if (busy) {
+                    await wait(40);
+                    continue;
+                }
+                const dir = wheelQueue.shift();
+                const moved = await flip(dir, WHEEL_TURN_MS);
+                if (disposed) return;
+                if (!moved) {
+                    // 已经到书的两端：剩下的排队页作废，下一格可以立刻往回翻
+                    resetWheel();
+                    return;
+                }
+                notifyPage();
+                resetTilt();
+                announcePosition();
             }
+        } finally {
+            wheelPumping = false;
         }
     }
 
@@ -1004,7 +1019,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
 
         const from = k;
         busy = true;
-        wheelQueue = [];
+        resetWheel();
         book.dataset.riffle = '';
         const { stage, forward, leavesOut } = buildRiffleStage(from, target);
         riffleStage = stage;
@@ -1550,8 +1565,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             ribbon.removeEventListener('pointercancel', onRibbonCancel);
             ribbon.removeEventListener('keydown', onRibbonKeyDown);
             pull = null;
-            wheelQueue = [];
-            wheelRunning = false;
+            resetWheel();
             riffleStage = null;
             album.remove();
             leaves.clear();

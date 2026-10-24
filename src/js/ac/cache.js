@@ -19,6 +19,9 @@
  *   order    —— 「顺序入册」的稳定次序（只追加）。旧卡的编号与位置不随新卡变化。
  *   position —— 上次离开时翻到哪一页。记 appid（该页第一张卡）和页码，回来时优先按 appid
  *               锚定，卡片重排 / 每页数量改了也不会飘走。
+ *   manual   —— 用户手动填的完成日期（appid → 秒级时间戳）。优先级高于成就接口：
+ *               家庭共享移除、游戏已不在库里等取不到日期的卡，靠它进入时间排序和年份页。
+ *               和日期缓存分开存，清除手动日期时还能退回接口取到的值。
  */
 
 import { CACHE_VERSION } from './selectors.js';
@@ -33,6 +36,7 @@ const KEY_SHELVED = `${NS}:v${CACHE_VERSION}:shelved`;
 const KEY_ORDER = `${NS}:v${CACHE_VERSION}:order`;
 const KEY_POSITION = `${NS}:v${CACHE_VERSION}:position`;
 const KEY_YEAR_SELECTIONS = `${NS}:v${CACHE_VERSION}:yearpages`;
+const KEY_MANUAL = `${NS}:v${CACHE_VERSION}:manual`;
 const RARE_CACHE_VERSION = 4;
 // 完成日期缓存换过两次格式：:dates 是在成就接口还没接通时写下的（失败名单不可信），
 // :completion 整份共用一个 30 天期限。两者都直接弃用，见 readDates()。
@@ -275,6 +279,25 @@ export function writeYearSelections(selections) {
     writeJson(KEY_YEAR_SELECTIONS, { years });
 }
 
+/* ── 手动补的完成日期 ───────────────────────────────────────────────────── */
+
+/** @returns {Map<number, number>} appid → 秒级时间戳 */
+export function readManualDates() {
+    const manual = new Map();
+    const parsed = readJson(KEY_MANUAL);
+    for (const row of Array.isArray(parsed?.entries) ? parsed.entries : []) {
+        const [appid, completedAt] = Array.isArray(row) ? row : [];
+        if (!Number.isFinite(appid) || !Number.isFinite(completedAt) || completedAt <= 0) continue;
+        manual.set(appid, completedAt);
+    }
+    return manual;
+}
+
+/** @param {Map<number, number>} manual */
+export function writeManualDates(manual) {
+    writeJson(KEY_MANUAL, { entries: [...manual].filter(([appid, at]) => Number.isFinite(appid) && Number.isFinite(at)) });
+}
+
 /* ── 清理 ───────────────────────────────────────────────────────────────── */
 
 /** 回滚用：删掉本项目写下的全部 localStorage 键，无任何副作用 */
@@ -295,4 +318,4 @@ export function clearAll() {
     }
 }
 
-export const CACHE_KEYS = { KEY_STATE, KEY_DATES, KEY_SHELVED, KEY_ORDER, KEY_POSITION, KEY_YEAR_SELECTIONS };
+export const CACHE_KEYS = { KEY_STATE, KEY_DATES, KEY_SHELVED, KEY_ORDER, KEY_POSITION, KEY_YEAR_SELECTIONS, KEY_MANUAL };

@@ -106,10 +106,10 @@ const orderOf = (cards) => cards.map((c) => c.appid).join(',');
 /** 主题设置「单页卡片数量」：只认 1 / 4，其余一律按 1 处理 */
 const currentPerPage = () => (String(getThemeOption('单页卡片数量', '1')) === '4' ? 4 : 1);
 
-/** 主题设置「卡册装订方式」：默认最新优先；兼容英文旧值 */
+/** 主题设置「卡册装订方式」：默认顺序入册；兼容英文旧值 */
 const currentBinding = () => {
-    const value = String(getThemeOption('卡册装订方式', '最新优先'));
-    return value === '顺序入册' || value === 'sequential' ? 'sequential' : 'newest';
+    const value = String(getThemeOption('卡册装订方式', '顺序入册'));
+    return value === '最新优先' || value === 'newest' ? 'newest' : 'sequential';
 };
 
 /** 主题设置「扉页统计」：默认开启，只有明确关闭才隐藏 */
@@ -120,6 +120,131 @@ const currentYearPages = () => String(getThemeOption('年份特殊页', '关闭'
 
 /** 分组依据的指纹：完成日期补上后年份会变，需要重新装订 */
 const yearSignature = (cards) => cards.map((card) => `${card.appid}:${yearKeyOf(card)}`).join(',');
+
+/* ── 手动补完成日期 ─────────────────────────────────────────────────────── */
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/** 秒级时间戳 → 本地日期 YYYY-MM-DD（<input type="date"> 的格式） */
+function isoDay(seconds) {
+    const date = new Date(seconds * 1000);
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+/** 本地日期 YYYY-MM-DD → 秒级时间戳；不是合法日期或晚于今天就返回 null */
+function secondsFromDay(value, today) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    // 本地中午：避免夏令时 / 时区把日期挪到前一天
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    if (String(value) > today) return null;
+    return Math.floor(date.getTime() / 1000);
+}
+
+/** 弹窗里的一行：游戏名 + 日期输入 + 清除 */
+function DateRow({ card, today, onSave, onClear }) {
+    const React = getReact();
+    const manual = card.completedAtSource === 'manual' ? card.completedAt : null;
+    const [draft, setDraft] = React.useState(() => (manual ? isoDay(manual) : ''));
+
+    // 清除 / 外部状态变化后，把输入框同步回当前真实值
+    React.useEffect(() => {
+        setDraft(manual ? isoDay(manual) : '');
+    }, [manual]);
+
+    const onChange = (event) => {
+        const value = event.target.value;
+        setDraft(value);
+        const seconds = secondsFromDay(value, today);
+        if (seconds != null) onSave(card.appid, seconds);
+    };
+
+    const name = card.name ?? `App ${card.appid}`;
+    return React.createElement(
+        'div',
+        { className: 'ac-date-row', 'data-ac-manual': manual ? '' : null },
+        React.createElement(
+            'div',
+            { className: 'ac-date-row__game' },
+            React.createElement('span', { className: 'ac-date-row__name' }, name),
+            React.createElement('span', { className: 'ac-date-row__meta' }, `#${card.appid}`),
+            manual ? React.createElement('span', { className: 'ac-date-row__tag' }, STR.page.manualDatesManual) : null,
+        ),
+        React.createElement('input', {
+            type: 'date',
+            className: 'ac-date-row__input',
+            value: draft,
+            max: today,
+            'aria-label': STR.page.manualDatesInput(name),
+            onChange,
+        }),
+        React.createElement(
+            'button',
+            {
+                type: 'button',
+                className: 'ac-date-row__clear',
+                disabled: !manual,
+                onClick: () => onClear(card.appid),
+            },
+            STR.page.manualDatesClear,
+        ),
+    );
+}
+
+function DateModal({ cards, running, today, onSave, onClear, onClose }) {
+    const React = getReact();
+    const rows = [...cards].sort((a, b) =>
+        String(a.name ?? '').localeCompare(String(b.name ?? ''), 'zh-Hans-CN'),
+    );
+
+    return React.createElement(
+        'div',
+        {
+            className: 'ac-date-modal',
+            role: 'dialog',
+            'aria-modal': 'true',
+            'aria-labelledby': 'ac-date-title',
+            onClick: (event) => {
+                if (event.target === event.currentTarget) onClose();
+            },
+        },
+        React.createElement(
+            'div',
+            { className: 'ac-date-modal__panel' },
+            React.createElement('h2', { className: 'ac-date-modal__title', id: 'ac-date-title' }, STR.page.manualDatesTitle),
+            React.createElement('p', { className: 'ac-date-modal__desc' }, STR.page.manualDatesDesc),
+            running ? React.createElement('p', { className: 'ac-date-modal__hint' }, STR.page.manualDatesRunning) : null,
+            rows.length === 0
+                ? React.createElement('p', { className: 'ac-date-modal__empty' }, STR.page.manualDatesEmpty)
+                : React.createElement(
+                      'div',
+                      { className: 'ac-date-modal__list' },
+                      rows.map((card) =>
+                          React.createElement(DateRow, {
+                              key: card.appid,
+                              card,
+                              today,
+                              onSave,
+                              onClear,
+                          }),
+                      ),
+                  ),
+            React.createElement(
+                'div',
+                { className: 'ac-date-modal__foot' },
+                React.createElement(
+                    'button',
+                    { type: 'button', className: 'ac-date-modal__close', onClick: onClose },
+                    STR.page.manualDatesClose,
+                ),
+            ),
+        ),
+    );
+}
 
 /**
  * 顺序入册的次序：按「入册先后」排（旧的在前）。
@@ -150,6 +275,7 @@ export function Page({ onClose } = {}) {
     const React = getReact();
     const state = useStoreState();
     const [, reloadOptions] = React.useState(0);
+    const [dateOpen, setDateOpen] = React.useState(false);
     const hostRef = React.useRef(null);
     const bookRef = React.useRef(null);
     const builtRef = React.useRef({
@@ -161,6 +287,7 @@ export function Page({ onClose } = {}) {
         showStats: null,
         yearPages: null,
         yearSig: '',
+        manualRevision: 0,
     });
     /** 正在播的入册动画（一个令牌，防止旧书的回调影响新书） */
     const introRef = React.useRef(null);
@@ -177,11 +304,18 @@ export function Page({ onClose } = {}) {
     // 模态卡包必须能退出：Esc 与右上角的返回按钮走同一个 onClose。
     // 监听挂在卡册实际所在的窗口上 —— 模块自己的 window 未必是显示它的那个。
     React.useEffect(() => {
-        if (typeof onClose !== 'function') return undefined;
+        if (typeof onClose !== 'function' && !dateOpen) return undefined;
         const win = hostRef.current?.ownerDocument?.defaultView;
         if (!win) return undefined;
         const onKeyDown = (event) => {
             if (event.key !== 'Escape' || event.defaultPrevented) return;
+            // 补日期弹窗开着时 Esc 只关弹窗，不能把整个卡包一起关掉
+            if (dateOpen) {
+                event.preventDefault();
+                setDateOpen(false);
+                return;
+            }
+            if (typeof onClose !== 'function') return;
             // 年份选择器开着时 Esc 只关选择器，不能把整个卡包一起关掉
             if (hostRef.current?.querySelector('.ac-year-picker')) return;
             event.preventDefault();
@@ -189,7 +323,7 @@ export function Page({ onClose } = {}) {
         };
         win.addEventListener('keydown', onKeyDown, true);
         return () => win.removeEventListener('keydown', onKeyDown, true);
-    }, [onClose]);
+    }, [onClose, dateOpen]);
 
     // 首次挂载：读数据 + 取当前账号（再挂载时走 silent，避免用缓存先铺一层造成闪烁）
     React.useEffect(() => {
@@ -235,6 +369,7 @@ export function Page({ onClose } = {}) {
                 showStats: null,
                 yearPages: null,
                 yearSig: '',
+                manualRevision: 0,
             };
         };
 
@@ -291,12 +426,24 @@ export function Page({ onClose } = {}) {
                     cache.writePosition(position);
                 },
             });
-            builtRef.current = { order: orderKey, owner: ownerKey, state: '', perPage, binding, showStats, yearPages, yearSig };
+            builtRef.current = {
+                order: orderKey,
+                owner: ownerKey,
+                state: '',
+                perPage,
+                binding,
+                showStats,
+                yearPages,
+                yearSig,
+                manualRevision: state.manualRevision,
+            };
             out.log(
                 `收藏册已装订：${shown.length} 张卡（每页 ${perPage} 张，${binding === 'sequential' ? '顺序入册' : '最新优先'}${yearPages ? '，按年份分页' : ''}）`,
             );
         } else if (
-            !state.dates.running &&
+            // 日期后台补全期间通常不重排（避免看着看着书页跳走）；
+            // 但用户手动补了日期，就必须立刻按新日期重新装订。
+            (!state.dates.running || state.manualRevision !== builtRef.current.manualRevision) &&
             (orderKey !== builtRef.current.order || (yearPages && yearSig !== builtRef.current.yearSig))
         ) {
             // 日期补完了，重新按完成时间 / 年份装订。
@@ -316,6 +463,8 @@ export function Page({ onClose } = {}) {
                 if (before && cardSignature(before) !== cardSignature(card)) book.updateCard(card.appid, card);
             }
         }
+
+        builtRef.current.manualRevision = state.manualRevision;
 
         // 新收录的完成日期有结果了：播入册动画
         if (pending.size > 0 && state.intro.ready) {
@@ -344,6 +493,19 @@ export function Page({ onClose } = {}) {
 
     const pluginMode = isPluginMode();
 
+    // 补日期入口只在「后台已经确认取不到日期、现在仍然空着」的卡存在时出现；
+    // 弹窗里同时列出手动填过的卡，方便就地修改。
+    const unavailable = state.dates.unavailable ?? new Set();
+    const needDate = state.cards.filter((c) => c.completedAt == null && unavailable.has(c.appid));
+    const manualFilled = state.cards.filter((c) => c.completedAtSource === 'manual');
+    const dateCards = [...new Map([...needDate, ...manualFilled].map((c) => [c.appid, c])).values()];
+    const today = isoDay(Math.floor(Date.now() / 1000));
+
+    React.useEffect(() => {
+        // 刷新 / 换数据源时回到状态页，弹窗就失去意义了
+        if (state.phase !== 'ready' && dateOpen) setDateOpen(false);
+    }, [state.phase, dateOpen]);
+
     return React.createElement(
         'div',
         { className: 'ac-cardpack', 'data-ac': 'cardpack' },
@@ -351,6 +513,19 @@ export function Page({ onClose } = {}) {
         React.createElement(
             'div',
             { className: 'ac-page-toolbar' },
+            state.phase === 'ready' && needDate.length > 0
+                ? React.createElement(
+                      'button',
+                      {
+                          type: 'button',
+                          className: 'ac-date-open',
+                          title: STR.page.manualDatesTitle,
+                          'aria-label': STR.page.manualDatesTitle,
+                          onClick: () => setDateOpen(true),
+                      },
+                      STR.page.manualDatesButton,
+                  )
+                : null,
             pluginMode
                 ? React.createElement(
                       'button',
@@ -378,6 +553,16 @@ export function Page({ onClose } = {}) {
                   )
                 : null,
         ),
+        dateOpen && state.phase === 'ready'
+            ? React.createElement(DateModal, {
+                  cards: dateCards,
+                  running: state.dates.running,
+                  today,
+                  onSave: (appid, seconds) => store.setManualDate(appid, seconds),
+                  onClear: (appid) => store.clearManualDate(appid),
+                  onClose: () => setDateOpen(false),
+              })
+            : null,
     );
 }
 

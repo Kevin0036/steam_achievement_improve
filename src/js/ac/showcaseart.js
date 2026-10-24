@@ -19,7 +19,7 @@
  */
 
 import { SHOWCASE } from './selectors.js';
-import STR from './strings.js';
+import { SHOWCASE_STR } from './showcaseStrings.js';
 import { tagged, warn } from './utils.js';
 
 const out = tagged('showcaseart');
@@ -107,7 +107,7 @@ function markMissing(doc, slot, img) {
 
     const note = doc.createElement('div');
     note.className = 'ac-showcase-cover-missing';
-    note.textContent = STR.showcase.coverMissing;
+    note.textContent = SHOWCASE_STR.coverMissing;
     const bar = slot.querySelector(SHOWCASE.bar);
     if (bar) bar.before(note);
     else slot.querySelector('a')?.append(note);

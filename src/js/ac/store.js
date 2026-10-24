@@ -74,7 +74,10 @@ function initialState() {
         error: null,
         syncedAt: null,
         sortKeys: ['name', 'recent', 'achievements', 'catalogue'],
-        dates: { enabled: true, running: false, done: 0, total: 0, ok: 0, failed: 0 },
+        /** unavailable：确定取不到完成日期的 appid（补日期入口据此出现） */
+        dates: { enabled: true, running: false, done: 0, total: 0, ok: 0, failed: 0, unavailable: new Set() },
+        /** 手动补日期的修订号：每次改一张手动日期 +1，展示层据此在补日期期间也重排 */
+        manualRevision: 0,
         /** 新收录、还没播入册动画的游戏；ready = 它们的完成日期已经有结果（拿到或确定拿不到） */
         intro: { appids: [], ready: false },
     };
@@ -104,6 +107,33 @@ function emit(changedAppids = null, reason = 'update') {
 function setState(patch, changedAppids = null, reason = 'update') {
     state = { ...state, ...patch };
     emit(changedAppids, reason);
+}
+
+/* ── 手动补的完成日期 ───────────────────────────────────────────────────── */
+
+/** appid → 秒级时间戳；load() 时从缓存读入，set / clear 时就地维护 */
+let manualDates = new Map();
+
+/**
+ * 手动日期优先级最高：接口取不到日期的卡（家庭共享移除等）靠它进入时间排序和年份页。
+ * 同时清掉缓存里已经被用户撤销、但 state 快照还没重写时残留的旧手动日期。
+ */
+function applyManualDates(cards) {
+    let changed = false;
+    const next = cards.map((card) => {
+        const manual = manualDates.get(card.appid);
+        if (manual != null) {
+            if (card.completedAt === manual && card.completedAtSource === 'manual') return card;
+            changed = true;
+            return { ...card, completedAt: manual, completedAtSource: 'manual' };
+        }
+        if (card.completedAtSource === 'manual') {
+            changed = true;
+            return { ...card, completedAt: null, completedAtSource: 'none' };
+        }
+        return card;
+    });
+    return changed ? next : cards;
 }
 
 /* ── 组装卡片 ───────────────────────────────────────────────────────────── */
@@ -238,23 +268,25 @@ export async function load({ silent = false } = {}) {
     stopCachedMetadata();
     const isCurrent = generation.guard();
     syncing = true;
+    manualDates = cache.readManualDates();
 
     // 1) 先上本地派生缓存，让首屏立刻有东西
     if (!silent) {
         const cached = cache.readState();
         if (cached && cached.cards.length > 0) {
+            const cachedCards = applyManualDates(cached.cards);
             setState(
                 {
                     phase: 'ready',
-                    cards: cached.cards,
+                    cards: cachedCards,
                     fromCache: true,
                     stale: cached.stale,
                     syncing: false,
                     error: null,
-                    summary: summarize(cached.cards, cached.cards.length),
-                    sortKeys: availableSortKeys(cached.cards),
+                    summary: summarize(cachedCards, cachedCards.length),
+                    sortKeys: availableSortKeys(cachedCards),
                     // 缓存里可能已经有上次没来得及入册的新卡：先藏着，别在首屏一闪而过
-                    intro: { appids: detectFresh(cached.cards, [], false), ready: false },
+                    intro: { appids: detectFresh(cachedCards, [], false), ready: false },
                 },
                 null,
                 'cache',
@@ -315,24 +347,27 @@ export async function load({ silent = false } = {}) {
     //    完成日期 / 稀有数来自之前按需请求的结果；名字只沿用本次会话里 appInfoStore 查到的
     //    （不从本地缓存里拿 —— 缓存不能覆盖客户端，铁律 3）
     const dates = cache.readDates();
-    const cards = assembled.cards.map((card) => {
-        let next = card;
-        const known = dates.get(card.appid);
-        // 成就总数变了（游戏加了新成就、又被重新打满）：旧的完成日期不算数，重新取
-        if (known && known.total === card.total) {
-            next = {
-                ...next,
-                completedAt: known.completedAt,
-                completedAtSource: 'achievements-api',
-                rare: known.rare,
-                common: known.common,
-                unrated: Number.isFinite(known.unrated) ? known.unrated : known.rare == null ? card.total : 0,
-                rarityFetchedAt: known.fetchedAt,
-            };
-        }
-        if (next.nameMissing && resolvedNames.has(card.appid)) next = { ...next, name: resolvedNames.get(card.appid), nameMissing: false };
-        return next;
-    });
+    // 手动日期放在成就接口之后合并：用户填的就是最终值，接口后来取到了也以手动为准
+    const cards = applyManualDates(
+        assembled.cards.map((card) => {
+            let next = card;
+            const known = dates.get(card.appid);
+            // 成就总数变了（游戏加了新成就、又被重新打满）：旧的完成日期不算数，重新取
+            if (known && known.total === card.total) {
+                next = {
+                    ...next,
+                    completedAt: known.completedAt,
+                    completedAtSource: 'achievements-api',
+                    rare: known.rare,
+                    common: known.common,
+                    unrated: Number.isFinite(known.unrated) ? known.unrated : known.rare == null ? card.total : 0,
+                    rarityFetchedAt: known.fetchedAt,
+                };
+            }
+            if (next.nameMissing && resolvedNames.has(card.appid)) next = { ...next, name: resolvedNames.get(card.appid), nameMissing: false };
+            return next;
+        }),
+    );
 
     const summary = summarize(cards, data.listLibraryApps().length);
 
@@ -478,6 +513,8 @@ let backfillToken = null;
 const attempts = new Map();
 /** 当前这一轮里已经有结果的游戏（拿到日期，或确定拿不到） */
 const settled = new Set();
+/** 确定取不到完成日期的游戏（接口没有解锁时间 / 重试后仍失败），只在本次运行里有效 */
+const dateUnavailable = new Set();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -499,6 +536,8 @@ function planDateRequests(cards, known, fresh) {
     const first = [];
     const missing = [];
     for (const card of cards) {
+        // 用户手动填过日期的，不再请求成就接口（多半也取不到）
+        if (manualDates.has(card.appid)) continue;
         if ((attempts.get(card.appid) ?? 0) >= MAX_ATTEMPTS) continue;
         const entry = known.get(card.appid);
         if (!entry || entry.total !== card.total || entry.completedAt == null) {
@@ -555,8 +594,13 @@ function startDateBackfill(cards, known, fresh = [], isCurrent = () => true) {
     const finish = (appid, hasDate) => {
         settled.add(appid);
         done += 1;
-        if (hasDate) ok += 1;
-        else failed += 1;
+        if (hasDate) {
+            ok += 1;
+            dateUnavailable.delete(appid);
+        } else {
+            failed += 1;
+            if (!manualDates.has(appid)) dateUnavailable.add(appid);
+        }
     };
 
     (async () => {
@@ -582,7 +626,11 @@ function startDateBackfill(cards, known, fresh = [], isCurrent = () => true) {
                         total: card.total, fetchedAt: card.rarityFetchedAt ?? 0,
                     });
                     cache.writeDates(dates);
-                    patchCard(appid, { completedAt, completedAtSource: 'achievements-api' });
+                    // 接口结果照常存进日期缓存（清除手动日期时还能退回来），
+                    // 但绝不能覆盖用户当前填的手动日期
+                    if (!manualDates.has(appid)) {
+                        patchCard(appid, { completedAt, completedAtSource: 'achievements-api' });
+                    }
                     finish(appid, true);
                 } else {
                     // 拿到了成就列表却没有可用的解锁时间：这是确定的结果，这次运行里不再问
@@ -601,7 +649,11 @@ function startDateBackfill(cards, known, fresh = [], isCurrent = () => true) {
                 out.log(`${appid} 的成就读取失败：${result.reason}`);
             }
 
-            setState({ dates: { ...state.dates, done, ok, failed } }, [appid], 'dates-progress');
+            setState(
+                { dates: { ...state.dates, done, ok, failed, unavailable: new Set(dateUnavailable) } },
+                [appid],
+                'dates-progress',
+            );
             if (freshSet.has(appid)) settleIntro();
 
             await sleep(DATE_FETCH_GAP_MS);
@@ -609,14 +661,18 @@ function startDateBackfill(cards, known, fresh = [], isCurrent = () => true) {
 
         if (token.cancelled || !isCurrent()) return;
         cache.writeState(state.cards);
-        setState({ dates: { ...state.dates, running: false, done, ok, failed } }, null, 'dates-done');
+        setState(
+            { dates: { ...state.dates, running: false, done, ok, failed, unavailable: new Set(dateUnavailable) } },
+            null,
+            'dates-done',
+        );
         settleIntro();
         out.log(`完成日期补全结束：取得 ${ok}，未取得 ${failed}`);
     })().catch((err) => warn('完成日期补全流程异常', err));
 }
 
 /** 只替换一张卡，避免整表重渲染 */
-function patchCard(appid, patch) {
+function patchCard(appid, patch, extra = null) {
     const index = state.cards.findIndex((c) => c.appid === appid);
     if (index < 0) return;
 
@@ -630,10 +686,89 @@ function patchCard(appid, patch) {
             cards,
             summary: { ...state.summary, datedCount },
             sortKeys: availableSortKeys(cards),
+            ...(extra ?? {}),
         },
         [appid],
         'card-patched',
     );
+}
+
+/* ── 手动补的完成日期（展示层入口） ─────────────────────────────────────── */
+
+/** @param {number} completedAt 秒级时间戳 */
+export function setManualDate(appid, completedAt) {
+    if (!Number.isFinite(appid) || !Number.isFinite(completedAt) || completedAt <= 0) return false;
+    if (!state.cards.some((c) => c.appid === appid)) return false;
+
+    manualDates.set(appid, completedAt);
+    cache.writeManualDates(manualDates);
+    // 补日期流程还在跑的时候也立即重排：manualRevision 会让展示层重新装订
+    patchCard(appid, { completedAt, completedAtSource: 'manual' }, {
+        manualRevision: state.manualRevision + 1,
+    });
+    out.log(`手动补完成日期：${appid}`);
+    return true;
+}
+
+/** 撤销手动日期后这张卡应该回到的状态：接口缓存里还有同版本的日期就用它，否则无日期 */
+function cachedDateState(card, known) {
+    if (known && known.total === card.total && known.completedAt != null) {
+        return { completedAt: known.completedAt, completedAtSource: 'achievements-api' };
+    }
+    return { completedAt: null, completedAtSource: 'none' };
+}
+
+/**
+ * 撤销手动日期。成就接口之前取到过有效日期的，退回那个值；否则回到「无日期」。
+ */
+export function clearManualDate(appid) {
+    if (!manualDates.has(appid)) return false;
+    const card = state.cards.find((c) => c.appid === appid);
+    manualDates.delete(appid);
+    cache.writeManualDates(manualDates);
+
+    const known = cache.readDates().get(appid);
+    const restore = card ? cachedDateState(card, known) : { completedAt: null, completedAtSource: 'none' };
+    patchCard(appid, restore, { manualRevision: state.manualRevision + 1 });
+    out.log(`已撤销手动完成日期：${appid}`);
+    return true;
+}
+
+/**
+ * 一键清除所有手动日期。插件设置面板可能还没 load() 过卡包数据，
+ * 所以以缓存里的手动日期为准，同时清掉内存里的那一份。
+ * @returns {number} 清掉了几张卡
+ */
+export function clearAllManualDates() {
+    const cleared = new Set([...cache.readManualDates().keys(), ...manualDates.keys()]);
+    if (cleared.size === 0) return 0;
+
+    manualDates = new Map();
+    cache.writeManualDates(manualDates);
+
+    const known = cache.readDates();
+    let changed = false;
+    const cards = state.cards.map((card) => {
+        if (!cleared.has(card.appid)) return card;
+        changed = true;
+        return { ...card, ...cachedDateState(card, known.get(card.appid)) };
+    });
+
+    if (changed) {
+        const datedCount = cards.filter((c) => c.completedAt != null).length;
+        setState(
+            {
+                cards,
+                summary: { ...state.summary, datedCount },
+                sortKeys: availableSortKeys(cards),
+                manualRevision: state.manualRevision + 1,
+            },
+            null,
+            'manual-dates-cleared',
+        );
+    }
+    out.log(`已清除全部手动完成日期：${cleared.size} 款`);
+    return cleared.size;
 }
 
 /* ── 册子的主人 ─────────────────────────────────────────────────────────── */
@@ -690,8 +825,10 @@ export function pause() {
 
 export function dispose() {
     resolvedNames.clear();
+    manualDates = new Map();
     attempts.clear();
     settled.clear();
+    dateUnavailable.clear();
     generation.bump();
     stopCachedMetadata();
     stopDateBackfill();

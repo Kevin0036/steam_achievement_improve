@@ -18,7 +18,7 @@
 
 import { SHOWCASE } from './selectors.js';
 import { repairShowcaseCovers } from './showcaseart.js';
-import STR from './strings.js';
+import { SHOWCASE_STR } from './showcaseStrings.js';
 import { tagged } from './utils.js';
 
 const out = tagged('showcase');
@@ -49,7 +49,7 @@ function tidyStats(root) {
         // 只改第一个非 DLC 栏位（即「已完成的游戏和组」），其余原样保留
         if (!relabelled) {
             label.dataset.acLabelOriginal = text;
-            label.textContent = STR.showcase.perfectGames;
+            label.textContent = SHOWCASE_STR.perfectGames;
             stat.dataset.acStat = 'games';
             relabelled = true;
             changed += 1;

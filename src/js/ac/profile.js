@@ -19,17 +19,11 @@ const VERSION = '1.1.0';
 const out = tagged('profile');
 
 (async function main() {
-    // 主题版和插件版可能各注入一份（插件版走 Lua 的浏览器钩子）。
-    // 社区页面里谁先到谁干活，另一份直接退出，避免两个观察器重复处理。
-    if (window.__acShowcaseEntry) {
-        log('展柜入口已由另一份脚本挂载，本份跳过');
-        return;
-    }
-    window.__acShowcaseEntry = true;
-
     const disposables = new Disposables();
 
-    // 这一层只为「不要在没有展柜的页面上做事」——先确认页面里出现过展柜的信号
+    // 这一层只为「不要在没有展柜的页面上做事」——先确认页面里出现过展柜的信号。
+    // 守卫必须在确认之后才落：社区页面打开时主题版和插件版可能各注入一份，
+    // 如果先到的那份因为等不到展柜而退出，它不能把后来真正能干活的那份挡在门外。
     const hasShowcase = await waitFor(
         () => document.querySelector(SHOWCASE.slots) || document.querySelector(SHOWCASE.bar),
         { timeout: 12000, interval: 250 },
@@ -39,6 +33,13 @@ const out = tagged('profile');
         log('当前社区页面没有完满主义者展柜，功能 A 不做事');
         return;
     }
+
+    // 真正要挂观察器时才占位：同一页面只留一份。
+    if (window.__acShowcaseMounted) {
+        log('展柜入口已由另一份脚本挂载，本份跳过');
+        return;
+    }
+    window.__acShowcaseMounted = true;
 
     banner(THEME_NAME, VERSION);
 

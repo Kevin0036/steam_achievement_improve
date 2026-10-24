@@ -3,10 +3,15 @@
  *
  * 本地化集中点：要改文案只改这一个文件。
  *
+ * 展柜的两句文案放在 showcaseStrings.js，好让社区页面的独立小包不必带上整本 STR；
+ * 这里把它挂回 STR.showcase，调用方仍然只需要认识 STR。
+ *
  * 已知取舍：展柜里的「99 项成就」是 Valve 服务端按其本地化渲染的
  * （英文客户端显示 "99 Achievements"）。我们**不改写**它，
  * 所以非中文客户端上会是「中英混排」。README 里写明了这一点。
  */
+
+import { SHOWCASE_STR } from './showcaseStrings.js';
 
 export const STR = {
     theme: '成就收藏册',
@@ -40,6 +45,19 @@ export const STR = {
         datesNoteDone: (ok, failed) =>
             failed > 0 ? `完成日期已读取 ${ok} 个，${failed} 个未取得（这些卡片不显示日期）` : `完成日期已读取 ${ok} 个`,
         datesDisabled: '完成日期读取已在主题设置里关闭',
+
+        // 手动补完成日期
+        manualDatesButton: '补日期',
+        manualDatesTitle: '手动补完成日期',
+        manualDatesDesc:
+            '有些游戏（比如已经不在库里的家庭共享游戏）Steam 取不到最后一个成就的解锁时间。' +
+            '可以在这里自己填，日期只保存在本地。',
+        manualDatesRunning: '后台还在读取完成日期；取不到的游戏可以先手动补。',
+        manualDatesEmpty: '所有卡片的完成日期都已经有了。',
+        manualDatesInput: (name) => `${name} 的完成日期`,
+        manualDatesClear: '清除',
+        manualDatesManual: '手动',
+        manualDatesClose: '关闭',
     },
 
     /* ── 收藏卡（cardview.js） ──────────────────────────────────────────── */
@@ -111,13 +129,8 @@ export const STR = {
         usedMark: '已贴',
     },
 
-    /* ── 展柜 ───────────────────────────────────────────────────────────── */
-    showcase: {
-        // 统计行里「已完成的游戏和组」改成这句；数字不动
-        perfectGames: '完美通关的游戏',
-        // 锁区等原因连备用封面都取不到时的占位文字
-        coverMissing: '封面暂不可用',
-    },
+    /* ── 展柜（定义在 showcaseStrings.js，单独打包给社区页面） ─────────── */
+    showcase: SHOWCASE_STR,
 
     /* ── 自检 ───────────────────────────────────────────────────────────── */
     selftest: {
