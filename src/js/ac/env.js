@@ -114,13 +114,80 @@ export const getAppDetailsStore = () => probe('appDetailsStore');
 export const getAppDetailsCache = () => probe('appDetailsCache');
 /** 登录用户表（`currentUser` 带 personaName / avatarUrl，登录界面用的就是它；兜底用） */
 export const getLoginStore = () => probe('loginStore');
+
+/** 当前启用主题的目录名（插件版用它判断主题版是否已经接管库内入口） */
+export const getActiveThemeNative = () => probe('PLUGIN_LIST.core.activeTheme.native') ?? null;
+
+/**
+ * 插件模式是「每个脚本实例自己的状态」，不是 window 上的全局开关。
+ * 主题版与插件版打的是同一份源码，但会各自打包、各自求值：
+ * 用全局标记会让先执行的一方把另一方也当成插件版（两边都跳过库内注入）。
+ */
+let pluginMode = false;
+
+export function setPluginMode(value = true) {
+    pluginMode = !!value;
+}
+
+export const isPluginMode = () => pluginMode;
+
+/** 成就收藏册主题是否正在生效（目录名缺失时退回显示名判断） */
+export function isOurThemeActive() {
+    if (getActiveThemeNative() === 'AchievementCollection') return true;
+    const name = getThemeName();
+    return name === '成就收藏册' || name === 'AchievementCollection';
+}
 /** 好友与个人资料（顶栏右上角的昵称和头像就是从这里取的） */
 export const getFriendStore = () => probe('friendStore');
 /** 游戏名 / 图标信息（不在库里的游戏也能查到名字） */
 export const getAppInfoStore = () => probe('appInfoStore');
+/** 游戏徽章：GetBadgeData（当前等级 / 图标）与 GetCommunityItemDefinitions（各级图案） */
+export const getBadgeStore = () => probe('badgeStore');
+
+/**
+ * 插件版把卡册 CSS 打进了 bundle，但页面可能渲染在**另一个 document** 里：
+ * 模态窗口、或 Steam 主窗口与 SharedJSContext 分离时，模块顶层拿到的 `document`
+ * 不一定是真正承载 DOM 的那一个（症状是内容出来了但完全没有样式）。
+ * 插件入口用 setStyleEnsurer 注册一个「按节点所在文档补样式」的函数，
+ * 页面与面板挂载时各自调用；主题版没有注册，调用是空操作。
+ */
+let styleEnsurer = null;
+
+export function setStyleEnsurer(ensurer) {
+    styleEnsurer = typeof ensurer === 'function' ? ensurer : null;
+}
+
+export function ensureNodeStyles(node) {
+    if (!styleEnsurer) return;
+    try {
+        styleEnsurer(node?.ownerDocument ?? null);
+    } catch {
+        /* 样式补注入失败不影响功能 */
+    }
+}
+
+/**
+ * 插件版没有主题的 Conditions 配置，选项由插件入口在导入任何 ac 模块之前
+ * 通过 `setOptionProvider` 接进来。返回 undefined 表示「这一项不归插件管」，
+ * 继续走主题配置（主题版不受影响）。
+ */
+let optionProvider = null;
+
+export function setOptionProvider(provider) {
+    optionProvider = typeof provider === 'function' ? provider : null;
+}
 
 /** 从主题自己的条件配置里取一个选项值（当前 Millennium 存在 core.conditionals[主题目录名]） */
 export function getThemeOption(name, fallback = undefined) {
+    if (optionProvider) {
+        try {
+            const value = optionProvider(name);
+            if (value !== undefined) return value;
+        } catch {
+            /* 插件选项读取失败就退回主题配置 */
+        }
+    }
+
     try {
         const native = probe('PLUGIN_LIST.core.activeTheme.native');
         const store = native ? probe('PLUGIN_LIST.core.conditionals')?.[native] : undefined;

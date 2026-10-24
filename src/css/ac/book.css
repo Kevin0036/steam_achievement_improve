@@ -269,7 +269,14 @@
     opacity: 0.55;
 }
 
-/* ── 叶：翻页的单位（右开本：未翻的叶在左边，绕书脊向右翻） ──────────────── */
+/* 四宫格里检视卡片：整个卡槽提到最上层，倾斜出来的边缘不会被相邻卡片盖住 */
+.ac-book[data-per-page="4"] .ac-slot[data-hover] {
+    z-index: 20;
+}
+
+/* ── 叶：翻页的单位 ────────────────────────────────────────────────────────
+   最新优先（右开本）：未翻的叶在左边，绕书脊向右翻；
+   顺序入册（左开本）：未翻的叶在右边，绕书脊向左翻。 */
 
 .ac-leaf {
     position: absolute;
@@ -282,8 +289,19 @@
     transform: rotateY(0deg);
 }
 
+.ac-book[data-binding="sequential"] .ac-leaf {
+    left: 50%;
+    transform-origin: 0% 50%;
+}
+
 .ac-leaf[data-turned] {
     transform: rotateY(180deg);
+}
+
+/* 左开本的叶绕左侧书脊翻：负角让纸面先朝读者掀起来（向外），
+   正角会先倒进屏幕里，看起来像是在往书里翻 */
+.ac-book[data-binding="sequential"] .ac-leaf[data-turned] {
+    transform: rotateY(-180deg);
 }
 
 .ac-leaf.is-turning {
@@ -442,10 +460,83 @@
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-.ac-title__hint {
+/* ── 扉页统计：册内卡片总数 · 金杯 · 银杯 ───────────────────────────────── */
+
+.ac-title__stats {
+    display: flex;
+    align-items: center;
+    gap: 2.2cqh;
+    margin-top: 3.4cqh;
+}
+
+.ac-title__stats-sep {
+    width: 1px;
+    height: 3.4cqh;
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+}
+
+.ac-title__stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.7cqh;
+    min-width: 7.6cqh;
+}
+
+.ac-title__stat-main {
+    display: flex;
+    align-items: center;
+    gap: 0.7cqh;
+    font-size: 2.5cqh;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.ac-title__stat-main b {
+    font-weight: 600;
+}
+
+.ac-title__stat--cards .ac-title__stat-main b {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.ac-title__trophy {
+    width: 2.1cqh;
+    height: 2.1cqh;
+    -webkit-mask: var(--ac-trophy) center / contain no-repeat;
+    mask: var(--ac-trophy) center / contain no-repeat;
+}
+
+.ac-title__stat--gold .ac-title__trophy {
+    background: linear-gradient(160deg, #fff3a8, #f7c53a 55%, #d38f12);
+}
+
+.ac-title__stat--gold .ac-title__stat-main b {
+    color: var(--ac-gold);
+}
+
+.ac-title__stat--silver .ac-title__trophy {
+    background: linear-gradient(160deg, #ffffff, #d0d8e2 55%, #8f9bab);
+}
+
+.ac-title__stat--silver .ac-title__stat-main b {
+    color: #e6edf5;
+}
+
+.ac-title__stat-label {
+    padding-left: 0.16em;
+    font-size: 1.08cqh;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    color: rgba(255, 255, 255, 0.3);
+    white-space: nowrap;
+}
+
+/* 翻页提示：最新优先在「未完待续」页，顺序入册在扉页 */
+.ac-page-hint {
     position: absolute;
     right: 0;
-    bottom: 8cqh;
+    bottom: 7.4cqh;
     left: 0;
     font-size: 1.45cqh;
     letter-spacing: 0.24em;

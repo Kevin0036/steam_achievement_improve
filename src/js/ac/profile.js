@@ -14,11 +14,19 @@ import { enhanceShowcase } from './showcase.js';
 import { banner, debounce, log, warn, Disposables, tagged, waitFor } from './utils.js';
 
 const THEME_NAME = '成就收藏册';
-const VERSION = '1.0.2';
+const VERSION = '1.1.0';
 
 const out = tagged('profile');
 
 (async function main() {
+    // 主题版和插件版可能各注入一份（插件版走 Lua 的浏览器钩子）。
+    // 社区页面里谁先到谁干活，另一份直接退出，避免两个观察器重复处理。
+    if (window.__acShowcaseEntry) {
+        log('展柜入口已由另一份脚本挂载，本份跳过');
+        return;
+    }
+    window.__acShowcaseEntry = true;
+
     const disposables = new Disposables();
 
     // 这一层只为「不要在没有展柜的页面上做事」——先确认页面里出现过展柜的信号

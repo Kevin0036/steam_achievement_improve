@@ -11,6 +11,7 @@
 @import url("./tokens.css");
 @import url("./book.css");
 @import url("./card.css");
+@import url("./yearpages.css");
 
 /* ── 页面外壳：撑满库的内容区 ──────────────────────────────────────────── */
 
@@ -31,6 +32,54 @@
 .ac-book-host {
     position: absolute;
     inset: 0;
+}
+
+/* ── 卡册页右上角工具条（插件设置 / 模态返回） ─────────────────────────── */
+
+.ac-page-toolbar {
+    position: absolute;
+    top: 18px;
+    right: 24px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ac-page-toolbar > button {
+    height: 30px;
+    padding: 0 14px;
+    color: var(--ac-text-dim);
+    font: 600 12px/1 var(--ac-font);
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 999px;
+    background: rgba(16, 17, 20, 0.72);
+    backdrop-filter: blur(8px);
+    transition: color 140ms var(--ac-ease-out), border-color 140ms var(--ac-ease-out), background 140ms var(--ac-ease-out);
+}
+
+.ac-page-toolbar > button:hover,
+.ac-page-toolbar > button:focus-visible {
+    color: var(--ac-text);
+    border-color: rgba(102, 192, 244, 0.5);
+    background: rgba(27, 40, 56, 0.92);
+    outline: none;
+}
+
+/* 模态打开时没有 Steam 自带的关闭按钮可用，这一个必须始终可见 */
+.ac-page-toolbar > .ac-modal-close {
+    color: #cfe6f5;
+    border-color: rgba(102, 192, 244, 0.42);
+    background: rgba(27, 40, 56, 0.88);
+}
+
+.ac-page-toolbar > .ac-modal-close:hover,
+.ac-page-toolbar > .ac-modal-close:focus-visible {
+    color: #ffffff;
+    border-color: #66c0f4;
+    background: rgba(42, 71, 94, 0.95);
 }
 
 /* ── 状态页（读取中 / 等待数据 / 空 / 出错）：一本合上的书 ─────────────── */

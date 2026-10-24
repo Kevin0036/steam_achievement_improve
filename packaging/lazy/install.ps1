@@ -19,7 +19,7 @@ try {
     [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
     $global:OutputEncoding = New-Object Text.UTF8Encoding($false)
 } catch { }
-$script:ThemeVersion = '1.0.2'
+$script:ThemeVersion = '1.1.0'
 $script:MillenniumVersion = '3.6.2'
 $script:ThemeFolderName = 'AchievementCollection'
 $script:PackageDir = $PSScriptRoot

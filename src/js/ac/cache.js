@@ -16,6 +16,7 @@
  *               读取失败的不落盘：下次打开卡包会重试。
  *   shelved  —— 已经收进册子的 appid。和当前全成就列表一比，多出来的就是「新收录」，
  *               首次进入卡包时播放入册动画（见 book.js introduce）。
+ *   order    —— 「顺序入册」的稳定次序（只追加）。旧卡的编号与位置不随新卡变化。
  *   position —— 上次离开时翻到哪一页。记 appid（该页第一张卡）和页码，回来时优先按 appid
  *               锚定，卡片重排 / 每页数量改了也不会飘走。
  */
@@ -29,7 +30,9 @@ const NS = 'ac';
 const KEY_STATE = `${NS}:v${CACHE_VERSION}:state`;
 const KEY_DATES = `${NS}:v${CACHE_VERSION}:completed`;
 const KEY_SHELVED = `${NS}:v${CACHE_VERSION}:shelved`;
+const KEY_ORDER = `${NS}:v${CACHE_VERSION}:order`;
 const KEY_POSITION = `${NS}:v${CACHE_VERSION}:position`;
+const KEY_YEAR_SELECTIONS = `${NS}:v${CACHE_VERSION}:yearpages`;
 const RARE_CACHE_VERSION = 4;
 // 完成日期缓存换过两次格式：:dates 是在成就接口还没接通时写下的（失败名单不可信），
 // :completion 整份共用一个 30 天期限。两者都直接弃用，见 readDates()。
@@ -181,6 +184,28 @@ export function writeShelved(appids) {
     writeJson(KEY_SHELVED, { appids: [...appids] });
 }
 
+/* ── 顺序入册的稳定次序 ─────────────────────────────────────────────────── */
+
+/**
+ * 「顺序入册」的 appid 次序 = 入册先后。
+ * 只追加、不重排、不删除：旧卡的编号和位置因此永远不变；
+ * 中间的游戏暂时读不到时也不会把后面的卡往前挤。
+ *
+ * @returns {number[]}
+ */
+export function readOrder() {
+    const parsed = readJson(KEY_ORDER);
+    if (!Array.isArray(parsed?.appids)) return [];
+    return [...new Set(parsed.appids.filter(Number.isFinite))];
+}
+
+/** @param {number[]} appids */
+export function writeOrder(appids) {
+    const clean = [...new Set(appids.filter(Number.isFinite))];
+    if (clean.length === 0) return;
+    writeJson(KEY_ORDER, { appids: clean });
+}
+
 /* ── 上次翻到的位置 ─────────────────────────────────────────────────────── */
 
 /** @returns {{page:number, appid:number|null} | null} */
@@ -200,6 +225,54 @@ export function writePosition(position) {
         page: Math.max(0, Math.trunc(position.page)),
         appid: Number.isFinite(position.appid) ? position.appid : null,
     });
+}
+
+/* ── 年份特殊页的选择 ───────────────────────────────────────────────────── */
+
+/**
+ * 每年三个徽章槽 + 三个横幅槽。
+ * 徽章项为 { appid, level }（level 为 1–5、'foil' 或 'cover'），横幅项为 appid；
+ * 空槽用 null 占位。读不出来的数据一律丢掉，不让坏缓存弄坏整页。
+ *
+ * @returns {Record<string, {badges: Array, banners: Array}>}
+ */
+export function readYearSelections() {
+    const parsed = readJson(KEY_YEAR_SELECTIONS);
+    const result = {};
+    if (!parsed || typeof parsed.years !== 'object' || !parsed.years) return result;
+    for (const [year, raw] of Object.entries(parsed.years)) {
+        if (!raw || typeof raw !== 'object') continue;
+        const badges = (Array.isArray(raw.badges) ? raw.badges : []).slice(0, 3).map((item) => {
+            if (item?.appid == null || item.appid === '') return null;
+            const appid = Number(item.appid);
+            if (!Number.isFinite(appid)) return null;
+            const level = item.level === 'foil' || item.level === 'cover' ? item.level : Number(item.level);
+            if (level !== 'foil' && level !== 'cover' && !(Number.isFinite(level) && level >= 1 && level <= 5)) return null;
+            return { appid, level };
+        });
+        const banners = (Array.isArray(raw.banners) ? raw.banners : []).slice(0, 3).map((appid) => {
+            if (appid == null || appid === '') return null;
+            const id = Number(appid);
+            return Number.isFinite(id) ? id : null;
+        });
+        while (badges.length < 3) badges.push(null);
+        while (banners.length < 3) banners.push(null);
+        result[year] = { badges, banners };
+    }
+    return result;
+}
+
+/** @param {Record<string, {badges: Array, banners: Array}>} selections */
+export function writeYearSelections(selections) {
+    const years = {};
+    for (const [year, raw] of Object.entries(selections ?? {})) {
+        if (!raw || typeof raw !== 'object') continue;
+        const badges = (Array.isArray(raw.badges) ? raw.badges : []).slice(0, 3);
+        const banners = (Array.isArray(raw.banners) ? raw.banners : []).slice(0, 3);
+        if (badges.every((item) => !item) && banners.every((item) => !item)) continue;
+        years[year] = { badges, banners };
+    }
+    writeJson(KEY_YEAR_SELECTIONS, { years });
 }
 
 /* ── 清理 ───────────────────────────────────────────────────────────────── */
@@ -222,4 +295,4 @@ export function clearAll() {
     }
 }
 
-export const CACHE_KEYS = { KEY_STATE, KEY_DATES, KEY_SHELVED, KEY_POSITION };
+export const CACHE_KEYS = { KEY_STATE, KEY_DATES, KEY_SHELVED, KEY_ORDER, KEY_POSITION, KEY_YEAR_SELECTIONS };

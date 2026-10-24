@@ -7,7 +7,9 @@
  * 展示层只读 store，不认识任何 Steam API。
  * 页面本体是一本摊开的收藏册（book.js），这里只负责：
  *   · 状态页（读取中 / 等待数据 / 空 / 出错）画成一本合上的册子；
- *   · 把卡片按**完成时间倒序**交给 book；book 从 No.001 开始正序装订（最近完成的在最后）；
+ *   · 把卡片交给 book 装订：
+ *       最新优先按**完成时间倒序**（book 从 No.001 开始正序装订，最近完成的在最后）；
+ *       顺序入册按**入册先后正序**（旧卡位置不变，新卡接在最后一页的空位）；
  *   · 完成日期是逐张补上来的：补的过程中只就地换那一张卡，
  *     全部补完后再重新装订一次，并把当前正在看的那张留在原处；
  *   · 新全成就的游戏先不放进册子，等它的完成日期到了，交给 book.introduce() 播入册动画，
@@ -15,10 +17,11 @@
  *   · 翻到哪一页会记进缓存，下次进来摊开在同一页。
  */
 
-import { getReact, getReactDom, getThemeOption } from './env.js';
+import { getReact, getReactDom, getThemeOption, isPluginMode, ensureNodeStyles } from './env.js';
 import * as store from './store.js';
 import * as cache from './cache.js';
 import { createBook } from './book.js';
+import { yearKeyOf } from './yearpages.js';
 import { tagged } from './utils.js';
 import { STR } from './strings.js';
 
@@ -103,17 +106,90 @@ const orderOf = (cards) => cards.map((c) => c.appid).join(',');
 /** 主题设置「单页卡片数量」：只认 1 / 4，其余一律按 1 处理 */
 const currentPerPage = () => (String(getThemeOption('单页卡片数量', '1')) === '4' ? 4 : 1);
 
-export function Page() {
+/** 主题设置「卡册装订方式」：默认最新优先；兼容英文旧值 */
+const currentBinding = () => {
+    const value = String(getThemeOption('卡册装订方式', '最新优先'));
+    return value === '顺序入册' || value === 'sequential' ? 'sequential' : 'newest';
+};
+
+/** 主题设置「扉页统计」：默认开启，只有明确关闭才隐藏 */
+const currentTitleStats = () => String(getThemeOption('扉页统计', '开启')) !== '关闭';
+
+/** 主题设置「年份特殊页」：默认关闭，只有明确开启才插入年份页 */
+const currentYearPages = () => String(getThemeOption('年份特殊页', '关闭')) === '开启';
+
+/** 分组依据的指纹：完成日期补上后年份会变，需要重新装订 */
+const yearSignature = (cards) => cards.map((card) => `${card.appid}:${yearKeyOf(card)}`).join(',');
+
+/**
+ * 顺序入册的次序：按「入册先后」排（旧的在前）。
+ * 只把没见过的 appid 追加到缓存次序末尾 —— 已入册卡片的编号和位置永远不动，
+ * 新卡自然落在最后一页的空卡槽里，填满后再开新页。
+ *
+ * @param {Array} cards 最新优先排好序的卡片
+ * @param {boolean} persist false 时只算不写（首屏缓存阶段，等客户端数据到了再定次序）
+ */
+function sequentialOrder(cards, persist) {
+    const history = cache.readOrder();
+    const byAppid = new Map(cards.map((c) => [c.appid, c]));
+    const kept = history.filter((appid) => byAppid.has(appid));
+    const known = new Set(kept);
+    const fresh = cards
+        .filter((c) => !known.has(c.appid))
+        .sort((a, b) => {
+            const da = a.completedAt ?? Infinity;
+            const db = b.completedAt ?? Infinity;
+            if (da === db) return a.appid - b.appid;
+            return da - db;
+        });
+    if (persist && fresh.length > 0) cache.writeOrder([...history, ...fresh.map((c) => c.appid)]);
+    return [...kept.map((appid) => byAppid.get(appid)), ...fresh];
+}
+
+export function Page({ onClose } = {}) {
     const React = getReact();
     const state = useStoreState();
+    const [, reloadOptions] = React.useState(0);
     const hostRef = React.useRef(null);
     const bookRef = React.useRef(null);
-    const builtRef = React.useRef({ order: '', owner: '', state: '', perPage: 0 });
+    const builtRef = React.useRef({
+        order: '',
+        owner: '',
+        state: '',
+        perPage: 0,
+        binding: '',
+        showStats: null,
+        yearPages: null,
+        yearSig: '',
+    });
     /** 正在播的入册动画（一个令牌，防止旧书的回调影响新书） */
     const introRef = React.useRef(null);
     /** 上次离开时翻到哪一页；首次挂载从缓存读，之后每次翻页就地更新 */
     const positionRef = React.useRef(undefined);
     if (positionRef.current === undefined) positionRef.current = cache.readPosition();
+
+    // 插件版：把样式补进卡册实际所在的文档（模态窗口 / 主窗口都可能不是模块自己的 document）。
+    // 主题版没有注册 ensurer，这里什么也不做。
+    React.useEffect(() => {
+        ensureNodeStyles(hostRef.current);
+    }, []);
+
+    // 模态卡包必须能退出：Esc 与右上角的返回按钮走同一个 onClose。
+    // 监听挂在卡册实际所在的窗口上 —— 模块自己的 window 未必是显示它的那个。
+    React.useEffect(() => {
+        if (typeof onClose !== 'function') return undefined;
+        const win = hostRef.current?.ownerDocument?.defaultView;
+        if (!win) return undefined;
+        const onKeyDown = (event) => {
+            if (event.key !== 'Escape' || event.defaultPrevented) return;
+            // 年份选择器开着时 Esc 只关选择器，不能把整个卡包一起关掉
+            if (hostRef.current?.querySelector('.ac-year-picker')) return;
+            event.preventDefault();
+            onClose();
+        };
+        win.addEventListener('keydown', onKeyDown, true);
+        return () => win.removeEventListener('keydown', onKeyDown, true);
+    }, [onClose]);
 
     // 首次挂载：读数据 + 取当前账号（再挂载时走 silent，避免用缓存先铺一层造成闪烁）
     React.useEffect(() => {
@@ -123,13 +199,22 @@ export function Page() {
         return () => store.pause();
     }, []);
 
+    // 插件版的设置面板改完立即生效：主题版也复用这一页，但没有这个事件时零副作用
+    React.useEffect(() => {
+        const onOptions = () => reloadOptions((n) => n + 1);
+        window.addEventListener('ac:settings-changed', onOptions);
+        return () => window.removeEventListener('ac:settings-changed', onOptions);
+    }, []);
+
     const onRetry = React.useCallback(() => store.refresh(), []);
 
     React.useEffect(() => {
         const host = hostRef.current;
         if (!host) return;
 
-        const ordered = store.selectVisibleCards();
+        const byCompletion = store.selectVisibleCards();
+        const binding = currentBinding();
+        const ordered = binding === 'sequential' ? sequentialOrder(byCompletion, !state.fromCache) : byCompletion;
         const phase = state.phase === 'ready' && ordered.length === 0 ? 'empty' : state.phase;
         const perPage = currentPerPage();
 
@@ -141,7 +226,16 @@ export function Page() {
             bookRef.current?.destroy();
             bookRef.current = null;
             introRef.current = null;
-            builtRef.current = { order: '', owner: '', state: '', perPage: 0 };
+            builtRef.current = {
+                order: '',
+                owner: '',
+                state: '',
+                perPage: 0,
+                binding: '',
+                showStats: null,
+                yearPages: null,
+                yearSig: '',
+            };
         };
 
         if (phase !== 'ready') {
@@ -160,9 +254,19 @@ export function Page() {
 
         const orderKey = orderOf(shown);
         const ownerKey = `${state.owner?.persona ?? ''}|${state.owner?.avatar ?? ''}`;
+        const showStats = currentTitleStats();
+        const yearPages = currentYearPages();
+        const yearSig = yearPages ? yearSignature(shown) : '';
 
-        if (bookRef.current && (builtRef.current.owner !== ownerKey || builtRef.current.perPage !== perPage)) {
-            // 昵称/头像晚到了，或单页数量改了：整册重画一次
+        if (
+            bookRef.current &&
+            (builtRef.current.owner !== ownerKey ||
+                builtRef.current.perPage !== perPage ||
+                builtRef.current.binding !== binding ||
+                builtRef.current.showStats !== showStats ||
+                builtRef.current.yearPages !== yearPages)
+        ) {
+            // 昵称/头像晚到了，或单页数量 / 装订方式 / 扉页统计 / 年份页改了：整册重画一次
             destroyBook();
         }
 
@@ -172,21 +276,36 @@ export function Page() {
                 cards: shown,
                 owner: state.owner ?? {},
                 perPage,
+                binding,
+                showStats,
+                yearPages,
+                yearSelections: cache.readYearSelections(),
+                onYearChange: (yearKey, selection) => {
+                    const all = cache.readYearSelections();
+                    all[yearKey] = selection;
+                    cache.writeYearSelections(all);
+                },
                 initial: positionRef.current,
                 onPage: (position) => {
                     positionRef.current = position;
                     cache.writePosition(position);
                 },
             });
-            builtRef.current = { order: orderKey, owner: ownerKey, state: '', perPage };
-            out.log(`收藏册已装订：${shown.length} 张卡（每页 ${perPage} 张）`);
-        } else if (!state.dates.running && orderKey !== builtRef.current.order) {
-            // 日期补完了，重新按完成时间装订。
+            builtRef.current = { order: orderKey, owner: ownerKey, state: '', perPage, binding, showStats, yearPages, yearSig };
+            out.log(
+                `收藏册已装订：${shown.length} 张卡（每页 ${perPage} 张，${binding === 'sequential' ? '顺序入册' : '最新优先'}${yearPages ? '，按年份分页' : ''}）`,
+            );
+        } else if (
+            !state.dates.running &&
+            (orderKey !== builtRef.current.order || (yearPages && yearSig !== builtRef.current.yearSig))
+        ) {
+            // 日期补完了，重新按完成时间 / 年份装订。
             // 还停在第一页（没翻过）就留在第一页；翻过了就把正在看的那张留在原处。
             const book = bookRef.current;
             const atStart = book.page === 0;
             book.replaceCards(shown, atStart ? { atStart } : { keepAppid: book.position.appid });
             builtRef.current.order = orderKey;
+            builtRef.current.yearSig = yearSig;
             out.log('完成日期已补全，收藏册重新装订');
         } else {
             // 日期 / 稀有数 / 游戏名是逐张补上来的：只换变了的那几张卡，不重排
@@ -205,6 +324,7 @@ export function Page() {
             const token = {};
             introRef.current = token;
             builtRef.current.order = orderOf(ordered);
+            builtRef.current.yearSig = yearPages ? yearSignature(ordered) : '';
             out.log(`新卡入册：${appids.join(', ')}`);
             book.introduce(ordered, appids).then((done) => {
                 if (introRef.current !== token) return;
@@ -222,10 +342,42 @@ export function Page() {
         [],
     );
 
+    const pluginMode = isPluginMode();
+
     return React.createElement(
         'div',
         { className: 'ac-cardpack', 'data-ac': 'cardpack' },
         React.createElement('div', { className: 'ac-book-host', ref: hostRef, 'data-ac': 'book-host' }),
+        React.createElement(
+            'div',
+            { className: 'ac-page-toolbar' },
+            pluginMode
+                ? React.createElement(
+                      'button',
+                      {
+                          type: 'button',
+                          className: 'ac-plugin-settings',
+                          title: '成就收藏册设置',
+                          'aria-label': '打开成就收藏册设置',
+                          onClick: () => window.dispatchEvent(new CustomEvent('ac:open-settings')),
+                      },
+                      '设置',
+                  )
+                : null,
+            typeof onClose === 'function'
+                ? React.createElement(
+                      'button',
+                      {
+                          type: 'button',
+                          className: 'ac-modal-close',
+                          title: '返回 Steam',
+                          'aria-label': '关闭成就卡包，返回 Steam',
+                          onClick: onClose,
+                      },
+                      '← 返回',
+                  )
+                : null,
+        ),
     );
 }
 

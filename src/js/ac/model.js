@@ -194,6 +194,7 @@ export function buildArt(appid, overview, libraryAssets) {
         sanitizeAssetPath(overview?.header_filename) ||
         'header.jpg';
     const capsuleFile = sanitizeAssetPath(overview?.library_capsule_filename) || 'library_600x900.jpg';
+    const logoFile = sanitizeAssetPath(libraryAssets?.strLogoImage) || 'logo.png';
 
     const local = (file) => `/assets/${appid}/${file}?c=${cache}`;
     const legacy = (file) => `/assets/${appid}_${file}?c=${cache}`;
@@ -225,6 +226,8 @@ export function buildArt(appid, overview, libraryAssets) {
             local('header.jpg'),
             cdn('header.jpg'),
         ]),
+        // 库里叠在主视觉上的透明标志（年份页的横幅用）
+        logo: dedupe([local(logoFile), cdn(logoFile), local('logo.png'), cdn('logo.png')]),
     };
 }
 

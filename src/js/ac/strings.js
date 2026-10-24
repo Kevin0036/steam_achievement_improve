@@ -59,13 +59,56 @@ export const STR = {
     book: {
         title: '成就收藏册',
         subtitle: 'ACHIEVEMENT COLLECTION',
-        hint: '滚轮或轻点卡片翻页 · 下拉书签跳到另一端',
+        hint: '滚轮或轻点卡片翻页，下拉书签跳至另一端',
         endTitle: '未完待续',
         endDesc: '下一款完美通关的游戏，会收进这一页',
         bookmark: '跳到最远的一端',
         label: '成就收藏册，左右两页，滚轮或点击卡片翻页',
         pageStatus: (page, total) => `第 ${page} / ${total} 页`,
         introduced: (names) => `新收录：${names.join('、')}`,
+        statsCards: '收藏卡',
+        statsGold: '金杯',
+        statsSilver: '银杯',
+        statsLabel: (cards, gold, silver) =>
+            `收藏册内共 ${cards} 张收藏卡` +
+            (gold == null ? '，金杯统计中' : `，金杯 ${gold} 个`) +
+            (silver == null ? '，银杯统计中' : `，银杯 ${silver} 个`),
+    },
+
+    /* ── 年份特殊页（yearpages.js） ─────────────────────────────────────── */
+    year: {
+        eyebrow: 'Year in review',
+        annualEyebrow: 'FAVORITES OF THE YEAR',
+        unknownYear: '更早',
+        yearAria: (year) => `${year} 年，年度回顾`,
+        // 橡皮章上的字：一圈英文 + 中间的主字 + 小字
+        yearSeal: (year, count) => ({ ring: `★ ALL ACHIEVEMENTS ★ ${year} `, main: String(count), unit: 'GAMES' }),
+        annualSeal: (year) => ({ ring: '★ FAVORITE OF THE YEAR ', main: 'No.1', unit: String(year) }),
+        statAchievements: '解锁成就',
+        statRare: '稀有成就',
+        statHours: '游玩时长',
+        annualTitle: '年度最爱',
+        annualSub: '这一年的三款心头好',
+        rankAria: (n) => `年度最爱第 ${n} 名`,
+        pickBadge: '贴一枚徽章',
+        changeBadge: (name) => `更换徽章：${name}`,
+        pickBanner: '放一张横幅',
+        changeBanner: (name) => `更换横幅：${name}`,
+        bannerHint: '从这一年的全成就里挑',
+        pickerBadgeTitle: (year) => `${year} · 选徽章`,
+        pickerBannerTitle: (year) => `${year} · 选横幅`,
+        pickerBadgeDesc: '点一款游戏，再挑它的徽章等级',
+        pickerBannerDesc: '点一款游戏，把它的横幅放上这一页',
+        close: '关闭',
+        searchPlaceholder: '搜索这一年的游戏',
+        backToGames: '← 换一款游戏',
+        loadingBadges: '正在读取徽章…',
+        noBadgeData: '客户端里没有这款游戏的徽章图案，可以先用封面代替。',
+        noBadgeMark: '无徽章',
+        noBadgeHint: '客户端里没有这款游戏的徽章图案',
+        coverOption: '封面代替',
+        noGames: '这一年还没有全成就的游戏',
+        usedMark: '已贴',
     },
 
     /* ── 展柜 ───────────────────────────────────────────────────────────── */

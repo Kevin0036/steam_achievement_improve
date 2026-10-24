@@ -26,7 +26,7 @@
  *   4  降级 3    功能 B 整体静默禁用，控制台留一条说明，Steam 库完全不受影响
  */
 
-import { getReact, getPluginList, waitForGlobal, getThemeOption } from './env.js';
+import { getReact, getPluginList, waitForGlobal, getThemeOption, isPluginMode, isOurThemeActive } from './env.js';
 import { ROUTES, SUPERNAV_TITLE, isLibraryRouteSwitch, isLibrarySupernav, MENU } from './selectors.js';
 import { Page } from './page.js';
 import { banner, warn, fail, Disposables, tagged } from './utils.js';
@@ -602,18 +602,43 @@ function openModal(api) {
     }
 
     const owner = getPluginList()?.core?.mainWindow ?? window;
+
+    // showModal 返回的句柄才有 Close：模态没有自带关闭按钮时，卡册右上角的
+    // 「返回」和 Esc 都走它。按钮回调在点击时才读 modal，因此句柄晚一拍也没关系。
+    let modal = null;
+    const close = () => {
+        try {
+            if (typeof modal?.Close === 'function') modal.Close();
+            else warn('模态没有返回 Close 句柄，无法关闭卡包');
+        } catch (err) {
+            warn('关闭模态卡包失败', err);
+        }
+    };
+
     try {
-        api.showModal(React.createElement(Page, null), owner, {
-            popupHeight: 820,
-            popupWidth: 1280,
-            bAllowFullSize: true,
+        modal = api.showModal(React.createElement(Page, { onClose: close }), owner, {
+            strTitle: '成就收藏册',
+            popupHeight: 780,
+            popupWidth: 1180,
+            // 固定在主窗口里，不再弹成独立窗口 —— 独立窗口一旦铺满就没有可用的关闭入口
+            bNeverPopOut: true,
         });
-        out.log('降级 2：已用 showModal 打开卡包');
+        out.log('降级 2：已用 showModal 打开卡包（右上角「返回」或 Esc 关闭）');
         return true;
     } catch (err) {
         warn('打开模态失败', err);
         return false;
     }
+}
+
+/** 插件版面板里的「打开成就卡包」：不依赖库内路由，任何主题下都能用 */
+export async function openCardPack() {
+    const api = await waitForGlobal('MILLENNIUM_API', { timeout: 10000 });
+    if (!api?.showModal) {
+        fail('MILLENNIUM_API.showModal 不可用，无法打开成就卡包');
+        return false;
+    }
+    return openModal(api);
 }
 
 /* ── 主流程 ─────────────────────────────────────────────────────────────── */
@@ -624,6 +649,16 @@ export async function mount({ disposables } = {}) {
         status.level = 4;
         status.error = 'MILLENNIUM_API 不可用';
         fail('MILLENNIUM_API 不可用，功能 B 整体禁用（Steam 库不受任何影响）');
+        return status;
+    }
+
+    // 主题版和插件版同时装时只留主题版：主题版已提供库内入口和同一份设置，
+    // 插件再注入一次会出现两个「成就卡包」菜单项和重复路由。
+    // 判定必须用本脚本实例的模式标记，不能读 window 全局。
+    if (isPluginMode() && isOurThemeActive()) {
+        status.level = 5;
+        status.error = '主题版已启用，插件版跳过库内入口';
+        out.log('检测到成就收藏册主题版，插件版不重复注入库内入口');
         return status;
     }
 
@@ -907,7 +942,7 @@ export const __debug = { status, isOurPath, injectRoute, injectMenuItem, openMod
 /* ── 自启动 ─────────────────────────────────────────────────────────────── */
 
 (async function bootstrap() {
-    const VERSION = '1.0.2';
+    const VERSION = (isPluginMode() && window.__AC_PLUGIN_VERSION__) || window.__AC_VERSION__ || '1.1.0';
 
     try {
         banner(STR.theme, VERSION);
