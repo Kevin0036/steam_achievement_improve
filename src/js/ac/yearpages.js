@@ -250,8 +250,26 @@ function postmark(doc, date) {
 }
 
 /**
- * 三枚徽章邮票，插在一条横贯页面的透明插袋里。
+ * 一枚徽章邮票（齿孔 + 票面 + 徽章）。页面和印刷导出共用。
  * 票面不印等级；闪亮徽章多一层镭射光泽。
+ */
+export function createBadgeStamp(doc, game, level) {
+    const stamp = el(doc, 'span', 'ac-year__stamp');
+    const perf = el(doc, 'span', 'ac-year__perf');
+    const face = el(doc, 'span', 'ac-year__stamp-face');
+    if (game) {
+        face.append(badgeNode(doc, game, level, 'ac-year__badge'));
+        if (level === 'foil') face.append(el(doc, 'span', 'ac-year__holo', { 'aria-hidden': 'true' }));
+    } else {
+        face.append(plus(doc));
+    }
+    perf.append(face);
+    stamp.append(perf);
+    return stamp;
+}
+
+/**
+ * 三枚徽章邮票，插在一条横贯页面的透明插袋里。
  */
 function badgeAlbum(doc, badges, onPick) {
     const album = el(doc, 'div', 'ac-year__album');
@@ -259,18 +277,7 @@ function badgeAlbum(doc, badges, onPick) {
     const rots = [-2.4, 1.6, -1.2];
     badges.forEach(({ game, level }, i) => {
         const button = slotButton(doc, 'ac-year__mount', { kind: 'badge', index: i, game, onPick, rot: rots[i] });
-        const stamp = el(doc, 'span', 'ac-year__stamp');
-        const perf = el(doc, 'span', 'ac-year__perf');
-        const face = el(doc, 'span', 'ac-year__stamp-face');
-        if (game) {
-            face.append(badgeNode(doc, game, level, 'ac-year__badge'));
-            if (level === 'foil') face.append(el(doc, 'span', 'ac-year__holo', { 'aria-hidden': 'true' }));
-        } else {
-            face.append(plus(doc));
-        }
-        perf.append(face);
-        stamp.append(perf);
-        button.append(stamp);
+        button.append(createBadgeStamp(doc, game, level));
         const date = game ? formatCardDate(game.completedAt) : null;
         if (date) button.append(postmark(doc, date));
         button.append(el(doc, 'span', 'ac-year__cap', { text: game ? game.name : YEAR_TEXT.pickBadge }));
@@ -311,10 +318,8 @@ function headRow(doc, left, right) {
     return head;
 }
 
-/** 一张票：左边是横幅 + 游戏标志，右边米色存根写名次、游戏名和完成日期 */
-function ticket(doc, game, index, onPick) {
-    const rots = [-1.1, 0.9, -0.5];
-    const button = slotButton(doc, 'ac-year__ticket', { kind: 'banner', index, game, onPick, rot: rots[index], rank: index + 1 });
+/** 票身：左边是横幅 + 游戏标志，右边米色存根写名次、游戏名和完成日期 */
+function ticketBody(doc, game, index) {
     const body = el(doc, 'span', 'ac-year__ticket-body');
     const main = el(doc, 'span', 'ac-year__ticket-main');
     if (game) {
@@ -331,8 +336,26 @@ function ticket(doc, game, index, onPick) {
     const date = game ? formatCardDate(game.completedAt) : null;
     if (date) stub.append(el(doc, 'em', 'ac-year__stub-date', { text: date }));
     body.append(main, stub);
-    button.append(body);
+    return body;
+}
+
+/** 一张票（可点选槽位）。 */
+function ticket(doc, game, index, onPick) {
+    const rots = [-1.1, 0.9, -0.5];
+    const button = slotButton(doc, 'ac-year__ticket', { kind: 'banner', index, game, onPick, rot: rots[index], rank: index + 1 });
+    button.append(ticketBody(doc, game, index));
     return button;
+}
+
+/** 印刷导出的票根：不带旋转、阴影和点击行为，票身与页面完全同一套 DOM。 */
+export function createTicketStub(doc, game, index) {
+    const stub = el(doc, 'div', 'ac-year__ticket', {
+        'data-slot': String(index),
+        'data-rank': String(index + 1),
+        'data-print': '',
+    });
+    stub.append(ticketBody(doc, game, index));
+    return stub;
 }
 
 function annualPage(doc, { year, banners, onPick }) {

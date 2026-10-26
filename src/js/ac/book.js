@@ -95,6 +95,7 @@ function depthLevel(count) {
  * @param {'newest'|'sequential'} [options.binding] 装订方式，默认 sequential（顺序入册）
  * @param {boolean} [options.showStats] 扉页是否显示收藏卡 / 金杯 / 银杯统计，默认 true
  * @param {boolean} [options.yearPages] 按完成年份分组，并在每组前插入一张年份手账（正面徽章 / 背面年度最爱）
+ * @param {boolean} [options.yearSpread] 年份页与年度最爱左右同时摊开，另一面留空页
  * @param {Record<string, {badges: Array, banners: Array}>} [options.yearSelections] 年份页已选槽位
  * @param {(yearKey: string, selection: object) => void} [options.onYearChange] 用户改完某年的槽位
  * @param {{page?: number, appid?: number|null}} [options.initial] 上次看到的页（优先按 appid 锚定）
@@ -107,7 +108,7 @@ function depthLevel(count) {
  *             get pageCount(): number, get yearSelections(): object,
  *             get position(): {page: number, appid: number|null} }}
  */
-export function createBook(container, { cards, owner = {}, perPage: requestedPerPage = 1, binding = 'sequential', showStats = true, yearPages = false, yearSelections = null, onYearChange = null, initial = null, onPage = null }) {
+export function createBook(container, { cards, owner = {}, perPage: requestedPerPage = 1, binding = 'sequential', showStats = true, yearPages = false, yearSpread = false, yearSelections = null, onYearChange = null, initial = null, onPage = null }) {
     const doc = container.ownerDocument;
     const win = doc.defaultView;
     const perPage = Number(requestedPerPage) === 4 ? 4 : 1;
@@ -115,6 +116,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     let list = cards;      // 卡片顺序会随完成日期的补全而重排
     let n = list.length;
     let yearMode = !!yearPages;
+    const spreadYear = yearMode && !!yearSpread;
     /** 年份键 → 3 个徽章槽 + 3 个横幅槽；没选过的年份按空槽处理 */
     const yearSel = {};
     for (const [key, value] of Object.entries(yearSelections ?? {})) {
@@ -124,11 +126,12 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     const selectionFor = (key) => yearSel[key] ?? normalizeSelection(null);
     const reduceMotion = win.matchMedia?.('(prefers-reduced-motion: reduce)');
 
-    /* 分页与分叶：每一年会在第一张卡前插入一叶手账，所以「叶」不再等于「卡片页」。
-       年份徽章页是这一叶的正面，年度最爱横幅页是背面——两页不会同时摊开。
+    /* 分页与分叶：每一年会在第一张卡前插入手账，所以「叶」不再等于「卡片页」。
+       年份徽章页与年度最爱横幅页默认是一叶的正反面（不会同时摊开）；
+       开启 yearSpread 后拆成两叶、左右相对，另一面各留一张空页。
        sections 按阅读顺序（无年份的最前，然后年份升序）；
        pageEntries 是卡片页，承载编号与槽位；
-       leafPlan 是每一叶的两面（cards / year / annual）。 */
+       leafPlan 是每一叶的两面（cards / year / annual / blank）。 */
     let sections = [];
     let pageEntries = [];
     let leafPlan = [];
@@ -194,10 +197,25 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         for (const section of sections) {
             section.pages.forEach((page, pi) => {
                 if (section.known && pi === 0) {
-                    // 正面年份徽章、背面年度最爱：翻过这一叶才会看到背面
-                    leafPlan.push(
-                        { front: { kind: 'year', section }, back: { kind: 'annual', section } },
-                    );
+                    if (spreadYear) {
+                        // 年份页占左页、年度最爱占右页，各用一叶；另一面留空页
+                        if (sequential) {
+                            leafPlan.push(
+                                { front: { kind: 'blank' }, back: { kind: 'year', section } },
+                                { front: { kind: 'annual', section }, back: { kind: 'blank' } },
+                            );
+                        } else {
+                            leafPlan.push(
+                                { front: { kind: 'blank' }, back: { kind: 'annual', section } },
+                                { front: { kind: 'year', section }, back: { kind: 'blank' } },
+                            );
+                        }
+                    } else {
+                        // 正面年份徽章、背面年度最爱：翻过这一叶才会看到背面
+                        leafPlan.push(
+                            { front: { kind: 'year', section }, back: { kind: 'annual', section } },
+                        );
+                    }
                 }
                 leafPlan.push({
                     front: { kind: 'cards', page, view: frontView },
@@ -242,8 +260,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
     const spreadOfIndex = (index) => spreadByIndex.get(index) ?? 0;
 
-    /** 当前对开页露出的年份 / 年度最爱手账面（没有就返回 null） */
-    function specialFaceAtSpread(spread) {
+    /** 当前对开页露出的年份 / 年度最爱手账面（左右可能同时有；没有就返回空数组） */
+    function specialFacesAtSpread(spread) {
         const probes = sequential
             ? [
                   [spread - 1, 'back'],
@@ -253,11 +271,12 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                   [spread, 'front'],
                   [spread - 1, 'back'],
               ];
+        const faces = [];
         for (const [li, side] of probes) {
             const spec = faceSpec(li, side);
-            if (spec?.kind === 'year' || spec?.kind === 'annual') return spec;
+            if (spec?.kind === 'year' || spec?.kind === 'annual') faces.push(spec);
         }
-        return null;
+        return faces;
     }
 
     // 最新优先：左页显示第 k 叶的正面，右页显示第 k-1 叶的背面；k = leafTotal 时左边是「未完待续」
@@ -475,6 +494,11 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
 
     function fillFace(face, spec, side) {
         paper(face);
+        if (spec.kind === 'blank') {
+            face.classList.add('ac-page--blank');
+            shade(face);
+            return;
+        }
         if (spec.kind === 'year' || spec.kind === 'annual') {
             face.append(
                 createYearPage(doc, {
@@ -653,7 +677,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     function currentPosition() {
         const total = pageCount();
         const page = Math.min(k, total);
-        if (specialFaceAtSpread(page)) return { page, appid: null };
+        if (specialFacesAtSpread(page).length > 0) return { page, appid: null };
         const index = firstCardAtSpread(page);
         return { page, appid: index >= 0 ? list[index].appid : null };
     }
@@ -669,12 +693,14 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
 
     /** 播报当前页（左页）；返回这一页最靠前的那张卡 */
     function announcePosition() {
-        const special = specialFaceAtSpread(k);
-        if (special) {
+        const specials = specialFacesAtSpread(k);
+        if (specials.length > 0) {
             live.textContent =
-                special.kind === 'year'
-                    ? STR.year.yearAria(special.section.key)
-                    : `${STR.year.annualTitle} · ${special.section.key}`;
+                specials.length > 1
+                    ? `${STR.year.yearAria(specials[0].section.key)}，${STR.year.annualTitle}`
+                    : specials[0].kind === 'year'
+                      ? STR.year.yearAria(specials[0].section.key)
+                      : `${STR.year.annualTitle} · ${specials[0].section.key}`;
             return null;
         }
         const index = firstCardAtSpread(k);

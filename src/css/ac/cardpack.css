@@ -263,6 +263,251 @@
     outline: none;
 }
 
+/* ── 一键导出印刷素材 ───────────────────────────────────────────────────── */
+
+.ac-export-slot {
+    position: absolute;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+}
+
+/* 导出入口在设置面板里，弹窗挂在窗口顶层，避免被设置模态 / 快速访问挡住 */
+.ac-export-slot--overlay {
+    position: fixed;
+    z-index: 2147483000;
+}
+
+.ac-export {
+    position: absolute;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    box-sizing: border-box;
+    pointer-events: auto;
+}
+
+.ac-export__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(6, 8, 11, 0.66);
+    backdrop-filter: blur(4px);
+}
+
+.ac-export__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(520px, 100%);
+    max-height: min(680px, 100%);
+    padding: 22px 24px 18px;
+    box-sizing: border-box;
+    color: var(--ac-text);
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 14px;
+    background:
+        var(--ac-grain),
+        linear-gradient(180deg, #24262c 0%, #17181d 100%);
+    background-size: 120px 120px, auto;
+    background-blend-mode: soft-light, normal;
+    box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.ac-export__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.ac-export__titles {
+    flex: 1;
+    min-width: 0;
+}
+
+.ac-export__title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+}
+
+.ac-export__desc {
+    margin: 10px 0 0;
+    font-size: 12px;
+    line-height: 1.75;
+    color: var(--ac-text-dim);
+}
+
+.ac-export__x {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    color: var(--ac-text-dim);
+    font: 400 18px/1 var(--ac-font);
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+}
+
+.ac-export__x:hover:not(:disabled) {
+    color: var(--ac-text);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ac-export__x:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.ac-export__options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.ac-export__option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: border-color 140ms var(--ac-ease-out), background 140ms var(--ac-ease-out);
+}
+
+.ac-export__option:hover {
+    border-color: rgba(102, 192, 244, 0.32);
+}
+
+.ac-export__option.is-empty {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.ac-export__check {
+    flex: none;
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: #66c0f4;
+}
+
+.ac-export__copy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ac-export__copy b {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ac-export__copy span {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ac-text-dim);
+}
+
+.ac-export__count {
+    flex: none;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.ac-export__note {
+    margin: 12px 0 0;
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.34);
+}
+
+.ac-export__total {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: rgba(102, 192, 244, 0.78);
+}
+
+.ac-export__progress {
+    margin-top: 12px;
+}
+
+.ac-export__bar {
+    height: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.ac-export__bar > i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #66c0f4, #8f7bff);
+    transition: width 160ms ease-out;
+}
+
+.ac-export__status {
+    margin: 8px 0 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ac-text-dim);
+    word-break: break-all;
+}
+
+.ac-export__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.ac-export__btn {
+    height: 32px;
+    padding: 0 18px;
+    font: 600 12px/1 var(--ac-font);
+    color: var(--ac-text-dim);
+    cursor: pointer;
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 999px;
+    background: transparent;
+}
+
+.ac-export__btn:hover:not(:disabled) {
+    color: var(--ac-text);
+    border-color: rgba(102, 192, 244, 0.5);
+    background: rgba(42, 71, 94, 0.55);
+}
+
+.ac-export__btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.ac-export__btn--primary {
+    color: #eaf6ff;
+    border-color: rgba(102, 192, 244, 0.55);
+    background: rgba(42, 71, 94, 0.9);
+}
+
+.ac-export__btn--primary:hover:not(:disabled) {
+    color: #ffffff;
+    border-color: #66c0f4;
+    background: rgba(58, 92, 120, 0.95);
+}
+
 /* ── 状态页（读取中 / 等待数据 / 空 / 出错）：一本合上的书 ─────────────── */
 
 .ac-state {

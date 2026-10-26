@@ -21,6 +21,7 @@ import { getReact, getReactDom, getThemeOption, isPluginMode, ensureNodeStyles }
 import * as store from './store.js';
 import * as cache from './cache.js';
 import { createBook } from './book.js';
+import { openExportDialog } from './export.js';
 import { yearKeyOf } from './yearpages.js';
 import { tagged } from './utils.js';
 import { STR } from './strings.js';
@@ -117,6 +118,9 @@ const currentTitleStats = () => String(getThemeOption('扉页统计', '开启'))
 
 /** 主题设置「年份特殊页」：默认关闭，只有明确开启才插入年份页 */
 const currentYearPages = () => String(getThemeOption('年份特殊页', '关闭')) === '开启';
+
+/** 主题设置「年份页左右展开」：默认关闭；开启后年份页与年度最爱分列左右 */
+const currentYearSpread = () => currentYearPages() && String(getThemeOption('年份页左右展开', '关闭')) === '开启';
 
 /** 分组依据的指纹：完成日期补上后年份会变，需要重新装订 */
 const yearSignature = (cards) => cards.map((card) => `${card.appid}:${yearKeyOf(card)}`).join(',');
@@ -276,8 +280,11 @@ export function Page({ onClose } = {}) {
     const state = useStoreState();
     const [, reloadOptions] = React.useState(0);
     const [dateOpen, setDateOpen] = React.useState(false);
+    const [exportOpen, setExportOpen] = React.useState(false);
     const hostRef = React.useRef(null);
     const bookRef = React.useRef(null);
+    const stateRef = React.useRef(state);
+    stateRef.current = state;
     const builtRef = React.useRef({
         order: '',
         owner: '',
@@ -286,6 +293,7 @@ export function Page({ onClose } = {}) {
         binding: '',
         showStats: null,
         yearPages: null,
+        yearSpread: null,
         yearSig: '',
         manualRevision: 0,
     });
@@ -309,6 +317,8 @@ export function Page({ onClose } = {}) {
         if (!win) return undefined;
         const onKeyDown = (event) => {
             if (event.key !== 'Escape' || event.defaultPrevented) return;
+            // 导出弹窗自己监听 Esc（关弹窗 / 取消导出），这里不能把它连同卡包一起关掉
+            if (exportOpen) return;
             // 补日期弹窗开着时 Esc 只关弹窗，不能把整个卡包一起关掉
             if (dateOpen) {
                 event.preventDefault();
@@ -323,7 +333,7 @@ export function Page({ onClose } = {}) {
         };
         win.addEventListener('keydown', onKeyDown, true);
         return () => win.removeEventListener('keydown', onKeyDown, true);
-    }, [onClose, dateOpen]);
+    }, [onClose, dateOpen, exportOpen]);
 
     // 首次挂载：读数据 + 取当前账号（再挂载时走 silent，避免用缓存先铺一层造成闪烁）
     React.useEffect(() => {
@@ -368,6 +378,7 @@ export function Page({ onClose } = {}) {
                 binding: '',
                 showStats: null,
                 yearPages: null,
+                yearSpread: null,
                 yearSig: '',
                 manualRevision: 0,
             };
@@ -391,6 +402,7 @@ export function Page({ onClose } = {}) {
         const ownerKey = `${state.owner?.persona ?? ''}|${state.owner?.avatar ?? ''}`;
         const showStats = currentTitleStats();
         const yearPages = currentYearPages();
+        const yearSpread = currentYearSpread();
         const yearSig = yearPages ? yearSignature(shown) : '';
 
         if (
@@ -399,9 +411,10 @@ export function Page({ onClose } = {}) {
                 builtRef.current.perPage !== perPage ||
                 builtRef.current.binding !== binding ||
                 builtRef.current.showStats !== showStats ||
-                builtRef.current.yearPages !== yearPages)
+                builtRef.current.yearPages !== yearPages ||
+                builtRef.current.yearSpread !== yearSpread)
         ) {
-            // 昵称/头像晚到了，或单页数量 / 装订方式 / 扉页统计 / 年份页改了：整册重画一次
+            // 昵称/头像晚到了，或单页数量 / 装订方式 / 扉页统计 / 年份页（左右展开）改了：整册重画一次
             destroyBook();
         }
 
@@ -414,6 +427,7 @@ export function Page({ onClose } = {}) {
                 binding,
                 showStats,
                 yearPages,
+                yearSpread,
                 yearSelections: cache.readYearSelections(),
                 onYearChange: (yearKey, selection) => {
                     const all = cache.readYearSelections();
@@ -434,11 +448,12 @@ export function Page({ onClose } = {}) {
                 binding,
                 showStats,
                 yearPages,
+                yearSpread,
                 yearSig,
                 manualRevision: state.manualRevision,
             };
             out.log(
-                `收藏册已装订：${shown.length} 张卡（每页 ${perPage} 张，${binding === 'sequential' ? '顺序入册' : '最新优先'}${yearPages ? '，按年份分页' : ''}）`,
+                `收藏册已装订：${shown.length} 张卡（每页 ${perPage} 张，${binding === 'sequential' ? '顺序入册' : '最新优先'}${yearPages ? `，按年份分页${yearSpread ? '（年份页左右展开）' : ''}` : ''}）`,
             );
         } else if (
             // 日期后台补全期间通常不重排（避免看着看着书页跳走）；
@@ -505,6 +520,45 @@ export function Page({ onClose } = {}) {
         // 刷新 / 换数据源时回到状态页，弹窗就失去意义了
         if (state.phase !== 'ready' && dateOpen) setDateOpen(false);
     }, [state.phase, dateOpen]);
+
+    // 设置面板里的「导出印刷素材」：卡册页在册时由这里接手打开导出弹窗
+    React.useEffect(() => {
+        const onExport = (event) => {
+            if (stateRef.current.phase !== 'ready') return;
+            event.detail?.onOpen?.();
+            setExportOpen(true);
+        };
+        window.addEventListener('ac:export-open', onExport);
+        return () => window.removeEventListener('ac:export-open', onExport);
+    }, []);
+
+    // 导出弹窗挂到窗口顶层：设置面板可能是模态或快速访问，挂在卡册内部会被它挡住
+    React.useEffect(() => {
+        if (!exportOpen) return undefined;
+        const doc = hostRef.current?.ownerDocument ?? document;
+        const host = doc.createElement('div');
+        host.className = 'ac-export-slot ac-export-slot--overlay';
+        doc.body.append(host);
+        const dialog = openExportDialog({
+            host,
+            cards: bookRef.current?.cards ?? [],
+            owner: stateRef.current.owner ?? {},
+            yearSelections: cache.readYearSelections(),
+            binding: currentBinding(),
+            yearPages: currentYearPages(),
+            onClose: () => {
+                setExportOpen(false);
+            },
+        });
+        return () => {
+            dialog?.close();
+            host.remove();
+        };
+    }, [exportOpen]);
+
+    React.useEffect(() => {
+        if (state.phase !== 'ready' && exportOpen) setExportOpen(false);
+    }, [state.phase, exportOpen]);
 
     return React.createElement(
         'div',

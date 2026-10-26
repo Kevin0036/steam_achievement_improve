@@ -39,7 +39,7 @@
 
 只有动画完整播完，这张卡才会被记为「已入册」。如果中途离开卡包，或在入册前直接关闭 Steam，下次进入时会重新播放，不会漏掉。
 
-![入册动画：一页四张，新收一张](docs/images/intro-4up.gif)
+![新卡入册：新收一张](docs/images/intro-showcase.gif)
 
 ### 一页一张 / 一页四张
 
@@ -67,7 +67,13 @@
 
 对于锁区、下架或客户端取不到封面的游戏，会根据 appid 重新拼接封面地址，依次尝试 `header_schinese` → `header_tchinese` → `header_japanese` → `header`。全部失效时才显示占位封面。
 
-<img src="docs/images/showcase.webp" width="640" alt="完满主义者展柜">
+<img src="docs/images/showcase.gif" width="640" alt="完满主义者展柜">
+
+### 印刷素材导出
+
+打开成就卡包后，在右上角「设置」→「印刷素材」中点击「导出印刷素材」，可以把收藏册里的收藏品按印刷规格导出：成就卡片（正面、背面，另附一张烫金层）、年度最爱票根和年份页徽章邮票。
+
+导出为 300 DPI，四周留 3 mm 出血，送印后沿裁切线裁下即可。三类素材可以按需勾选，批量导出。
 
 ## 下载
 
