@@ -88,16 +88,22 @@ export function formatSerialRange(from, to) {
 
 /* ── 正面 ────────────────────────────────────────────────────────────── */
 
+/** 徽章周围的三颗大星芒：x%、y%、宽度（cqw）、动画延迟（秒） */
+export const BIG_SPARKS = [
+    [68.5, 21, 6.2, 0],
+    [72, 28.5, 4.2, 0.9],
+    [29.5, 35, 6.6, 1.7],
+];
+
 /** 徽章周围的三颗大星芒（位置照参考图 4），外加一把细碎的小星点 */
 function sparkles(doc, appid) {
     const box = el(doc, 'div', 'ac-cf__sparkles', { 'aria-hidden': 'true' });
-    const big = [
-        [68.5, 21, 6.2, 0],
-        [72, 28.5, 4.2, 0.9],
-        [29.5, 35, 6.6, 1.7],
-    ];
-    for (const [x, y, size, delay] of big) {
-        box.append(el(doc, 'i', 'ac-cf__spark', { style: `--x:${x}%;--y:${y}%;--s:${size}cqw;--d:${delay}s` }));
+    for (const [x, y, size, delay] of BIG_SPARKS) {
+        box.append(
+            el(doc, 'i', 'ac-cf__spark', {
+                style: `left:${x}%;top:${y}%;width:${size}cqw;animation-delay:${delay}s`,
+            }),
+        );
     }
     const rand = seeded(appid);
     for (let i = 0; i < 16; i += 1) {
@@ -108,7 +114,9 @@ function sparkles(doc, appid) {
         const size = 0.9 + rand() * 1.3;
         box.append(
             el(doc, 'i', 'ac-cf__spark ac-cf__spark--dust', {
-                style: `--x:${x.toFixed(1)}%;--y:${y.toFixed(1)}%;--s:${size.toFixed(2)}cqw;--d:${(rand() * 4).toFixed(2)}s`,
+                style:
+                    `left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;width:${size.toFixed(2)}cqw;` +
+                    `animation-delay:${(rand() * 4).toFixed(2)}s`,
             }),
         );
     }

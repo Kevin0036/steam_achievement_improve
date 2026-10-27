@@ -2,7 +2,7 @@
  * 成就收藏册 · 印刷素材导出
  *
  * 把三种实体收藏品按印刷规格渲染成图片：
- *   · 成就卡片：正面 JPG、反面 JPG、烫金层 PNG；
+ *   · 成就卡片：正面 JPG、反面 JPG，全册共用一张烫金层 PNG；
  *   · 年度最爱票根：JPG；
  *   · 年份页徽章邮票：JPG。
  *
@@ -19,7 +19,7 @@
  * 排版后再裁切，保证和屏幕上看到的比例完全一致。
  */
 
-import { createCardBack, createCardFront } from './cardview.js';
+import { BIG_SPARKS, createCardBack, createCardFront } from './cardview.js';
 import { createBadgeStamp, createTicketStub, isYearKey, normalizeSelection, yearKeyOf } from './yearpages.js';
 import { getTone, toneToCss } from './tone.js';
 import { loadBadge } from './badges.js';
@@ -800,6 +800,39 @@ function composeBleed(doc, trimCanvas, size) {
     return full;
 }
 
+/**
+ * 卡片的出血不是另画一圈边，而是把卡片自己的彩虹边框渐变按相同的绝对几何
+ * 铺满整张出血画布：卡面与出血落在同一条渐变上，裁切到哪里都不会露白。
+ */
+function paintBleed(doc, root, face) {
+    const win = doc.defaultView;
+    const rect = face.getBoundingClientRect();
+    const style = win.getComputedStyle(face);
+    const image = style.backgroundImage;
+    if (!image || image === 'none') return;
+
+    const resolve = (text, axis) => {
+        const value = String(text ?? '').trim();
+        const pct = /^(-?[\d.]+)%$/.exec(value);
+        if (pct) return (Number(pct[1]) / 100) * (axis === 'x' ? rect.width : rect.height);
+        const px = /^(-?[\d.]+)px$/.exec(value);
+        if (px) return Number(px[1]);
+        return axis === 'x' ? rect.width : rect.height;
+    };
+    const size = String(style.backgroundSize || '').trim().split(/\s+/);
+    const imageW = resolve(size[0], 'x');
+    const imageH = resolve(size[1] ?? size[0], 'y');
+    const px = Number.parseFloat(style.getPropertyValue('--px'));
+    const py = Number.parseFloat(style.getPropertyValue('--py'));
+
+    root.style.backgroundImage = image;
+    root.style.backgroundSize = `${imageW}px ${imageH}px`;
+    root.style.backgroundPosition =
+        `${(rect.width - imageW) * (Number.isFinite(px) ? px : 0.5) + BLEED}px ` +
+        `${(rect.height - imageH) * (Number.isFinite(py) ? py : 0.5) + BLEED}px`;
+    root.style.backgroundRepeat = 'no-repeat';
+}
+
 function badgeSource(doc, root, badge) {
     const win = doc.defaultView;
     const fromBadge = /url\((['"]?)(.*?)\1\)/.exec(win.getComputedStyle(badge).backgroundImage)?.[2];
@@ -926,21 +959,25 @@ async function buildFoil(doc, root, size) {
         return gradient;
     };
 
-    // 星芒和页面上的三颗大星芒同位置、同大小
-    const sparkles = [...root.querySelectorAll('.ac-cf__spark:not(.ac-cf__spark--dust)')];
-    for (const spark of sparkles) {
-        const rect = spark.getBoundingClientRect();
-        const x = BLEED + rect.left - rootRect.left;
-        const y = BLEED + rect.top - rootRect.top;
-        const side = Math.max(rect.width, rect.height);
-        if (side < 1) continue;
-        ctx.fillStyle = gold(x, y, x + side, y + side);
-        drawStar(ctx, x, y, side);
+    // 星芒按固定版式绘制，不读星星自身的 DOM 位置：宿主样式把星芒挤到角上时，
+    // 烫金层也不会把星星画进出血区。
+    const inner = root.querySelector('.ac-cf__inner');
+    const card = root.querySelector('.ac-card');
+    if (inner && card) {
+        const innerRect = inner.getBoundingClientRect();
+        const cardWidth = card.getBoundingClientRect().width;
+        for (const [left, top, width] of BIG_SPARKS) {
+            const side = (width / 100) * cardWidth;
+            const x = innerRect.left - rootRect.left + (left / 100) * innerRect.width - side / 2;
+            const y = innerRect.top - rootRect.top + (top / 100) * innerRect.height - side / 2;
+            ctx.fillStyle = gold(x, y, x + side, y + side);
+            drawStar(ctx, x, y, side);
+        }
     }
 
     if (!badge || bw < 1 || bh < 1) return canvas;
     const image = await badgeGoldImage(doc, root, badge);
-    if (image) ctx.drawImage(image, BLEED + bx, BLEED + by, bw, bh);
+    if (image) ctx.drawImage(image, bx, by, bw, bh);
     return canvas;
 }
 
@@ -1124,47 +1161,67 @@ async function prepareCard(doc, card) {
 
 async function renderCard(ctx, card, serial, tone) {
     const { doc, host, owner, cssText, size } = ctx;
-    const root = createStage(doc, size.trimW, size.trimH);
+    const root = createStage(doc, size.bleedW, size.bleedH);
     host.append(root);
     const label = cardLabel(serial, card);
     try {
-        const cardEl = el(doc, 'div', 'ac-card', { style: `width:${size.trimW}px;flex:none;` });
+        const cardEl = el(doc, 'div', 'ac-card', {
+            style: `position:absolute;left:${BLEED}px;top:${BLEED}px;width:${size.trimW}px;`,
+        });
         root.append(cardEl);
 
         cardEl.append(createCardFront(doc, card, { owner }));
         const front = cardEl.querySelector('.ac-cf');
         if (tone && front) front.style.setProperty('--ac-tone', toneToCss(tone));
+        // 去掉卡边的高光/投影线：印刷出血要与卡边连成一片，不能出现裁切线
+        if (front) {
+            front.style.boxShadow = 'none';
+            paintBleed(doc, root, front);
+        }
         await settleImages(doc, root);
         replaceGradientText(doc, root);
         await inlineImages(doc, root);
-        let frontCanvas = await rasterizeStage(doc, root, cssText, size.trimW, size.trimH, {
+        let bleed = await rasterizeStage(doc, root, cssText, size.bleedW, size.bleedH, {
             x: 0,
             y: 0,
-            w: size.trimW,
-            h: size.trimH,
+            w: size.bleedW,
+            h: size.bleedH,
         });
-        let bleed = composeBleed(doc, frontCanvas, size);
         await ctx.addFile(`${STR.export.folderCards}/${label}_${STR.export.cardFront}.jpg`, await jpegFile(doc.defaultView, bleed));
-        frontCanvas.width = 0;
         bleed.width = 0;
 
-        const foilCanvas = await buildFoil(doc, root, size);
-        await ctx.addFile(`${STR.export.folderCards}/${label}_${STR.export.foil}.png`, await pngFile(doc.defaultView, foilCanvas));
-        foilCanvas.width = 0;
-
-        cardEl.replaceChildren(createCardBack(doc, card));
+        const back = createCardBack(doc, card);
+        back.style.boxShadow = 'none';
+        cardEl.replaceChildren(back);
         await settleImages(doc, root);
         await inlineImages(doc, root);
-        frontCanvas = await rasterizeStage(doc, root, cssText, size.trimW, size.trimH, {
+        bleed = await rasterizeStage(doc, root, cssText, size.bleedW, size.bleedH, {
             x: 0,
             y: 0,
-            w: size.trimW,
-            h: size.trimH,
+            w: size.bleedW,
+            h: size.bleedH,
         });
-        bleed = composeBleed(doc, frontCanvas, size);
         await ctx.addFile(`${STR.export.folderCards}/${label}_${STR.export.cardBack}.jpg`, await jpegFile(doc.defaultView, bleed));
-        frontCanvas.width = 0;
         bleed.width = 0;
+    } finally {
+        root.remove();
+    }
+}
+
+/** 烫金层每张卡片都一样：借用第一张卡片的版式生成一次，全册共用 */
+async function renderFoil(ctx, card) {
+    const { doc, host, owner, size } = ctx;
+    const root = createStage(doc, size.bleedW, size.bleedH);
+    host.append(root);
+    try {
+        const cardEl = el(doc, 'div', 'ac-card', {
+            style: `position:absolute;left:${BLEED}px;top:${BLEED}px;width:${size.trimW}px;`,
+        });
+        root.append(cardEl);
+        cardEl.append(createCardFront(doc, card, { owner }));
+        const canvas = await buildFoil(doc, root, size);
+        await ctx.addFile(`${STR.export.folderCards}/${STR.export.foil}.png`, await pngFile(doc.defaultView, canvas));
+        canvas.width = 0;
     } finally {
         root.remove();
     }
@@ -1254,7 +1311,7 @@ export async function buildExportZip({
         stamps: types.stamps !== false && assets.stamps.length > 0,
     };
     const total =
-        (chosen.cards ? ordered.length * 3 : 0) +
+        (chosen.cards ? ordered.length * 2 + 1 : 0) +
         (chosen.tickets ? assets.tickets.length : 0) +
         (chosen.stamps ? assets.stamps.length : 0);
     const files = [];
@@ -1312,6 +1369,13 @@ export async function buildExportZip({
                     failed.push(`No.${pad3(i + 1)} ${card.name ?? card.appid}`);
                 }
                 await sleep(win, 0);
+            }
+            if (!cancelled()) {
+                try {
+                    await renderFoil(ctx, ordered[0]);
+                } catch {
+                    failed.push(STR.export.foil);
+                }
             }
         }
         if (chosen.tickets) {
@@ -1485,7 +1549,7 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
     });
     const selectedFiles = () => {
         const types = selectedTypes();
-        return (types.cards ? cardCount * 3 : 0) + (types.tickets ? ticketCount : 0) + (types.stamps ? stampCount : 0);
+        return (types.cards ? cardCount * 2 + 1 : 0) + (types.tickets ? ticketCount : 0) + (types.stamps ? stampCount : 0);
     };
     const refreshTotal = () => {
         const count = selectedFiles();

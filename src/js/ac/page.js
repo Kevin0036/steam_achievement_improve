@@ -309,6 +309,17 @@ export function Page({ onClose } = {}) {
         ensureNodeStyles(hostRef.current);
     }, []);
 
+    // 插件版：进入卡包时通知外层做一次更新检查；主题版没有监听者，零副作用。
+    React.useEffect(() => {
+        try {
+            window.dispatchEvent(
+                new CustomEvent('ac:cardpack-opened', { detail: { host: hostRef.current } }),
+            );
+        } catch {
+            /* 忽略 */
+        }
+    }, []);
+
     // 模态卡包必须能退出：Esc 与右上角的返回按钮走同一个 onClose。
     // 监听挂在卡册实际所在的窗口上 —— 模块自己的 window 未必是显示它的那个。
     React.useEffect(() => {
@@ -326,6 +337,8 @@ export function Page({ onClose } = {}) {
                 return;
             }
             if (typeof onClose !== 'function') return;
+            // 插件更新弹窗自己处理 Esc，不能把它连同卡包一起关掉
+            if (hostRef.current?.ownerDocument?.querySelector('.ac-update')) return;
             // 年份选择器开着时 Esc 只关选择器，不能把整个卡包一起关掉
             if (hostRef.current?.querySelector('.ac-year-picker')) return;
             event.preventDefault();
