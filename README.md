@@ -80,7 +80,7 @@
 本插件需要先安装 [Millennium](https://github.com/SteamClientHomebrew/Millennium)。到 [Releases](https://github.com/Kevin0036/steam_achievement_improve/releases/latest) 下载最新的插件包：
 
 ```text
-AchievementCollection-Plugin-v1.1.4-Windows.zip
+AchievementCollection-Plugin-v1.1.5-Windows.zip
 ```
 
 每个 Release 都附带各文件的 SHA256 摘要，下载后可以核对。
