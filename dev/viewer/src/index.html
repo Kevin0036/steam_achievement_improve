@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>借阅室 · 成就收藏册</title>
+<meta name="description" content="一封只读的成就收藏册借阅邀请。">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b0a09">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https://*.steamstatic.com https://steamstatic.com; connect-src {{API_ORIGIN}}; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="stylesheet" href="./assets/{{CSS}}">
+</head>
+<body>
+<div class="rm-root" id="root">
+    <main class="rm-stage" id="stage">
+        <div class="rm-room" id="room">
+            <div class="rm-wall" aria-hidden="true"></div>
+            <div class="rm-desk" aria-hidden="true"></div>
+
+            <header class="rm-head">
+                <div class="rm-eyebrow"><i></i><span>ACHIEVEMENT COLLECTION</span><b>READING ROOM</b><i></i></div>
+                <h1 class="rm-title">借阅室</h1>
+                <p class="rm-sub">一封只读的成就收藏册</p>
+            </header>
+
+            <!-- 状态面板：加载失败 / 链接失效 / 已合上 -->
+            <div class="rm-panel" id="statusPanel">
+                <div class="rm-glass rm-status">
+                    <p class="rm-status__eyebrow">READING ROOM</p>
+                    <h2 class="rm-status__title" id="statusTitle">正在取回册子</h2>
+                    <p class="rm-status__text" id="statusText">请稍候。</p>
+                    <div class="rm-status__row" id="statusActions" hidden>
+                        <button type="button" class="rm-btn" id="statusBtn">再试一次</button>
+                        <a class="rm-btn rm-status__make" id="statusMake"
+                           href="https://github.com/Kevin0036/steam_achievement_improve"
+                           target="_blank" rel="noopener noreferrer" hidden>制作同款</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 无码落地：输入朋友发来的 9 位借阅码 -->
+            <div class="rm-panel" id="codePanel">
+                <div class="rm-glass rm-req rm-codebox">
+                    <h2 class="rm-req__title">借阅码</h2>
+                    <div class="rm-field" id="codeField">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v18H6.5A2.5 2.5 0 0 1 4 18.5z"/><path d="M8 7h7M8 11h7M8 15h4"/></svg>
+                        <input id="codeInput" type="text" inputmode="numeric" spellcheck="false"
+                               autocomplete="off" maxlength="15" placeholder="9 位借阅码"
+                               aria-label="借阅码" aria-describedby="codeHint">
+                        <button type="button" class="rm-btn" id="codeBtn">翻开</button>
+                    </div>
+                    <div class="rm-req__foot">
+                        <span class="rm-hint" id="codeHint">朋友发来的 9 位数字；也可以直接打开带 ?c= 的链接。</span>
+                    </div>
+                    <div class="rm-req__foot rm-codebox__more">
+                        <a class="rm-btn rm-btn--ghost" id="codeMake"
+                           href="https://github.com/Kevin0036/steam_achievement_improve"
+                           target="_blank" rel="noopener noreferrer">制作同款</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 信封 -->
+            <div class="rm-mail" id="mail" aria-hidden="true">
+                <i class="rm-mail__ring" id="ring"></i>
+                <span class="rm-mail__back"></span>
+
+                <div class="rm-letter" id="letter">
+                    <div class="rm-letter__flip">
+                        <article class="rm-postcard" id="postcardFront">
+                            <div class="rm-plate">
+                                <span class="rm-plate__badge" aria-hidden="true"></span>
+                                <span class="rm-plate__name">成就收藏册</span>
+                                <span class="rm-plate__rule" aria-hidden="true"></span>
+                                <span class="rm-plate__meta" id="plateMeta">—</span>
+                            </div>
+                            <div class="rm-postage" aria-hidden="true">
+                                <svg viewBox="0 0 30 36">
+                                    <g mask="url(#rmPerf)">
+                                        <rect width="30" height="36" fill="#efe6cf"/>
+                                        <rect x="2.6" y="2.6" width="24.8" height="30.8" fill="#202a4c"/>
+                                        <rect x="3.6" y="3.6" width="22.8" height="28.8" fill="none" stroke="#d6b77a" stroke-width=".4"/>
+                                    </g>
+                                    <g transform="translate(8 11) scale(.5833)">
+                                        <use href="#rmSteam" fill="#d6b77a"/>
+                                    </g>
+                                </svg>
+                            </div>
+                            <svg class="rm-postmark" viewBox="0 0 64 36" aria-hidden="true">
+                                <g class="rm-pm-line">
+                                    <circle cx="17" cy="18" r="13.5"/>
+                                    <circle cx="17" cy="18" r="11"/>
+                                    <path d="M35 10q4-3 8 0t8 0 8 0M35 18q4-3 8 0t8 0 8 0M35 26q4-3 8 0t8 0 8 0"/>
+                                </g>
+                                <text x="17" y="17.5" text-anchor="middle" font-size="5.6" font-weight="700" id="pmDate">—</text>
+                                <text x="17" y="24.5" text-anchor="middle" font-size="4.6" id="pmYear">—</text>
+                            </svg>
+                        </article>
+
+                        <article class="rm-register" id="postcardBack">
+                            <div class="rm-register__main">
+                                <h3>借阅登记卡</h3>
+                                <dl class="rm-kv">
+                                    <dt>分享者</dt>
+                                    <dd><img id="regAvatar" alt=""><b id="regName">—</b></dd>
+                                    <dt>册内</dt>
+                                    <dd class="rm-kv__stack">
+                                        <span><b id="regCount">—</b> 款全成就</span>
+                                        <span class="rm-kv__span" id="regSpan">—</span>
+                                    </dd>
+                                </dl>
+                                <div class="rm-register__barcode" aria-hidden="true"></div>
+                            </div>
+                            <i class="rm-register__divider"></i>
+                            <div class="rm-register__side">
+                                <p class="rm-register__note">只读副本 · 阅毕合上寄回</p>
+                                <div class="rm-register__stampbox">
+                                    <span>盖章处</span>
+                                    <div class="rm-mark" id="mark">已寄出</div>
+                                </div>
+                                <button type="button" class="rm-btn rm-btn--dark rm-btn--paper" id="openBookBtn">翻开册子</button>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+
+                <span class="rm-mail__dimmer" aria-hidden="true"></span>
+                <span class="rm-mail__fold"></span>
+                <span class="rm-mail__flap"><i></i><b></b></span>
+
+                <div class="rm-seal" id="seal" role="button" tabindex="0" aria-label="拆开封蜡">
+                    <i class="rm-seal__half rm-seal__half--l">
+                        <i class="rm-seal__art">
+                            <svg viewBox="0 0 100 100" aria-hidden="true">
+                                <defs>
+                                    <radialGradient id="rmWax" cx=".35" cy=".3" r=".9">
+                                        <stop offset="0" stop-color="#c06256"/>
+                                        <stop offset=".52" stop-color="#a3453d"/>
+                                        <stop offset="1" stop-color="#6f241e"/>
+                                    </radialGradient>
+                                </defs>
+                                <path d="M50 4C61 2 71 8 80 13 88 18 95 26 97 37 99 47 95 56 93 64 90 75 83 83 73 89 63 95 54 97 44 96 33 94 23 88 16 80 9 71 6 61 6 50 5 39 9 30 16 21 24 12 37 6 50 4Z" fill="url(#rmWax)"/>
+                                <path d="M31 24C38 16 48 12 58 14" fill="none" stroke="#e08a7e" stroke-width="2.2" stroke-linecap="round" opacity=".38"/>
+                                <g transform="translate(22 22) scale(2.33)">
+                                    <use href="#rmSteam" fill="#f0b2a8" opacity=".35" transform="translate(.35 .45)"/>
+                                    <use href="#rmSteam" fill="#5e1a14"/>
+                                </g>
+                                <circle cx="50" cy="50" r="36.5" fill="none" stroke="#4a1511" stroke-opacity=".4" stroke-width="1.7"/>
+                            </svg>
+                        </i>
+                    </i>
+                    <i class="rm-seal__half rm-seal__half--r">
+                        <i class="rm-seal__art">
+                            <svg viewBox="0 0 100 100" aria-hidden="true">
+                                <path d="M50 4C61 2 71 8 80 13 88 18 95 26 97 37 99 47 95 56 93 64 90 75 83 83 73 89 63 95 54 97 44 96 33 94 23 88 16 80 9 71 6 61 6 50 5 39 9 30 16 21 24 12 37 6 50 4Z" fill="url(#rmWax)"/>
+                                <path d="M31 24C38 16 48 12 58 14" fill="none" stroke="#e08a7e" stroke-width="2.2" stroke-linecap="round" opacity=".38"/>
+                                <g transform="translate(22 22) scale(2.33)">
+                                    <use href="#rmSteam" fill="#f0b2a8" opacity=".35" transform="translate(.35 .45)"/>
+                                    <use href="#rmSteam" fill="#5e1a14"/>
+                                </g>
+                                <circle cx="50" cy="50" r="36.5" fill="none" stroke="#4a1511" stroke-opacity=".4" stroke-width="1.7"/>
+                            </svg>
+                        </i>
+                    </i>
+                </div>
+            </div>
+
+            <div class="rm-tip" id="tip" aria-live="polite"></div>
+        </div>
+    </main>
+
+    <!-- 开册覆盖层与阅读器都在舞台外面：.rm-stage 有 container-type: size，
+         fixed 后代的包含块在按规范实现的引擎（Safari / Steam CEF）里会变成它 -->
+    <div class="rm-veil" id="veil" aria-hidden="true">
+            <i class="rm-veil__rays"></i>
+            <div class="rm-cover" id="cover">
+                <div class="rm-cover__book">
+                    <i class="rm-cover__ribbon" aria-hidden="true"></i>
+                    <div class="rm-cover__board" aria-hidden="true"></div>
+                    <div class="rm-cover__inside" aria-hidden="true"></div>
+                    <div class="rm-cover__front">
+                        <div class="rm-cover__face">
+                            <i class="rm-cover__spine"></i>
+                            <svg class="rm-corner rm-corner--a" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21V5a4 4 0 0 1 4-4h16"/><path d="M5 12V6.5A1.5 1.5 0 0 1 6.5 5H12"/><path d="M9 9l1.6-1.6L12.2 9l-1.6 1.6z" fill="currentColor" stroke="none"/></svg>
+                            <svg class="rm-corner rm-corner--b" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21V5a4 4 0 0 1 4-4h16"/><path d="M5 12V6.5A1.5 1.5 0 0 1 6.5 5H12"/><path d="M9 9l1.6-1.6L12.2 9l-1.6 1.6z" fill="currentColor" stroke="none"/></svg>
+                            <svg class="rm-corner rm-corner--c" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21V5a4 4 0 0 1 4-4h16"/><path d="M5 12V6.5A1.5 1.5 0 0 1 6.5 5H12"/><path d="M9 9l1.6-1.6L12.2 9l-1.6 1.6z" fill="currentColor" stroke="none"/></svg>
+                            <svg class="rm-corner rm-corner--d" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21V5a4 4 0 0 1 4-4h16"/><path d="M5 12V6.5A1.5 1.5 0 0 1 6.5 5H12"/><path d="M9 9l1.6-1.6L12.2 9l-1.6 1.6z" fill="currentColor" stroke="none"/></svg>
+                            <span class="rm-cover__badge" aria-hidden="true"></span>
+                            <span class="rm-cover__name">成就收藏册</span>
+                            <span class="rm-cover__sub">ACHIEVEMENT COLLECTION</span>
+                            <span class="rm-cover__rule" aria-hidden="true"><i></i></span>
+                            <span class="rm-cover__span" id="coverSpan">—</span>
+                        </div>
+                        <div class="rm-cover__back" aria-hidden="true">
+                            <div class="rm-cover__endpaper" id="coverEnd"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 阅读器 -->
+        <section class="rm-reader" id="reader" aria-hidden="true" aria-label="借阅中的收藏册">
+            <header class="rm-bar">
+                <div class="rm-bar__id">
+                    <span class="rm-bar__badge" aria-hidden="true"></span>
+                    <b>借阅室</b>
+                    <span class="rm-bar__sep" aria-hidden="true"></span>
+                    <img id="barAvatar" alt="">
+                    <span class="rm-bar__name" id="barName">—</span>
+                    <button type="button" class="rm-friend" id="friendBtn" hidden>
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <rect x="5.5" y="5.5" width="8" height="8" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+                            <path d="M10.5 3.5a1.6 1.6 0 0 0-1.6-1.6H4.1A1.6 1.6 0 0 0 2.5 3.5v4.8a1.6 1.6 0 0 0 1.6 1.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                        </svg>
+                        获取好友代码
+                    </button>
+                </div>
+                <div class="rm-bar__meta">
+                    <span id="barMeta">—</span>
+                    <span class="rm-bar__ro">只读快照</span>
+                </div>
+                <div class="rm-bar__actions">
+                    <button type="button" class="rm-btn rm-btn--ghost" id="setBtn" aria-expanded="false" aria-controls="setPop">阅读设置</button>
+                    <button type="button" class="rm-btn rm-btn--ghost" id="closeBtn">合上并寄回</button>
+                </div>
+            </header>
+
+            <div class="rm-setpop" id="setPop" hidden>
+                <p class="rm-setpop__title">阅读设置</p>
+                <div class="rm-setpop__row">
+                    <span class="rm-setpop__label">单页卡片数量</span>
+                    <div class="rm-setpop__chips" role="group" aria-label="单页卡片数量">
+                        <button type="button" data-per="1">一页一卡</button>
+                        <button type="button" data-per="4">一页四卡</button>
+                    </div>
+                </div>
+                <div class="rm-setpop__row">
+                    <span class="rm-setpop__label">年份特殊页</span>
+                    <button type="button" class="rm-switch" id="yearToggle" role="switch" aria-checked="false" aria-label="年份特殊页"><i></i></button>
+                </div>
+                <p class="rm-setpop__note">只调整这次阅读的排版，不会改变分享快照。</p>
+            </div>
+
+            <div class="rm-reader__book">
+                <div id="bookHost" class="ac-cardpack"></div>
+            </div>
+        </section>
+
+        <button type="button" class="rm-sound" id="soundBtn">
+            <span class="rm-sound__bars" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="rm-sound__label">声音</span>
+        </button>
+        <div class="rm-toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<!-- 贴纸 / 邮票共用定义 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <path id="rmSteam" d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/>
+    <mask id="rmPerf" maskUnits="userSpaceOnUse" x="0" y="0" width="30" height="36">
+        <rect width="30" height="36" fill="#fff"/>
+        <rect width="30" height="36" fill="none" stroke="#000" stroke-width="2.2" stroke-dasharray="0 3.1" stroke-linecap="round"/>
+    </mask>
+</defs></svg>
+
+<script type="module" src="./assets/{{JS}}"></script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就收藏册 · 插件面板预览</title>
+
+<!--
+  插件设置面板（Millennium 侧栏 / 快速访问）的视觉预览。
+  标记与 plugin/src/panel.js 的 React 输出一致；样式加载真实的
+  cardpack.css（含 .ac-set 组件）与 plugin/src/ui.css，改样式后刷新即可查看。
+-->
+
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/cardpack.css">
+<link rel="stylesheet" href="/theme/plugin/src/ui.css">
+
+<style>
+    html, body { margin: 0; min-height: 100%; background: #171a21; }
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 24px;
+        box-sizing: border-box;
+    }
+</style>
+</head>
+<body>
+<div class="ac-plugin-panel">
+
+    <header class="ac-plugin-head">
+        <p class="ac-set__eyebrow">插件版 · v1.1.6</p>
+        <h2 class="ac-set__title">插件设置</h2>
+        <p class="ac-set__desc">卡包选项、印刷素材与版本更新都在这里；改动立即生效，并保存在本机。</p>
+    </header>
+
+    <div class="ac-plugin-status">
+        <span class="ac-plugin-status__dot" aria-hidden="true"></span>
+        库内入口已就绪：Steam 库顶部菜单 →「★ 成就卡包」。
+    </div>
+
+    <div class="ac-plugin-section">
+        <h3 class="ac-plugin-section__title">卡包设置</h3>
+
+        <div class="ac-set__row ac-plugin-row--select">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>单页卡片数量</b></div>
+                <p class="ac-set__hint">四张一页会等比缩小卡片，不改变卡片样式。</p>
+            </div>
+            <select class="ac-plugin-select">
+                <option>1 张</option>
+                <option>4 张</option>
+            </select>
+        </div>
+
+        <div class="ac-set__row ac-plugin-row--select">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>装订方式</b></div>
+                <p class="ac-set__hint">顺序入册会保留旧卡的位置，新卡接在最后。</p>
+            </div>
+            <select class="ac-plugin-select">
+                <option>最新优先</option>
+                <option>顺序入册</option>
+            </select>
+        </div>
+
+        <div class="ac-set__row">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>扉页统计</b></div>
+                <p class="ac-set__hint">扉页头像下方的收藏卡 / 金杯 / 银杯合计。</p>
+            </div>
+            <button type="button" role="switch" class="ac-set__switch" aria-checked="true" aria-label="扉页统计"><i aria-hidden="true"></i></button>
+        </div>
+
+        <div class="ac-set__row">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>年份特殊页</b></div>
+                <p class="ac-set__hint">按完成年份分组，每年插入一张正反手账：正面徽章邮票，背面年度最爱。</p>
+            </div>
+            <button type="button" role="switch" class="ac-set__switch" aria-checked="true" aria-label="年份特殊页"><i aria-hidden="true"></i></button>
+        </div>
+
+        <div class="ac-set__row">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>书口年份索引</b></div>
+                <p class="ac-set__hint">书口露出一列年份标签，点一下直接翻到那一年的年份页。需先开启年份特殊页。</p>
+            </div>
+            <button type="button" role="switch" class="ac-set__switch" aria-checked="true" aria-label="书口年份索引"><i aria-hidden="true"></i></button>
+        </div>
+
+        <div class="ac-set__row">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>年度之树</b><em class="ac-set__tag">实验</em></div>
+                <p class="ac-set__hint">年份页的背面画一棵随全成就款数生长的树。需先开启年份特殊页与左右展开。</p>
+            </div>
+            <button type="button" role="switch" class="ac-set__switch" aria-checked="false" aria-label="年度之树"><i aria-hidden="true"></i></button>
+        </div>
+
+        <div class="ac-set__row ac-set__row--stack">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>年度目标</b></div>
+                <p class="ac-set__hint">树的生长以这个款数为目标；达到后不再长高，超出部分只标「盈枝」。</p>
+            </div>
+            <div class="ac-set__slider">
+                <output class="ac-set__value">15 款</output>
+                <input type="range" class="ac-set__range" min="5" max="50" step="5" value="15" aria-label="年度目标">
+                <div class="ac-set__ticks" aria-hidden="true"><span>5 款</span><span>50 款</span></div>
+            </div>
+        </div>
+
+        <div class="ac-set__row">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>读取完成日期</b></div>
+                <p class="ac-set__hint">关闭后不补全每张卡的完成日期，打开卡包更快。</p>
+            </div>
+            <button type="button" role="switch" class="ac-set__switch" aria-checked="true" aria-label="读取完成日期"><i aria-hidden="true"></i></button>
+        </div>
+
+        <div class="ac-set__row ac-plugin-row--action">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>手动填写</b></div>
+                <p class="ac-set__hint">手动补的完成日期与时长。清除后，能取到接口数据的游戏会恢复成接口值。</p>
+            </div>
+            <button type="button" class="ac-plugin-btn is-ghost">清除全部手动填写</button>
+        </div>
+
+        <div class="ac-set__row ac-plugin-row--action">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>收录库外游戏</b></div>
+                <p class="ac-set__hint">已经不在库里的游戏（比如被移出家庭共享）不会出现在册子里。扫描玩过的游戏，Steam 确认成就全部解锁后才会自动收录。</p>
+            </div>
+            <button type="button" class="ac-plugin-btn is-ghost">扫描库外游戏</button>
+        </div>
+
+        <div class="ac-set__row ac-plugin-row--action">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>新手引导</b></div>
+                <p class="ac-set__hint">重新看一遍翻页、封面调整和补日期 / 时长的手势说明。</p>
+            </div>
+            <button type="button" class="ac-plugin-btn is-ghost">查看引导</button>
+        </div>
+
+        <div class="ac-plugin-actions">
+            <button type="button" class="ac-plugin-btn is-primary">打开成就卡包</button>
+            <button type="button" class="ac-plugin-btn is-ghost">恢复默认设置</button>
+        </div>
+    </div>
+
+    <div class="ac-plugin-section">
+        <h3 class="ac-plugin-section__title">印刷素材</h3>
+        <div class="ac-plugin-note">导出成就卡片（正反面 + 烫金层）、年度最爱票根和年份页徽章邮票；300 DPI，四周带 3 mm 出血，可直接送印后裁剪。</div>
+        <div class="ac-plugin-actions">
+            <button type="button" class="ac-plugin-btn is-primary">导出印刷素材</button>
+        </div>
+    </div>
+
+    <div class="ac-plugin-section">
+        <h3 class="ac-plugin-section__title">版本与发布</h3>
+        <div class="ac-set__row">
+            <div class="ac-set__text">
+                <div class="ac-set__label"><b>插件版本</b></div>
+                <p class="ac-set__hint">进入卡包时会自动检查更新，也可以在这里手动检查。</p>
+            </div>
+            <span class="ac-plugin-version">v1.1.6</span>
+        </div>
+        <div class="ac-plugin-actions">
+            <button type="button" class="ac-plugin-btn is-ghost">检查更新</button>
+            <button type="button" class="ac-plugin-btn is-ghost">打开发布页</button>
+        </div>
+    </div>
+
+    <div class="ac-plugin-section">
+        <h3 class="ac-plugin-section__title">问题反馈</h3>
+        <div class="ac-plugin-note">遇到缺卡、数字对不上等问题时，复制这行诊断数据发给开发者：库内款数 / mapCache 条目 / 全成就 / total=0 / 无缓存。</div>
+        <div class="ac-plugin-actions">
+            <button type="button" class="ac-plugin-btn is-ghost">日志反馈</button>
+        </div>
+        <div class="ac-plugin-note ac-plugin-diag">已复制：成就收藏册诊断：库内 648 款 · mapCache 648 条 · 全成就 79 · total=0 235 · 无缓存 0</div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就收藏册 · 展柜预览</title>
+
+<!--
+  功能 A（完满主义者展柜）的视觉预览页。
+  复制 Valve 线上渲染出来的展柜 DOM 结构，加载同一份 profilev2.css，
+  再叠上 SpaceTheme 的字体与我们的 showcase.css，并挂上真实的 profile.js。
+  封面用本机真实全成就游戏的 header.jpg（客户端本地缓存优先，其次 Valve CDN）。
+-->
+
+<link rel="stylesheet" href="https://community.fastly.steamstatic.com/public/css/skin_1/profilev2.css">
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/showcase.css">
+
+<style>
+    /* SpaceTheme 在社区页上的底色（webkit.css 里的 body::before） */
+    html, body { margin: 0; padding: 0; }
+    body { background: rgb(17, 17, 17); color: #c6d4df; font-size: 13px; }
+    .chrome { max-width: 640px; margin: 0 auto; padding: 22px 16px 40px; }
+    .case { margin-bottom: 30px; }
+    .case > h2 { margin: 0 0 10px; font-size: 11px; font-weight: 500; letter-spacing: 1px; color: #6c7179; }
+    /* Valve 个人资料页的展柜底板（真实页面上由个人资料主题决定，这里取默认值） */
+    .profile_customization { background: rgba(0, 0, 0, 0.3); padding-bottom: 12px; }
+    .profile_customization_block { padding: 0 12px; }
+    .showcase_stats_row { padding: 18px 12px 0; }
+</style>
+</head>
+<body class="profile_page responsive_page">
+
+<div class="chrome">
+    <section class="case">
+        <h2>两列（宽屏）· 鼠标悬停任一格子查看抬升效果</h2>
+        <div class="profile_customization">
+            <div class="profile_customization_header">完满主义者展柜</div>
+            <div class="profile_customization_block">
+                <div class="showcase_achievementscompletionist_slots" data-slots="1149550,2358720,553420,1868140,413410,1123450"></div>
+            </div>
+            <div class="showcase_content_bg showcase_stats_row">
+                <a class="showcase_stat" href="#"><div class="value" data-card-count></div><div class="label">已完成的游戏和组</div></a>
+            </div>
+        </div>
+    </section>
+
+    <section class="case" style="max-width: 360px">
+        <h2>单列（窄屏 html.responsive）</h2>
+        <div class="profile_customization">
+            <div class="profile_customization_header">完满主义者展柜</div>
+            <div class="profile_customization_block">
+                <div class="showcase_achievementscompletionist_slots" data-slots="646570,1942280" data-responsive="1"></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="case">
+        <h2>锁区封面补救 · 第一个格子是坏图，第二个完全没有封面</h2>
+        <div class="profile_customization">
+            <div class="profile_customization_header">完满主义者展柜</div>
+            <div class="profile_customization_block">
+                <div class="showcase_achievementscompletionist_slots" data-locked="2458860,1149550"></div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script type="module">
+import { CARDS } from './fixtures.js';
+import { artImage } from '/theme/src/js/ac/cardview.js';
+
+const byId = new Map(CARDS.map((c) => [c.appid, c]));
+document.querySelector('[data-card-count]').textContent = CARDS.length;
+
+/** Valve 的格子结构：<a> 里是封面 + 信息条（奖杯组 + 成就数 / 稀有数） */
+function slot(card, { cover = 'auto' } = {}) {
+    const counts = Number.isFinite(card.total)
+        ? `<div class="num_achievements">${card.total} 项成就</div>
+           ${card.rare != null ? `<div class="num_rare">${card.rare} 项为稀有</div>` : ''}`
+        : '<div class="num_achievements">成就数据未知</div>';
+    const template = document.createElement('template');
+    template.innerHTML = `
+    <div class="showcase_slot showcase_achievementscompletionist_game">
+      <a href="https://steamcommunity.com/stats/${card.appid}/achievements/">
+        <div class="showcase_achievementscompletionist_game_bar">
+          <div class="showcase_achievementscompletionist_game_ribbons">
+            <span class="showcase_completion_ribbons">
+              <span class="showcase_completion_ribbon_group"><span class="showcase_completion_ribbon"></span></span>
+            </span>
+          </div>
+          <div class="showcase_achievementscompletionist_game_counts">
+            ${counts}
+          </div>
+        </div>
+      </a>
+    </div>`;
+    const node = template.content.firstElementChild;
+    const link = node.querySelector('a');
+
+    if (cover === 'auto') {
+        link.prepend(artImage(document, card.art.header, 'game_capsule', card.name));
+    } else if (cover === 'broken') {
+        const img = document.createElement('img');
+        img.className = 'game_capsule';
+        img.alt = card.name;
+        img.src = '/definitely-missing-cover.jpg';
+        link.prepend(img);
+    }
+    return node;
+}
+
+for (const grid of document.querySelectorAll('[data-slots]')) {
+    const cards = grid.dataset.slots.split(',').map(id => byId.get(Number(id))).filter(Boolean);
+    grid.replaceChildren(...cards.map((card) => slot(card)));
+}
+
+// 锁区用例：真实 appid，但 Valve 的封面缺失 / 坏掉，交给 showcaseart.js 按 appid 重建
+const LOCKED = [
+    { appid: 2458860, name: '夏色四叶草', total: null, rare: null },
+    CARDS.find((card) => card.appid === 1149550) ?? { appid: 1149550, name: 'Fixture Locked', total: null, rare: null },
+];
+for (const grid of document.querySelectorAll('[data-locked]')) {
+    grid.replaceChildren(
+        ...LOCKED.map((card, i) => slot(card, { cover: i === 0 ? 'broken' : 'none' })),
+    );
+}
+
+// Valve 在窄视口下给 <html> 加 responsive 类让展柜变单列；这里只对第二个用例模拟
+const style = document.createElement('style');
+style.textContent = '[data-responsive] { grid-template-columns: minmax(0, 1fr) !important; }';
+document.head.append(style);
+
+// 挂上真实的功能 A 脚本（统计行改名 / 隐藏 DLC 栏位）
+import('/theme/src/js/ac/profile.js');
+</script>
+</body>
+</html>

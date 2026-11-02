@@ -13,6 +13,7 @@
 
 import STR from './strings.js';
 import { PLACEHOLDER, absoluteUrl, inspectCapsule, peekCapsule, trimFrame } from './capsule.js';
+import { applyCoverEdit } from './coveredit.js';
 
 /* ── 小工具 ──────────────────────────────────────────────────────────── */
 
@@ -50,6 +51,21 @@ export function artImage(doc, urls, className, alt = '') {
     img.addEventListener('error', next);
     next();
     return img;
+}
+
+/** 图片真实宽高比：取景框按它算「覆盖」所需的显示高度（见 card.css 的 height 公式）；
+    顺便记下横版图片，背面的拉伸方式靠它避开横向压扁。 */
+function trackArtRatio(img, fallback) {
+    img.style.setProperty('--ac-art-ratio', String(fallback));
+    const apply = () => {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        if (!w || !h) return;
+        img.style.setProperty('--ac-art-ratio', String(w / h));
+        img.toggleAttribute('data-art-wide', w > h);
+    };
+    img.addEventListener('load', apply);
+    if (img.complete) apply();
 }
 
 /** 依 appid 决定的伪随机数：同一张卡每次打开星芒位置都一样 */
@@ -146,7 +162,12 @@ export function createCardFront(doc, card, ctx = {}) {
 
     // 插画：宽幅主视觉优先，没有就退到竖版封面 / 横幅
     const heroUrls = [...(card.art?.hero ?? []), ...(card.art?.capsule ?? []), ...(card.art?.header ?? [])];
-    inner.append(artImage(doc, heroUrls, 'ac-cf__art'));
+    // 取景框固定住渐隐的范围，图片自己在框里缩放 / 平移
+    const frame = el(doc, 'div', 'ac-cf__artframe');
+    const art = artImage(doc, heroUrls, 'ac-cf__art');
+    trackArtRatio(art, 3.1);
+    frame.append(art);
+    inner.append(frame);
     inner.append(el(doc, 'div', 'ac-cf__rays', { 'aria-hidden': 'true' }));
     inner.append(sparkles(doc, card.appid));
     inner.append(el(doc, 'div', 'ac-cf__badge', { role: 'img', 'aria-label': STR.card.badge }));
@@ -161,7 +182,7 @@ export function createCardFront(doc, card, ctx = {}) {
     body.append(perfect);
 
     const date = formatCardDate(card.completedAt);
-    const owner = ctx.owner ?? {};
+    const owner = card.owner ?? ctx.owner ?? {};
     if (owner.persona || date) {
         const row = el(doc, 'div', 'ac-cf__owner');
         if (owner.avatar) row.append(artImage(doc, owner.avatar, 'ac-cf__avatar'));
@@ -191,6 +212,7 @@ export function createCardFront(doc, card, ctx = {}) {
 
     // 悬停时跟随指针的反光（pointer-events: none）
     root.append(el(doc, 'div', 'ac-card__glare', { 'aria-hidden': 'true' }));
+    applyCoverEdit(root, card.appid);
     return root;
 }
 
@@ -205,6 +227,7 @@ export function createCardBack(doc, card) {
     inner.append(el(doc, 'div', 'ac-cb__gloss', { 'aria-hidden': 'true' }));
     root.append(inner);
     root.append(el(doc, 'div', 'ac-card__glare', { 'aria-hidden': 'true' }));
+    applyCoverEdit(root, card.appid);
     return root;
 }
 
@@ -215,17 +238,28 @@ export function createCardBack(doc, card) {
  * 体检结论有缓存，第二次起在图片加载的同一刻就生效。
  */
 function capsuleImage(doc, capsule, rest, alt) {
+    const media = el(doc, 'div', 'ac-cb__media');
+
     // 已知是占位图的，直接不走竖版封面这条链
     if (capsule.some((url) => peekCapsule(doc, url) === PLACEHOLDER)) {
-        return artImage(doc, rest, 'ac-cb__art', alt);
+        const art = artImage(doc, rest, 'ac-cb__art', alt);
+        trackArtRatio(art, 2 / 3);
+        media.append(art);
+        return media;
     }
 
     const img = artImage(doc, [...capsule, ...rest], 'ac-cb__art', alt);
+    trackArtRatio(img, 2 / 3);
     const candidates = new Set(capsule.map((url) => absoluteUrl(doc, url)));
 
     const apply = (verdict) => {
-        if (verdict === PLACEHOLDER) img.replaceWith(artImage(doc, rest, 'ac-cb__art', alt));
-        else if (Array.isArray(verdict)) trimFrame(img, verdict);
+        if (verdict === PLACEHOLDER) {
+            const art = artImage(doc, rest, 'ac-cb__art', alt);
+            trackArtRatio(art, 2 / 3);
+            img.replaceWith(art);
+        } else if (Array.isArray(verdict)) {
+            trimFrame(img, verdict);
+        }
     };
 
     img.addEventListener('load', () => {
@@ -236,5 +270,6 @@ function capsuleImage(doc, capsule, rest, alt) {
         if (known !== undefined) apply(known);
         else inspectCapsule(doc, url).then(apply);
     });
-    return img;
+    media.append(img);
+    return media;
 }

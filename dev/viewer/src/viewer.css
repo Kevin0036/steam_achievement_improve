@@ -1,0 +1,73 @@
+/* 生产版借阅室：在借阅室样式（从 preview/borrow.html 提取）之上只补状态面板 */
+
+.rm-sub {
+    margin-top: 0.55em;
+    font-size: 0.62em;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-indent: 0.3em;
+    color: var(--rm-ink-faint);
+}
+
+.rm-status {
+    padding: 1.7em 2em 1.5em;
+    text-align: center;
+}
+
+.rm-status__eyebrow {
+    font-size: 0.46em;
+    font-weight: 700;
+    letter-spacing: 0.34em;
+    color: var(--rm-gold);
+}
+
+.rm-status__title {
+    margin-top: 0.55em;
+    font-size: 1.1em;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    color: var(--rm-ink);
+}
+
+.rm-status__text {
+    margin: 0.75em auto 0;
+    max-width: 26em;
+    font-size: 0.72em;
+    line-height: 1.9;
+    letter-spacing: 0.05em;
+    color: var(--rm-ink-dim);
+}
+
+.rm-status__row {
+    display: flex;
+    justify-content: center;
+    gap: 0.7em;
+    margin-top: 1.35em;
+}
+
+.rm-status__row[hidden] { display: none; }
+
+/* 状态行里的跳转按钮：<a> 需要补回按钮的排布；行高必须和 <button> 一样用 normal */
+.rm-status__row a.rm-btn {
+    display: inline-block;
+    text-decoration: none;
+}
+
+/* 没有链接 / 链接失效时，房间里不再放信封 */
+.rm-status + .rm-tip { bottom: 2.4em; }
+
+/* 无码落地：借阅码输入（类名不能叫 rm-code，会和阅读器好友码弹层撞名） */
+.rm-codebox .rm-field input {
+    letter-spacing: 0.18em;
+    font-size: 0.9em;
+}
+
+.rm-codebox__more {
+    justify-content: center;
+    margin-top: -0.15em;
+}
+
+.rm-codebox__more a.rm-btn {
+    display: inline-block;
+    text-decoration: none;
+}

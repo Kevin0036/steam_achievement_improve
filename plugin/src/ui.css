@@ -1,0 +1,339 @@
+/* ============================================================================
+ * 插件版专属 UI：Millennium 侧栏 / 快速访问里的设置面板
+ * ----------------------------------------------------------------------------
+ * 视觉与主题版的阅读设置面板（.ac-set__*）保持一致：深色纸面 + 描金强调、
+ * 行卡片 + 细描边、开关与滑块共用同一套组件样式（plugin.css 已包含 cardpack.css）。
+ * 只允许以 .ac-plugin- 开头；卡册本体样式由 cardpack/book/card 提供。
+ * ==========================================================================*/
+
+/* ── Millennium 侧栏图标 ──────────────────────────────────────────────── */
+
+.ac-plugin-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+    color: #f3d38a;
+}
+
+/* ── 面板骨架：同一张纸面 ─────────────────────────────────────────────── */
+
+.ac-plugin-panel {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 560px;
+    padding: 20px 22px 16px;
+    color: var(--ac-text);
+    font-family: var(--ac-font);
+    font-size: 13px;
+    line-height: 1.5;
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 14px;
+    background:
+        var(--ac-grain),
+        linear-gradient(180deg, #24262c 0%, #17181d 100%);
+    background-size: 120px 120px, auto;
+    background-blend-mode: soft-light, normal;
+    box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    -webkit-user-select: none;
+    user-select: none;
+    /* 客户端模态只有约 440px 宽，行布局按面板自身宽度（而不是视口）收放 */
+    container-type: inline-size;
+    container-name: ac-plugin;
+}
+
+.ac-plugin-head .ac-set__title {
+    margin-top: 6px;
+}
+
+/* ── 状态提示 ─────────────────────────────────────────────────────────── */
+
+.ac-plugin-status {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 8px 11px;
+    color: var(--ac-text-dim);
+    font-size: 11px;
+    line-height: 1.6;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.ac-plugin-status.is-theme {
+    color: rgba(243, 211, 138, 0.8);
+    border-color: rgba(243, 211, 138, 0.28);
+    background: rgba(243, 211, 138, 0.05);
+}
+
+.ac-plugin-status__dot {
+    width: 6px;
+    height: 6px;
+    margin-top: 5px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: rgba(243, 211, 138, 0.8);
+    box-shadow: 0 0 8px rgba(243, 211, 138, 0.45);
+}
+
+/* ── 分区与行 ─────────────────────────────────────────────────────────── */
+
+.ac-plugin-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.ac-plugin-section + .ac-plugin-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.ac-plugin-section__title {
+    margin: 0 0 2px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: rgba(243, 211, 138, 0.6);
+}
+
+/* 开关沿用主题的 .ac-set__switch，这里只补禁用态 */
+.ac-plugin-panel .ac-set__switch:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ac-plugin-panel .ac-set__switch:disabled:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+.ac-plugin-panel .ac-set__switch[aria-checked="true"]:disabled:hover {
+    border-color: rgba(232, 200, 116, 0.55);
+}
+
+.ac-plugin-select {
+    box-sizing: border-box;
+    height: 30px;
+    min-width: 112px;
+    padding: 0 26px 0 10px;
+    color: var(--ac-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.04);
+    appearance: auto;
+}
+
+.ac-plugin-select:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.ac-plugin-select:focus-visible {
+    border-color: rgba(243, 211, 138, 0.55);
+    outline: none;
+}
+
+.ac-plugin-select:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ac-plugin-select option {
+    color: #ebedf0;
+    background: #1b1c21;
+}
+
+/* ── 窄容器（客户端模态 ≈ 440px）：下拉 / 文字按钮沉到说明下方 ─────────── */
+
+@container ac-plugin (max-width: 470px) {
+    .ac-plugin-panel .ac-plugin-row--select,
+    .ac-plugin-panel .ac-plugin-row--action {
+        flex-direction: column;
+        gap: 9px;
+    }
+
+    .ac-plugin-panel .ac-plugin-row--select {
+        align-items: stretch;
+    }
+
+    .ac-plugin-panel .ac-plugin-row--action {
+        align-items: flex-start;
+    }
+
+    .ac-plugin-panel .ac-plugin-row--select .ac-plugin-select {
+        width: 100%;
+        height: 34px;
+    }
+
+    .ac-plugin-panel .ac-set__row {
+        padding: 10px 11px;
+    }
+
+    .ac-plugin-panel .ac-plugin-section {
+        gap: 6px;
+    }
+
+    .ac-plugin-panel .ac-plugin-section + .ac-plugin-section {
+        margin-top: 14px;
+        padding-top: 14px;
+    }
+}
+
+.ac-plugin-version {
+    color: rgba(243, 211, 138, 0.75);
+    font: 12px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    letter-spacing: 0.04em;
+}
+
+/* ── 按钮与提示 ───────────────────────────────────────────────────────── */
+
+.ac-plugin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.ac-plugin-btn {
+    box-sizing: border-box;
+    height: 32px;
+    padding: 0 18px;
+    color: var(--ac-text);
+    font: 600 12px/1 var(--ac-font);
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    transition:
+        border-color 140ms var(--ac-ease-out),
+        background 140ms var(--ac-ease-out),
+        color 140ms var(--ac-ease-out);
+}
+
+.ac-plugin-btn:hover:not(:disabled),
+.ac-plugin-btn:focus-visible {
+    border-color: rgba(102, 192, 244, 0.5);
+    background: rgba(42, 71, 94, 0.9);
+    outline: none;
+}
+
+.ac-plugin-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ac-plugin-btn.is-primary {
+    color: #f3d38a;
+    border-color: rgba(243, 211, 138, 0.45);
+    background: rgba(243, 211, 138, 0.09);
+}
+
+.ac-plugin-btn.is-primary:hover:not(:disabled),
+.ac-plugin-btn.is-primary:focus-visible {
+    color: #ffe6a8;
+    border-color: rgba(243, 211, 138, 0.7);
+    background: rgba(243, 211, 138, 0.16);
+}
+
+.ac-plugin-btn.is-ghost {
+    height: 30px;
+    padding: 0 2px;
+    font: 500 11px/1 var(--ac-font);
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.42);
+    border: 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 0;
+    background: none;
+}
+
+.ac-plugin-btn.is-ghost:hover:not(:disabled),
+.ac-plugin-btn.is-ghost:focus-visible {
+    color: rgba(243, 211, 138, 0.85);
+    border-bottom-color: rgba(243, 211, 138, 0.5);
+    background: none;
+}
+
+.ac-plugin-note {
+    color: var(--ac-text-dim);
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+.ac-plugin-note.is-error {
+    color: #ff8f8f;
+}
+
+.ac-plugin-diag {
+    margin-top: 2px;
+    padding: 9px 11px;
+    color: rgba(236, 228, 210, 0.78);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
+    font-size: 11px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    -webkit-user-select: text;
+    user-select: text;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+/* ── 插件自更新弹窗（复用卡册的导出弹窗外壳） ───────────────────────────── */
+
+.ac-update {
+    position: fixed;
+    z-index: 2147483200;
+}
+
+.ac-update__panel {
+    width: min(560px, 100%);
+}
+
+.ac-update__notes {
+    max-height: 240px;
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    overflow: auto;
+    color: var(--ac-text-dim);
+    font-size: 12px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.ac-update__status {
+    margin: 12px 0 0;
+    color: var(--ac-text-dim);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.ac-update__status:empty {
+    display: none;
+}
+
+.ac-update__status.is-ok {
+    color: #8fe2a8;
+}
+
+.ac-update__status.is-error {
+    color: #ff9a9a;
+}
+
+.ac-update .ac-export__foot {
+    flex-wrap: wrap;
+}

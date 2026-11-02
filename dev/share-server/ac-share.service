@@ -1,0 +1,37 @@
+[Unit]
+Description=AchievementCollection share API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=acshare
+Group=acshare
+WorkingDirectory=/srv/ac-share/app
+ExecStart=/usr/bin/node /srv/ac-share/app/server.js
+Restart=on-failure
+RestartSec=3
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+Environment=DATA_DIR=/srv/ac-share/data
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryMax=256M
+
+ReadWritePaths=/srv/ac-share/data /srv/ac-share/logs
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

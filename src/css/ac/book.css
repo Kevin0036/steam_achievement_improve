@@ -132,6 +132,7 @@
 .ac-page {
     position: absolute;
     overflow: hidden;
+    cursor: pointer;
 }
 
 .ac-page--base {
@@ -385,14 +386,6 @@
 }
 
 /* ── 扉页 ──────────────────────────────────────────────────────────────── */
-
-.ac-page--title .ac-page__paper::before {
-    content: "";
-    position: absolute;
-    inset: 4.4cqh;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    box-shadow: inset 0 0 0 0.6cqh rgba(0, 0, 0, 0), inset 0 0 0 calc(0.6cqh + 1px) rgba(255, 255, 255, 0.04);
-}
 
 .ac-title {
     position: absolute;

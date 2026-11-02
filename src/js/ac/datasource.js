@@ -32,6 +32,7 @@
  */
 
 import { DATA } from './selectors.js';
+import { mergeProgress } from './model.js';
 import {
     getAchievementCache,
     getApp,
@@ -85,6 +86,283 @@ export function getProgressEntry(appid) {
     return entries.get(appid) ?? entries.get(String(appid)) ?? null;
 }
 
+/* ── 服务端进度快照：一次性批量校准 ──────────────────────────────────────── */
+
+/**
+ * 本地 mapCache 只覆盖 Steam 最近刷新过的游戏，大量库内游戏没有条目。
+ * Player.GetAchievementsProgress 就是 Steam 自己算「完美游戏」用的服务，
+ * 一次可带多个 appid，返回 total / unlocked / all_unlocked / cache_time。
+ * 拿到的结果只存在内存里与本地条合并（readEffectiveProgress），不改 Steam 缓存文件。
+ */
+const SERVICE_BATCH_SIZE = 100;
+const SERVICE_TIMEOUT_MS = 8000;
+const SERVICE_TOTAL_BUDGET_MS = 20000;
+
+const serviceProgress = new Map();
+let serviceProgressSync = null;
+let serviceProgressDone = false;
+let serviceProgressUnavailable = false;
+let serviceStats = { requested: 0, failed: 0, skipped: 0 };
+
+/** 合并后的进度视图：本地缺条 / 过期时由服务端条目补上。 */
+export function readEffectiveProgress() {
+    const local = readProgress();
+    if (serviceProgress.size === 0) return local;
+    const entries = new Map(local.entries);
+    for (const [appid, remote] of serviceProgress) {
+        entries.set(appid, mergeProgress(entries.get(appid) ?? null, remote));
+    }
+    return {
+        status: entries.size > 0 ? 'ready' : local.status,
+        entries,
+        localCount: local.entries.size,
+        serviceCount: serviceProgress.size,
+    };
+}
+
+/** 服务端原始条目（未经本地合并），用于诊断冲突 */
+export function getServiceProgressEntry(appid) {
+    return serviceProgress.get(Number(appid)) ?? null;
+}
+
+export function getServiceProgressStats() {
+    return {
+        count: serviceProgress.size,
+        done: serviceProgressDone,
+        unavailable: serviceProgressUnavailable,
+        ...serviceStats,
+    };
+}
+
+function progressCandidateAppids(retainedAppids) {
+    const out = new Set();
+    for (const app of listLibraryApps()) {
+        if (Number.isFinite(app?.appid)) out.add(app.appid);
+    }
+    for (const appid of readProgress().entries.keys()) if (Number.isFinite(appid)) out.add(appid);
+    for (const appid of retainedAppids) if (Number.isFinite(appid)) out.add(appid);
+    return [...out];
+}
+
+function findProgressService() {
+    try {
+        const api = getMillenniumApi();
+        const match = (value) => value && typeof value.GetAchievementsProgress === 'function';
+        return api?.findModuleExport?.(match)
+            ?? Object.values(api?.findModuleByExport?.(match) ?? {}).find(match)
+            ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/** 把 GetAchievementsProgress 的一行写进内存快照；坏行返回 null。 */
+function rememberServiceProgressRow(row) {
+    const appid = Number(row?.appid);
+    const total = Number(row?.total);
+    if (!Number.isFinite(appid) || appid <= 0 || !Number.isFinite(total) || total <= 0) return null;
+    const unlocked = Number(row.unlocked);
+    const cacheTime = Number(row.cache_time);
+    const percentage = Number(row.percentage);
+    const entry = {
+        appid,
+        total,
+        unlocked: Number.isFinite(unlocked) ? unlocked : null,
+        all_unlocked: row.all_unlocked === true,
+        cache_time: Number.isFinite(cacheTime) ? cacheTime : null,
+        percentage: Number.isFinite(percentage) ? percentage : null,
+        source: 'player-service',
+    };
+    serviceProgress.set(appid, entry);
+    return entry;
+}
+
+/**
+ * 本次 Steam 会话里最多同步一次。接口不可用时立即返回，加载流程退回本地缓存。
+ * @returns {Promise<{ok:boolean, attempted:number[], added:number[], count:number, failed?:number}>}
+ */
+export function ensureServiceProgress({ retainedAppids = [] } = {}) {
+    if (serviceProgressSync) return serviceProgressSync;
+    if (serviceProgressDone || serviceProgressUnavailable) {
+        return Promise.resolve({
+            ok: serviceProgress.size > 0,
+            attempted: [],
+            added: [],
+            count: serviceProgress.size,
+            skipped: true,
+        });
+    }
+
+    const appids = progressCandidateAppids(retainedAppids);
+    const localBefore = new Set(readProgress().entries.keys());
+    if (appids.length === 0) {
+        serviceProgressDone = true;
+        return Promise.resolve({ ok: true, attempted: [], added: [], count: 0 });
+    }
+
+    let service = null;
+    let transport = null;
+    let steamid = null;
+    try {
+        service = findProgressService();
+        transport = getApp()?.cm?.GetServiceTransport?.();
+        steamid = getApp()?.GetCurrentUser?.()?.strSteamID;
+    } catch {
+        /* 下面的可用性判断会退回本地缓存 */
+    }
+    if (!service || !transport || !steamid) {
+        serviceProgressUnavailable = true;
+        out.log('服务端成就进度接口不可用，继续使用本地缓存');
+        return Promise.resolve({ ok: false, attempted: [], added: [], count: 0, unavailable: true });
+    }
+
+    serviceProgressSync = (async () => {
+        let okChunks = 0;
+        let failedChunks = 0;
+        let skippedChunks = 0;
+        const startedAt = Date.now();
+        for (let i = 0; i < appids.length; i += SERVICE_BATCH_SIZE) {
+            if (Date.now() - startedAt > SERVICE_TOTAL_BUDGET_MS) {
+                skippedChunks = Math.ceil((appids.length - i) / SERVICE_BATCH_SIZE);
+                break;
+            }
+            if (okChunks === 0 && failedChunks >= 2) {
+                skippedChunks = Math.ceil((appids.length - i) / SERVICE_BATCH_SIZE);
+                break;
+            }
+            const chunk = appids.slice(i, i + SERVICE_BATCH_SIZE);
+            try {
+                const result = await withTimeout(
+                    service.GetAchievementsProgress(transport, {
+                        steamid,
+                        appids: chunk,
+                        include_unvetted_apps: true,
+                    }),
+                    SERVICE_TIMEOUT_MS,
+                    `GetAchievementsProgress(${chunk.length})`,
+                );
+                if (result?.GetEResult?.() !== 1) {
+                    failedChunks += 1;
+                    continue;
+                }
+                const rows = result.Body().toObject().achievement_progress;
+                if (!Array.isArray(rows)) continue;
+                for (const row of rows) rememberServiceProgressRow(row);
+                okChunks += 1;
+            } catch (err) {
+                failedChunks += 1;
+                if (failedChunks === 1 && okChunks === 0) {
+                    out.log(`服务端成就进度请求失败：${err?.message ?? err}`);
+                }
+            }
+        }
+
+        const added = [...serviceProgress.keys()].filter((appid) => !localBefore.has(appid));
+        serviceProgressDone = okChunks > 0;
+        serviceStats = { requested: appids.length, failed: failedChunks, skipped: skippedChunks };
+        out.log(
+            `服务端成就进度：${serviceProgress.size} 条（请求 ${appids.length} 款 · 成功 ${okChunks} 批 · 失败 ${failedChunks} 批`
+            + `${skippedChunks > 0 ? ` · 跳过 ${skippedChunks} 批` : ''}）`,
+        );
+        return { ok: okChunks > 0, attempted: appids, added, count: serviceProgress.size, failed: failedChunks, skipped: skippedChunks };
+    })()
+        .catch((err) => {
+            warn('读取服务端成就进度失败', err);
+            return { ok: false, attempted: [], added: [], count: serviceProgress.size };
+        })
+        .finally(() => {
+            serviceProgressSync = null;
+        });
+
+    return serviceProgressSync;
+}
+
+/**
+ * 单独查询一款游戏的服务端进度（收录库外游戏时用）。
+ * 成功时并入 serviceProgress，后续 assemble / 诊断都能看到。
+ * @returns {Promise<object|null>}
+ */
+export async function requestServiceProgress(appid) {
+    const id = Number(appid);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    if (serviceProgress.has(id)) return serviceProgress.get(id);
+    try {
+        const service = findProgressService();
+        const transport = getApp()?.cm?.GetServiceTransport?.();
+        const steamid = getApp()?.GetCurrentUser?.()?.strSteamID;
+        if (!service || !transport || !steamid) return null;
+        const result = await withTimeout(
+            service.GetAchievementsProgress(transport, {
+                steamid,
+                appids: [id],
+                include_unvetted_apps: true,
+            }),
+            SERVICE_TIMEOUT_MS,
+            `GetAchievementsProgress(${id})`,
+        );
+        if (result?.GetEResult?.() !== 1) return null;
+        const rows = result.Body().toObject().achievement_progress;
+        const row = Array.isArray(rows) ? rows.find((item) => Number(item?.appid) === id) : null;
+        const entry = rememberServiceProgressRow(row);
+        return entry && entry.appid === id ? entry : null;
+    } catch (err) {
+        out.log(`读取 ${id} 的服务端进度失败：${err?.message ?? err}`);
+        return null;
+    }
+}
+
+/**
+ * 批量查询服务端进度（扫描库外游戏用）。已缓存的 appid 不再请求。
+ * @returns {Promise<Map<number, object>>} 只包含拿得到进度的 appid
+ */
+export async function requestServiceProgressBatch(appids) {
+    const ids = [...new Set((Array.isArray(appids) ? appids : [])
+        .map(Number)
+        .filter((id) => Number.isInteger(id) && id > 0))];
+    const missing = ids.filter((id) => !serviceProgress.has(id));
+
+    if (missing.length > 0) {
+        const service = findProgressService();
+        const transport = getApp()?.cm?.GetServiceTransport?.();
+        const steamid = getApp()?.GetCurrentUser?.()?.strSteamID;
+        if (service && transport && steamid) {
+            const startedAt = Date.now();
+            for (let i = 0; i < missing.length; i += SERVICE_BATCH_SIZE) {
+                if (Date.now() - startedAt > SERVICE_TOTAL_BUDGET_MS) break;
+                const chunk = missing.slice(i, i + SERVICE_BATCH_SIZE);
+                try {
+                    const result = await withTimeout(
+                        service.GetAchievementsProgress(transport, {
+                            steamid,
+                            appids: chunk,
+                            include_unvetted_apps: true,
+                        }),
+                        SERVICE_TIMEOUT_MS,
+                        `GetAchievementsProgress(${chunk.length})`,
+                    );
+                    if (result?.GetEResult?.() !== 1) continue;
+                    const rows = result.Body().toObject().achievement_progress;
+                    if (Array.isArray(rows)) for (const row of rows) rememberServiceProgressRow(row);
+                } catch (err) {
+                    out.log(`批量读取服务端进度失败：${err?.message ?? err}`);
+                }
+            }
+        }
+    }
+
+    return new Map(
+        ids.filter((id) => serviceProgress.has(id)).map((id) => [id, serviceProgress.get(id)]),
+    );
+}
+
+export function resetServiceProgress() {
+    serviceProgress.clear();
+    serviceProgressSync = null;
+    serviceProgressDone = false;
+    serviceProgressUnavailable = false;
+    serviceStats = { requested: 0, failed: 0, skipped: 0 };
+}
+
 /** 首次运行等待 Steam 建立缓存的最长时间 */
 const CACHE_BOOTSTRAP_TIMEOUT_MS = 20000;
 /** 已有部分缓存时，补齐缺失条目等待的最长时间（Steam 一次批量请求通常很快） */
@@ -108,10 +386,21 @@ const progressRequested = new Set();
  *          attempted = 本次实际排队的 appid，added = 排队后出现在 mapCache 里的 appid，
  *          toppedUp = 本次 Steam 会话里所有补过缓存的 appid（条目可能晚到）
  */
-export function ensureProgressCache() {
+export function ensureProgressCache({ retainedAppids = [] } = {}) {
     const before = readProgress();
+    const retained = new Set([...retainedAppids].filter(Number.isFinite));
     const libraryAppids = [
-        ...new Set(listLibraryApps().map((app) => app?.appid).filter(Number.isFinite)),
+        ...new Set([
+            ...listLibraryApps().filter((app) => {
+                if (retained.has(app?.appid)) return true;
+                const minutes = app?.minutes_playtime_forever;
+                const lastPlayed = app?.rt_last_time_played;
+                // Only exclude confirmed unplayed apps. Missing Steam fields are not zero.
+                return !(Number.isFinite(minutes) && minutes <= 0 && Number.isFinite(lastPlayed) && lastPlayed <= 0);
+            }).map((app) => app?.appid).filter(Number.isFinite),
+            // Removed family-shared games may no longer have an overview at all.
+            ...retained,
+        ]),
     ];
     const missing = libraryAppids.filter(
         (appid) => !before.entries.has(appid) && !progressRequested.has(appid),
@@ -341,6 +630,44 @@ export async function requestCachedAchievements(appid, { signal } = {}) {
     }
 }
 
+/**
+ * 本地 achievements 汇总缓存（nTotal / nAchieved），只读，不发网络请求。
+ * 用于接口不可用时复核「服务端说已全成就」的条目。
+ * @returns {Promise<{total:number, achieved:number}|null>}
+ */
+export async function requestAchievementSummary(appid, { signal } = {}) {
+    if (signal?.aborted) return null;
+    try {
+        let data = null;
+        const detailsCache = getAppDetailsCache();
+        if (typeof detailsCache?.GetCachedDataForApp === 'function') {
+            const raw = await withTimeout(
+                Promise.resolve(detailsCache.GetCachedDataForApp(Number(appid), 'achievements', 2)),
+                TIMEOUT_MS, `AchievementSummary(${appid})`, signal,
+            );
+            data = raw?.nTotal != null ? raw : raw?.data ?? null;
+        }
+        if (data == null && !signal?.aborted) {
+            const fetchCachedDetails = getSteamClientMethod('Apps.GetCachedAppDetails');
+            if (!fetchCachedDetails) return null;
+            const text = await withTimeout(
+                Promise.resolve(fetchCachedDetails(Number(appid))), TIMEOUT_MS, `GetCachedAppDetails(${appid})`, signal,
+            );
+            const pairs = JSON.parse(text);
+            const entry = Array.isArray(pairs) ? new Map(pairs).get('achievements') : null;
+            data = entry?.data ?? null;
+        }
+        if (!data || !Number.isFinite(data.nTotal) || data.nTotal <= 0) return null;
+        return {
+            total: data.nTotal,
+            achieved: Number.isFinite(data.nAchieved) ? data.nAchieved : null,
+        };
+    } catch (err) {
+        if (!signal?.aborted) out.log(`读取 ${appid} 的本地成就汇总失败：${err?.message ?? err}`);
+        return null;
+    }
+}
+
 /** Official schema + global percentages, independent of personal unlock dates. */
 export async function requestGlobalAchievements(appid, { signal, expectedTotal } = {}) {
     if (signal?.aborted) return null;
@@ -413,6 +740,89 @@ export function probeAchievementsApi() {
 }
 
 /**
+ * 账号维度的个人成就列表（Player.GetUserAchievements）。
+ *
+ * 它按 steamid + appid 查询服务器上的解锁记录，不要求游戏现在还在库里，
+ * 所以能复核「已移出家庭库」的游戏。unlock_time 是秒级时间戳；
+ * 服务器没保留时间时会返回 0，此时只能确认完成、不能确认日期。
+ *
+ * @returns {Promise<{total:number, achieved:number, completedAt:number|null}|null>}
+ */
+export async function requestUserAchievements(appid) {
+    const id = Number(appid);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    try {
+        const api = getMillenniumApi();
+        const match = (value) => value && typeof value.GetUserAchievements === 'function';
+        const service = api?.findModuleExport?.(match)
+            ?? Object.values(api?.findModuleByExport?.(match) ?? {}).find(match);
+        const transport = getApp()?.cm?.GetServiceTransport?.();
+        const steamid = getApp()?.GetCurrentUser?.()?.strSteamID;
+        if (!service || !transport || !steamid) return null;
+        const result = await withTimeout(
+            service.GetUserAchievements(transport, { appid: id, steamid }),
+            TIMEOUT_MS, `UserAchievements(${id})`,
+        );
+        if (result?.GetEResult?.() !== 1) return null;
+        const rows = result.Body().toObject().achievements;
+        if (!Array.isArray(rows) || rows.length === 0) return null;
+
+        let achieved = 0;
+        let latest = 0;
+        for (const row of rows) {
+            if (row?.unlocked !== true) continue;
+            achieved += 1;
+            const ts = Number(row.unlock_time);
+            if (Number.isFinite(ts) && ts > latest) latest = ts;
+        }
+        return {
+            total: rows.length,
+            achieved,
+            completedAt: latest > 0 && latest <= Date.now() / 1000 + 86400 ? latest : null,
+        };
+    } catch (err) {
+        out.log(`读取 ${id} 的个人成就失败：${err?.message ?? err}`);
+        return null;
+    }
+}
+
+/**
+ * 本账号玩过的游戏（Player.GetLastPlayedTimes）。
+ *
+ * 客户端会把玩过的游戏记在本地，即使之后移出家庭库也还留着游玩时长。
+ * 用来发现「玩过、但已经不在库里」的游戏；是否全成就仍需逐个核对。
+ *
+ * @returns {Promise<Array<{appid:number, lastPlayed:number, playtime:number}>|null>}
+ */
+export async function requestPlayedApps() {
+    try {
+        const api = getMillenniumApi();
+        const match = (value) => value && typeof value.ClientGetLastPlayedTimes === 'function';
+        const service = api?.findModuleExport?.(match)
+            ?? Object.values(api?.findModuleByExport?.(match) ?? {}).find(match);
+        const transport = getApp()?.cm?.GetServiceTransport?.();
+        if (!service || !transport) return null;
+        const result = await withTimeout(
+            service.ClientGetLastPlayedTimes(transport, {}),
+            TIMEOUT_MS, 'GetLastPlayedTimes',
+        );
+        if (result?.GetEResult?.() !== 1) return null;
+        const rows = result.Body().toObject().games;
+        if (!Array.isArray(rows)) return null;
+        return rows
+            .map((row) => ({
+                appid: Number(row?.appid),
+                lastPlayed: Number(row?.last_playtime) || 0,
+                playtime: Number(row?.playtime_forever) || 0,
+            }))
+            .filter((row) => Number.isInteger(row.appid) && row.appid > 0);
+    } catch (err) {
+        out.log(`读取玩过的游戏失败：${err?.message ?? err}`);
+        return null;
+    }
+}
+
+/**
  * 取一个游戏的全部成就数据。
  *
  * @returns {Promise<{ok:true, data:object} | {ok:false, reason:string}>}
@@ -462,6 +872,26 @@ export function resetInFlight() {
 }
 
 /* ── 册子的主人（昵称 / 头像） ──────────────────────────────────────────── */
+
+/**
+ * 当前账号的不可逆指纹（FNV-1a 32 位），只用于隔离会话内的账号相关缓存，
+ * 绝不展示、也不写入分享数据。
+ */
+export function getAccountFingerprint() {
+    try {
+        const steamid = getApp()?.GetCurrentUser?.()?.strSteamID;
+        if (!steamid) return null;
+        let hash = 2166136261;
+        const text = String(steamid);
+        for (let i = 0; i < text.length; i++) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(16);
+    } catch {
+        return null;
+    }
+}
 
 const STEAMID64_BASE = 76561197960265728n;
 

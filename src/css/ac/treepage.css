@@ -1,0 +1,317 @@
+/* ============================================================================
+ * 成就收藏册 · 年度之树 + 书口年份索引
+ * ----------------------------------------------------------------------------
+ * 年度之树：保留的备份功能，由 reading.js 的 TREE_FEATURE 控制，默认收起
+ *   页眉 / 标题沿用年份页的排印，树画在深色卡纸上；生长的分母是每年的目标款数。
+ *   花瓣与落叶的动画只动 transform / opacity；减少动态效果时直接不画。
+ *
+ * 书口索引：书口外缘的一列年份标签，点一下跳到那一年的年份手账。
+ *   已翻过的年份在合上的一侧，当前年份金色，年份太多时折叠成「…」标签。
+ *   标签高度与位置由 book.js 按可见年份数计算，写在内联样式里。
+ * ==========================================================================*/
+
+/* ── 年度之树 ────────────────────────────────────────────────────────────── */
+
+.ac-tree__page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.ac-tree__title {
+    margin-top: 3.4cqh;
+    padding-left: 0.4em;
+    font-size: 5.6cqh;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: 0.4em;
+    color: #f1ede4;
+    filter: drop-shadow(0 0.3cqh 0.6cqh rgba(0, 0, 0, 0.5));
+}
+
+.ac-tree__sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.8cqh;
+    margin-top: 1.4cqh;
+    font-size: 1.25cqh;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.ac-tree__name {
+    color: rgba(243, 211, 138, 0.8);
+    letter-spacing: 0.24em;
+}
+
+.ac-tree__sep {
+    font-style: normal;
+    opacity: 0.45;
+}
+
+.ac-tree__lit {
+    color: rgba(255, 255, 255, 0.6);
+    font-variant-numeric: tabular-nums;
+}
+
+.ac-tree__over,
+.ac-tree__done,
+.ac-tree__stage {
+    padding: 0.3cqh 0.9cqh;
+    font-style: normal;
+    font-size: 1.05cqh;
+    letter-spacing: 0.14em;
+    border-radius: 999px;
+}
+
+.ac-tree__over,
+.ac-tree__stage {
+    color: rgba(243, 211, 138, 0.92);
+    border: 1px solid rgba(243, 211, 138, 0.28);
+    background: rgba(243, 211, 138, 0.06);
+}
+
+.ac-tree__stage {
+    color: rgba(243, 211, 138, 0.78);
+    border-color: rgba(243, 211, 138, 0.2);
+    background: rgba(243, 211, 138, 0.04);
+}
+
+.ac-tree__done {
+    color: rgba(143, 226, 168, 0.95);
+    border: 1px solid rgba(143, 226, 168, 0.3);
+    background: rgba(143, 226, 168, 0.07);
+}
+
+.ac-tree__art {
+    display: grid;
+    flex: 1;
+    place-items: center;
+    width: 100%;
+    min-height: 0;
+    margin-top: 0.4cqh;
+}
+
+.ac-tree__art svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.ac-tree__fall {
+    animation: ac-tree-fall linear infinite;
+}
+
+.ac-tree__sway {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ac-tree-sway ease-in-out infinite alternate;
+}
+
+@keyframes ac-tree-fall {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) rotate(0);
+    }
+    8% {
+        opacity: 1;
+    }
+    88% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(var(--ac-dx), var(--ac-dy)) rotate(var(--ac-rot));
+    }
+}
+
+@keyframes ac-tree-sway {
+    from {
+        transform: translateX(-3px) rotate(-35deg);
+    }
+    to {
+        transform: translateX(3px) rotate(35deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-tree__air {
+        display: none;
+    }
+    .ac-tree__sway {
+        animation: none;
+    }
+}
+
+/* ── 书口年份索引 ────────────────────────────────────────────────────────── */
+
+/* 标签是夹在页层之间的索引签：整条压在书页底下（z-index 低于 .ac-book__pages），
+ * 只露出书口那一截；页缘的叠纸阴影会盖到标签上，看起来像从页缝里探出来。 */
+.ac-book__tabs {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 0;
+    color: #c9b98f;
+    font-family: var(--ac-font);
+    pointer-events: none;
+}
+
+.ac-book__tabs--left {
+    left: 1.5cqw;
+}
+
+.ac-book__tabs--right {
+    right: 1.5cqw;
+}
+
+.ac-book__tab {
+    position: absolute;
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    width: 3.5cqh;
+    padding: 0;
+    color: inherit;
+    font: 600 1.5cqh/1 var(--ac-font);
+    letter-spacing: 0.14em;
+    writing-mode: vertical-rl;
+    cursor: pointer;
+    pointer-events: auto;
+    border: 0;
+    background: linear-gradient(90deg, #24242a, #35353d);
+    box-shadow:
+        0 0.15cqh 0.5cqh rgba(0, 0, 0, 0.5),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    transition:
+        transform 260ms cubic-bezier(0.22, 0.8, 0.3, 1),
+        background 260ms ease,
+        color 260ms ease,
+        box-shadow 260ms ease;
+}
+
+/* 页缘落在标签上的阴影：内侧（藏进书页的那边）暗，往书口外淡出 */
+.ac-book__tab::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.ac-book__tab > span {
+    position: relative;
+    z-index: 1;
+}
+
+/* 内侧 1cqh 压在书页下面，露出书口 2cqh；年份写在露出的这一截上 */
+.ac-book__tabs--left .ac-book__tab {
+    right: -1cqh;
+    padding-right: 1cqh;
+    border-radius: 0.4cqh 0 0 0.4cqh;
+    background: linear-gradient(270deg, #24242a, #35353d);
+    box-shadow:
+        0 0.15cqh 0.5cqh rgba(0, 0, 0, 0.5),
+        inset 0.09cqh 0 0 rgba(255, 255, 255, 0.06),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.ac-book__tabs--left .ac-book__tab::before {
+    background: linear-gradient(270deg, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0) 55%);
+}
+
+.ac-book__tabs--right .ac-book__tab {
+    left: -1cqh;
+    padding-left: 1cqh;
+    border-radius: 0 0.4cqh 0.4cqh 0;
+    box-shadow:
+        0 0.15cqh 0.5cqh rgba(0, 0, 0, 0.5),
+        inset -0.09cqh 0 0 rgba(255, 255, 255, 0.06),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.ac-book__tabs--right .ac-book__tab::before {
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0) 55%);
+}
+
+.ac-book__tabs--left .ac-book__tab:not([data-active]):hover {
+    filter: brightness(1.16);
+    transform: translateX(-0.2cqh);
+}
+
+.ac-book__tabs--right .ac-book__tab:not([data-active]):hover {
+    filter: brightness(1.16);
+    transform: translateX(0.2cqh);
+}
+
+/* 当前年份：烫金签，从页缝里探出一点 */
+.ac-book__tab[data-active] {
+    z-index: 2;
+    color: #2a2418;
+    background: linear-gradient(90deg, #b89c62, #dcc890);
+    box-shadow:
+        0 0.2cqh 0.6cqh rgba(0, 0, 0, 0.5),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+        0 0 0.9cqh rgba(222, 201, 146, 0.18);
+    animation: ac-tab-lit 340ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.ac-book__tabs--left .ac-book__tab[data-active] {
+    --ac-tab-out: -0.3cqh;
+    background: linear-gradient(270deg, #b89c62, #dcc890);
+    transform: translateX(var(--ac-tab-out));
+}
+
+.ac-book__tabs--right .ac-book__tab[data-active] {
+    --ac-tab-out: 0.3cqh;
+    transform: translateX(var(--ac-tab-out));
+}
+
+.ac-book__tab[data-active]::before {
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0) 55%);
+}
+
+.ac-book__tabs--left .ac-book__tab[data-active]::before {
+    background: linear-gradient(270deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0) 55%);
+}
+
+@keyframes ac-tab-lit {
+    from {
+        transform: translateX(0);
+        box-shadow:
+            0 0.2cqh 0.6cqh rgba(0, 0, 0, 0.5),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+            0 0 1.8cqh rgba(222, 201, 146, 0.55);
+    }
+}
+
+.ac-book__tab--gap {
+    color: #8f8878;
+    background: linear-gradient(90deg, #1c1c22, #26262c);
+}
+
+.ac-book__tabs--left .ac-book__tab--gap {
+    background: linear-gradient(270deg, #1c1c22, #26262c);
+}
+
+.ac-book__tab--gap i {
+    display: block;
+    width: 0.25cqh;
+    height: 1.2cqh;
+    background: radial-gradient(circle, currentColor 0.1cqh, transparent 0.12cqh) center / 100% 0.4cqh repeat-y;
+}
+
+.ac-book__tab:focus-visible {
+    outline: 0.2cqh solid rgba(214, 193, 137, 0.85);
+    outline-offset: 0.12cqh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-book__tab {
+        transition: none;
+        animation: none;
+    }
+}

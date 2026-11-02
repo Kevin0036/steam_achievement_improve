@@ -1,0 +1,75 @@
+/* ============================================================================
+ * 成就收藏册 · 借阅室的声音开关
+ * ----------------------------------------------------------------------------
+ * 客户端和网页版共用。贴在窗口左下角，房间和阅读器里是同一个按钮：
+ * 层级在阅读器（50）之上、开册幕布（60）之下，转场时自然被盖住。
+ * ==========================================================================*/
+
+.rm-sound {
+    position: fixed;
+    left: 22px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    z-index: 55;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 13px 0 12px;
+    color: var(--rm-ink-dim);
+    font: 600 12px/1 var(--ac-font);
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    border: 1px solid #ffffff2e;
+    border-radius: 999px;
+    background: #101114b8;
+    backdrop-filter: blur(8px);
+    transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.rm-sound:hover,
+.rm-sound:focus-visible {
+    color: var(--rm-ink);
+    border-color: #d6b77a80;
+    background: #1c1a15eb;
+    outline: none;
+}
+
+.rm-sound__bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    width: 13px;
+    height: 12px;
+}
+
+.rm-sound__bars i {
+    flex: 1;
+    height: 100%;
+    border-radius: 1px;
+    background: currentColor;
+    opacity: 0.55;
+    transform: scaleY(0.2);
+    transform-origin: 50% 100%;
+}
+
+.rm-sound.on { color: var(--rm-gold-hi); }
+
+.rm-sound.on .rm-sound__bars i {
+    opacity: 1;
+    animation: rm-sound-bar 1.5s ease-in-out infinite;
+}
+
+.rm-sound.on .rm-sound__bars i:nth-child(2) { animation-duration: 1.15s; animation-delay: -0.5s; }
+.rm-sound.on .rm-sound__bars i:nth-child(3) { animation-duration: 1.8s; animation-delay: -0.9s; }
+
+@keyframes rm-sound-bar {
+    0%, 100% { transform: scaleY(0.3); }
+    50% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rm-sound.on .rm-sound__bars i {
+        animation: none;
+        transform: scaleY(0.7);
+    }
+}

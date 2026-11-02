@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就收藏册 · 册子风格</title>
+
+<!--
+  册子风格挑选页。下面的 iframe 就是真实的 cardpack.html，样式来自
+  src/css/ac/albumstyles.css；切换款式只改 iframe 里 #host 的 data-album，
+  不重新加载，翻到哪一页就停在哪一页，方便同一页横向比较。
+  切换「页面」才会重新加载，因为要重新翻到对应位置。
+
+  ?album=ivory&view=year   打开时直接定位到某一款、某一页
+-->
+
+<style>
+    html, body { margin: 0; height: 100%; color: #ebedf0; font: 13px/1.5 "Be Vietnam Pro", "Microsoft YaHei UI", "Segoe UI", sans-serif; background: #0b0b0c; }
+    * { box-sizing: border-box; }
+    .wrap { display: flex; flex-direction: column; height: 100vh; }
+    .picker { flex: none; padding: 12px 16px 10px; background: #111113; border-bottom: 1px solid #ffffff12; }
+    .styles { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+    .style { flex: 1 0 142px; display: flex; flex-direction: column; gap: 7px; min-width: 142px; padding: 7px 7px 8px; color: inherit; font: inherit; text-align: left; cursor: pointer; border: 1px solid #ffffff14; border-radius: 10px; background: #18181b; transition: border-color 120ms ease, background 120ms ease; }
+    .style:hover { border-color: #ffffff33; }
+    .style[aria-pressed="true"] { border-color: #d6b77a; background: #211e18; }
+    .style:focus-visible, .view:focus-visible { outline: 2px solid #d6b77a; outline-offset: 2px; }
+    .swatch { position: relative; height: 40px; overflow: hidden; border-radius: 6px; box-shadow: inset 0 0 0 1px #ffffff14; }
+    .swatch i { position: absolute; left: 50%; top: 7px; bottom: -4px; width: 26px; margin-left: -13px; border-radius: 3px 3px 0 0; background: linear-gradient(150deg, #ffd23f, #73e6b6 60%, #5ec8f2); box-shadow: 0 0 0 1.5px #111; }
+    .style b { display: block; font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em; }
+    .style span { display: block; font-size: 11px; line-height: 1.4; color: #8e939b; }
+    .views { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .views em { margin-right: 4px; font-style: normal; font-size: 11.5px; letter-spacing: 0.08em; color: #6c7179; }
+    .view { padding: 4px 11px; color: #a3a8b0; font: inherit; font-size: 12px; cursor: pointer; border: 1px solid transparent; border-radius: 999px; background: transparent; }
+    .view:hover { color: #ebedf0; background: #ffffff0d; }
+    .view[aria-pressed="true"] { color: #1a1712; font-weight: 600; background: #d6b77a; }
+    .hint { margin-left: auto; font-size: 11.5px; color: #6c7179; }
+    iframe { flex: 1; width: 100%; min-height: 0; border: 0; background: #111; }
+    @media (max-width: 760px) { .hint { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="picker">
+        <div class="styles" id="styles" role="group" aria-label="册子风格"></div>
+        <div class="views" id="views" role="group" aria-label="查看页面"><em>看这一页</em></div>
+    </div>
+    <iframe id="frame" title="册子预览"></iframe>
+</div>
+
+<script type="module">
+const ALBUMS = [
+    { id: 'grid', name: '方格黑卡', note: '原版', swatch: 'linear-gradient(#ffffff0a 1px, transparent 1px) 0 0 / 8px 8px, linear-gradient(90deg, #ffffff0a 1px, transparent 1px) 0 0 / 8px 8px, #1c1d21' },
+    { id: 'dots', name: '墨点手账', note: '暖黑纸 · 点阵 · 裁切角标', swatch: 'radial-gradient(circle, #ffeed055 1px, transparent 1.4px) 0 0 / 8px 8px, #1b1917' },
+    { id: 'astral', name: '星图', note: '深蓝星图 · 金线卡框', swatch: 'radial-gradient(circle at 20% 30%, #f0e6c8 1px, transparent 1.5px), radial-gradient(circle at 70% 60%, #f0e6c8 1px, transparent 1.5px), radial-gradient(circle at 85% 20%, #c9d4f4 .8px, transparent 1.2px), #0f152b' },
+    { id: 'velvet', name: '丝绒展柜', note: '祖母绿绒面 · 胡桃木 · 黄铜卡框', swatch: 'radial-gradient(95% 80% at 42% 30%, #17594c, #0a2c25)' },
+];
+
+const BASE = 'binding=sequential&years=1&tabs=1&fresh=1';
+const VIEWS = [
+    { id: 'title', name: '扉页', query: BASE },
+    { id: 'cards', name: '卡片页', query: `${BASE}&at=14` },
+    { id: 'four', name: '一页四张', query: 'binding=sequential&perPage=4&fresh=1&at=9' },
+    { id: 'year', name: '年份跨页', query: `${BASE}&atYear=2026` },
+    { id: 'months', name: '月份足迹', query: `${BASE}&atYear=2026&face=months` },
+    { id: 'index', name: '本年目录', query: `${BASE}&atYear=2026&face=index` },
+    { id: 'index-long', name: '目录（33 款的一年）', query: `${BASE}&atYear=2024&face=index` },
+];
+
+const params = new URLSearchParams(location.search);
+const stored = (() => {
+    try { return localStorage.getItem('ac:preview:album') ?? ''; } catch { return ''; }
+})();
+let album = [params.get('album'), stored].find((id) => ALBUMS.some((item) => item.id === id)) ?? 'grid';
+let view = VIEWS.some((item) => item.id === params.get('view')) ? params.get('view') : 'cards';
+
+const frame = document.getElementById('frame');
+const stylesNode = document.getElementById('styles');
+const viewsNode = document.getElementById('views');
+
+function paintAlbum() {
+    const host = frame.contentDocument?.getElementById('host');
+    if (host) {
+        if (album === 'grid') delete host.dataset.album;
+        else host.dataset.album = album;
+    }
+}
+
+function paintButtons() {
+    for (const button of stylesNode.children) button.setAttribute('aria-pressed', String(button.dataset.id === album));
+    for (const button of viewsNode.querySelectorAll('.view')) button.setAttribute('aria-pressed', String(button.dataset.id === view));
+}
+
+function chooseAlbum(next) {
+    album = next;
+    try { localStorage.setItem('ac:preview:album', album); } catch { /* 存不了就算了 */ }
+    paintButtons();
+    paintAlbum();
+}
+
+function chooseView(next) {
+    view = next;
+    paintButtons();
+    const query = VIEWS.find((item) => item.id === view).query;
+    frame.src = `./cardpack.html?${query}${album === 'grid' ? '' : `&album=${album}`}`;
+}
+
+for (const item of ALBUMS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'style';
+    button.dataset.id = item.id;
+    button.innerHTML = '<div class="swatch"><i></i></div><div><b></b><span></span></div>';
+    button.querySelector('.swatch').style.background = item.swatch;
+    button.querySelector('b').textContent = item.name;
+    button.querySelector('span').textContent = item.note;
+    button.addEventListener('click', () => chooseAlbum(item.id));
+    stylesNode.append(button);
+}
+
+for (const item of VIEWS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'view';
+    button.dataset.id = item.id;
+    button.textContent = item.name;
+    button.addEventListener('click', () => chooseView(item.id));
+    viewsNode.append(button);
+}
+const hint = document.createElement('span');
+hint.className = 'hint';
+hint.textContent = '← → 换款式 · 书可以正常翻页和悬停检视';
+viewsNode.append(hint);
+
+// 换款式时书不重新加载；从这里移到 iframe 里的焦点也接得住方向键
+function onArrow(event) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    const index = ALBUMS.findIndex((item) => item.id === album);
+    const step = event.key === 'ArrowRight' ? 1 : -1;
+    chooseAlbum(ALBUMS[(index + step + ALBUMS.length) % ALBUMS.length].id);
+}
+window.addEventListener('keydown', onArrow);
+frame.addEventListener('load', () => {
+    paintAlbum();
+    frame.contentWindow.addEventListener('keydown', onArrow);
+});
+
+paintButtons();
+chooseView(view);
+</script>
+</body>
+</html>

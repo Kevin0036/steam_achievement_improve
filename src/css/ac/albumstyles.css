@@ -1,0 +1,352 @@
+/* ============================================================================
+ * 成就收藏册 · 册子风格
+ * ----------------------------------------------------------------------------
+ * 在 .ac-cardpack 上写 data-album="<款式>" 就换一本册子；不写时是原来的方格黑卡，
+ * 这个文件对默认外观没有任何影响。款式表在 reading.js 的 ALBUM_STYLES：
+ * dots 墨点手账 / astral 星图 / velvet 丝绒展柜。
+ *
+ * 分两层：
+ *   1. 映射层：把书皮、内页、页边、扉页、年份页用到的颜色都接到 --album-* 令牌上。
+ *      book.css / yearpages.css 里的文字写死了半透明白，浅色纸上会直接看不见，
+ *      所以这里按选择器逐个接管，而不是只换一张背景图。
+ *   2. 款式层：每款只给一组令牌，外加这款自己的卡位做法（.ac-slot::before / ::after）。
+ *
+ * 纹理都是内联 SVG 噪点，平铺一小块，翻页时不额外重绘。
+ * ==========================================================================*/
+
+/* ── 1. 映射层 ─────────────────────────────────────────────────────────── */
+
+.ac-cardpack[data-album] {
+    --album-ink: #efe9dc;
+    --album-ink-dim: rgba(255, 255, 255, 0.72);
+    --album-ink-faint: rgba(255, 255, 255, 0.32);
+    --album-rule: rgba(255, 255, 255, 0.2);
+    --album-frame: rgba(255, 255, 255, 0.07);
+    --album-frame-inner: rgba(255, 255, 255, 0.04);
+    --album-cell: rgba(255, 255, 255, 0.04);
+    --album-gutter: 0, 0, 0;
+    --album-gutter-strength: 0.55;
+    --album-edge-a: #2a2b30;
+    --album-edge-b: #16171a;
+    --album-gold: var(--ac-gold);
+    --album-silver: #e6edf5;
+    --album-accent: rgba(243, 211, 138, 0.7);
+    --album-pen: #e8735f;
+    --album-foil: linear-gradient(180deg, #f6f3ec 0%, #d9d4c8 55%, #a9a497 100%);
+    --album-title-shadow: rgba(0, 0, 0, 0.5);
+    --album-recess: rgba(0, 0, 0, 0.3);
+    --album-recess-shadow:
+        inset 0 0.3cqh 0.8cqh rgba(0, 0, 0, 0.7),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+        0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+/* 书皮 */
+.ac-cardpack[data-album] .ac-book__board {
+    background: var(--album-board);
+    background-size: var(--album-board-size, auto);
+    background-blend-mode: var(--album-board-blend, normal);
+}
+
+.ac-cardpack[data-album] .ac-book__board::before {
+    border-color: var(--album-stitch);
+}
+
+.ac-cardpack[data-album] .ac-book__ribbon::before {
+    background: var(--album-ribbon);
+}
+
+/* 内页 */
+.ac-cardpack[data-album] .ac-page__paper {
+    background: var(--album-paper);
+    background-size: var(--album-paper-size, auto);
+    background-position: var(--album-paper-position, 0 0);
+    background-blend-mode: var(--album-paper-blend, normal);
+}
+
+.ac-cardpack[data-album] .ac-page--right .ac-page__paper::after {
+    background:
+        linear-gradient(
+            90deg,
+            rgba(var(--album-gutter), var(--album-gutter-strength)) 0%,
+            rgba(var(--album-gutter), calc(var(--album-gutter-strength) * 0.44)) 2.5%,
+            rgba(var(--album-gutter), calc(var(--album-gutter-strength) * 0.13)) 7%,
+            rgba(var(--album-gutter), 0) 14%
+        );
+}
+
+.ac-cardpack[data-album] .ac-page--left .ac-page__paper::after {
+    background:
+        linear-gradient(
+            270deg,
+            rgba(var(--album-gutter), var(--album-gutter-strength)) 0%,
+            rgba(var(--album-gutter), calc(var(--album-gutter-strength) * 0.44)) 2.5%,
+            rgba(var(--album-gutter), calc(var(--album-gutter-strength) * 0.13)) 7%,
+            rgba(var(--album-gutter), 0) 14%
+        );
+}
+
+/* 书口厚度 */
+.ac-cardpack[data-album] .ac-book[data-right-depth="1"] .ac-page--base.ac-page--right { box-shadow: 2px 0 0 -1px var(--album-edge-a); }
+.ac-cardpack[data-album] .ac-book[data-right-depth="2"] .ac-page--base.ac-page--right { box-shadow: 2px 0 0 -1px var(--album-edge-a), 4px 0 0 -2px var(--album-edge-b); }
+.ac-cardpack[data-album] .ac-book[data-right-depth="3"] .ac-page--base.ac-page--right { box-shadow: 2px 0 0 -1px var(--album-edge-a), 4px 0 0 -2px var(--album-edge-b), 6px 0 0 -3px var(--album-edge-a); }
+.ac-cardpack[data-album] .ac-book[data-right-depth="4"] .ac-page--base.ac-page--right { box-shadow: 2px 0 0 -1px var(--album-edge-a), 4px 0 0 -2px var(--album-edge-b), 6px 0 0 -3px var(--album-edge-a), 8px 0 0 -4px var(--album-edge-b); }
+.ac-cardpack[data-album] .ac-book[data-left-depth="1"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px var(--album-edge-a); }
+.ac-cardpack[data-album] .ac-book[data-left-depth="2"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px var(--album-edge-a), -4px 0 0 -2px var(--album-edge-b); }
+.ac-cardpack[data-album] .ac-book[data-left-depth="3"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px var(--album-edge-a), -4px 0 0 -2px var(--album-edge-b), -6px 0 0 -3px var(--album-edge-a); }
+.ac-cardpack[data-album] .ac-book[data-left-depth="4"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px var(--album-edge-a), -4px 0 0 -2px var(--album-edge-b), -6px 0 0 -3px var(--album-edge-a), -8px 0 0 -4px var(--album-edge-b); }
+
+/* 卡位 */
+.ac-cardpack[data-album] .ac-slot::before {
+    border-color: var(--album-frame);
+    box-shadow: none;
+    outline: 1px solid var(--album-frame-inner);
+    outline-offset: -0.55cqh;
+}
+
+.ac-cardpack[data-album] .ac-slot::after {
+    background: var(--album-recess);
+    box-shadow: var(--album-recess-shadow);
+}
+
+.ac-cardpack[data-album] .ac-page__folio,
+.ac-cardpack[data-album] .ac-page-hint,
+.ac-cardpack[data-album] .ac-title__sub,
+.ac-cardpack[data-album] .ac-title__stat-label,
+.ac-cardpack[data-album] .ac-end__desc {
+    color: var(--album-ink-faint);
+}
+
+/* 扉页 */
+.ac-cardpack[data-album] .ac-title__name {
+    background: var(--album-foil);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0.25cqh 0.4cqh var(--album-title-shadow));
+}
+
+.ac-cardpack[data-album] .ac-title__rule {
+    background: linear-gradient(90deg, transparent, var(--album-rule), transparent);
+}
+
+.ac-cardpack[data-album] .ac-title__stats-sep {
+    background: linear-gradient(180deg, transparent, var(--album-rule), transparent);
+}
+
+.ac-cardpack[data-album] .ac-title__owner,
+.ac-cardpack[data-album] .ac-end__title {
+    color: var(--album-ink-dim);
+}
+
+.ac-cardpack[data-album] .ac-title__stat--cards .ac-title__stat-main b {
+    color: var(--album-ink);
+}
+
+.ac-cardpack[data-album] .ac-title__stat--gold .ac-title__stat-main b {
+    color: var(--album-gold);
+}
+
+.ac-cardpack[data-album] .ac-title__stat--silver .ac-title__stat-main b {
+    color: var(--album-silver);
+}
+
+.ac-cardpack[data-album] .ac-title__stat--silver .ac-title__trophy {
+    background: var(--album-silver);
+}
+
+/* 尾页 */
+.ac-cardpack[data-album] .ac-end {
+    border-color: var(--album-rule);
+    background: var(--album-recess);
+}
+
+/* 年份页 / 年度最爱 */
+.ac-cardpack[data-album] .ac-year {
+    --ink: var(--album-ink);
+    --pen-red: var(--album-pen);
+}
+
+.ac-cardpack[data-album] .ac-year__plus,
+.ac-cardpack[data-album] .ac-year__stat-label,
+.ac-cardpack[data-album] .ac-year__head-kicker,
+.ac-cardpack[data-album] .ac-year__sub,
+.ac-cardpack[data-album] .ac-year__mount.is-empty .ac-year__cap {
+    color: var(--album-ink-faint);
+}
+
+.ac-cardpack[data-album] .ac-year__cap {
+    color: var(--album-ink-dim);
+}
+
+.ac-cardpack[data-album] .ac-year__stat-main b {
+    color: var(--album-ink);
+}
+
+.ac-cardpack[data-album] .ac-year__stat--gold .ac-year__stat-main b {
+    color: var(--album-gold);
+}
+
+.ac-cardpack[data-album] .ac-year__stat--silver .ac-year__icon,
+.ac-cardpack[data-album] .ac-year__stat--time .ac-year__icon {
+    background: var(--album-silver);
+}
+
+.ac-cardpack[data-album] .ac-year__sep {
+    background: linear-gradient(180deg, transparent, var(--album-rule), transparent);
+}
+
+.ac-cardpack[data-album] .ac-year__head-rule {
+    background: linear-gradient(90deg, var(--album-rule), transparent);
+}
+
+.ac-cardpack[data-album] .ac-year__head-tag {
+    color: var(--album-accent);
+}
+
+.ac-cardpack[data-album] .ac-year__title {
+    color: var(--album-ink);
+    filter: drop-shadow(0 0.3cqh 0.6cqh var(--album-title-shadow));
+}
+
+/* 年度之树 */
+.ac-cardpack[data-album] .ac-tree__title {
+    color: var(--album-ink);
+}
+
+.ac-cardpack[data-album] .ac-tree__sub,
+.ac-cardpack[data-album] .ac-tree__lit {
+    color: var(--album-ink-faint);
+}
+
+.ac-cardpack[data-album] .ac-tree__name {
+    color: var(--album-accent);
+}
+
+/* ── 2. 款式层 ─────────────────────────────────────────────────────────── */
+
+/* 墨点手账：暖黑纸 + 点阵，卡位只留四角裁切线 */
+.ac-cardpack[data-album="dots"] {
+    --album-board:
+        var(--ac-grain),
+        radial-gradient(120% 140% at 30% 15%, #2f2a25 0%, #1f1b18 55%, #141210 100%);
+    --album-board-size: 120px 120px, auto;
+    --album-board-blend: soft-light, normal;
+    --album-stitch: rgba(232, 204, 158, 0.2);
+    --album-ribbon: linear-gradient(90deg, #8a6a33 0%, #d6b264 48%, #8a6a33 100%);
+    --album-paper:
+        var(--ac-grain),
+        radial-gradient(circle at center, rgba(255, 238, 208, 0.17) 0.085cqh, transparent 0.125cqh),
+        linear-gradient(180deg, #211e1b, #1b1917 40%, #171513);
+    --album-paper-size: 120px 120px, 2.8cqh 2.8cqh, auto;
+    --album-paper-position: 0 0, center, 0 0;
+    --album-paper-blend: soft-light, normal, normal;
+    --album-edge-a: #2f2b26;
+    --album-edge-b: #171512;
+    --album-frame: rgba(255, 238, 208, 0.34);
+    --album-foil: linear-gradient(180deg, #f8ecd0 0%, #dcc08a 55%, #a88a55 100%);
+}
+
+.ac-cardpack[data-album="dots"] .ac-slot::before {
+    --mark: var(--album-frame);
+    border: 0;
+    outline: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background:
+        linear-gradient(var(--mark), var(--mark)) left top / 2.6cqh 1px,
+        linear-gradient(var(--mark), var(--mark)) left top / 1px 2.6cqh,
+        linear-gradient(var(--mark), var(--mark)) right top / 2.6cqh 1px,
+        linear-gradient(var(--mark), var(--mark)) right top / 1px 2.6cqh,
+        linear-gradient(var(--mark), var(--mark)) left bottom / 2.6cqh 1px,
+        linear-gradient(var(--mark), var(--mark)) left bottom / 1px 2.6cqh,
+        linear-gradient(var(--mark), var(--mark)) right bottom / 2.6cqh 1px,
+        linear-gradient(var(--mark), var(--mark)) right bottom / 1px 2.6cqh;
+    background-repeat: no-repeat;
+}
+
+/* 星图：深蓝底上印一张淡金星图，卡位是一圈金线 */
+.ac-cardpack[data-album="astral"] {
+    --album-board:
+        var(--ac-grain),
+        radial-gradient(120% 140% at 30% 15%, #232d55 0%, #161d3b 55%, #0d1226 100%);
+    --album-board-size: 120px 120px, auto;
+    --album-board-blend: soft-light, normal;
+    --album-stitch: rgba(214, 183, 122, 0.36);
+    --album-ribbon: linear-gradient(90deg, #8c6f35 0%, #e0c078 48%, #8c6f35 100%);
+    --album-paper:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'%3E%3Cg fill='none' stroke='%23a9bbf0' stroke-opacity='.13' stroke-width='.8'%3E%3Ccircle cx='300' cy='300' r='282'/%3E%3Ccircle cx='300' cy='300' r='196'/%3E%3Ccircle cx='300' cy='300' r='104' stroke-dasharray='2 5'/%3E%3Cpath d='M18 300H582M300 18V582M100 100 500 500M500 100 100 500' stroke-dasharray='1 6'/%3E%3C/g%3E%3Cg fill='none' stroke='%23d6b77a' stroke-opacity='.32' stroke-width='.8'%3E%3Cpath d='M86 150 146 98 214 134 264 86M214 134 238 208 176 250M406 424 462 372 530 408 512 482 442 500Z'/%3E%3Cpath d='M338 172 398 146 448 192 500 170'/%3E%3C/g%3E%3Cg fill='%23f0e6c8'%3E%3Ccircle cx='86' cy='150' r='2.2'/%3E%3Ccircle cx='146' cy='98' r='1.6'/%3E%3Ccircle cx='214' cy='134' r='2.6'/%3E%3Ccircle cx='264' cy='86' r='1.5'/%3E%3Ccircle cx='238' cy='208' r='1.7'/%3E%3Ccircle cx='176' cy='250' r='2'/%3E%3Ccircle cx='406' cy='424' r='2.3'/%3E%3Ccircle cx='462' cy='372' r='1.6'/%3E%3Ccircle cx='530' cy='408' r='2.5'/%3E%3Ccircle cx='512' cy='482' r='1.5'/%3E%3Ccircle cx='442' cy='500' r='1.9'/%3E%3Ccircle cx='338' cy='172' r='1.5'/%3E%3Ccircle cx='398' cy='146' r='2.3'/%3E%3Ccircle cx='448' cy='192' r='1.6'/%3E%3Ccircle cx='500' cy='170' r='1.9'/%3E%3C/g%3E%3Cg fill='%23c9d4f4' fill-opacity='.5'%3E%3Ccircle cx='60' cy='420' r='1'/%3E%3Ccircle cx='128' cy='336' r='1.2'/%3E%3Ccircle cx='204' cy='470' r='.9'/%3E%3Ccircle cx='288' cy='392' r='1.1'/%3E%3Ccircle cx='340' cy='530' r='.9'/%3E%3Ccircle cx='372' cy='284' r='1'/%3E%3Ccircle cx='556' cy='296' r='1.2'/%3E%3Ccircle cx='470' cy='64' r='1'/%3E%3Ccircle cx='32' cy='52' r='.9'/%3E%3Ccircle cx='582' cy='560' r='1'/%3E%3C/g%3E%3C/svg%3E"),
+        linear-gradient(180deg, #131a33, #0f152b 40%, #0b1022);
+    --album-paper-size: 72cqh 72cqh, auto;
+    --album-paper-position: center, 0 0;
+    --album-ink: #ece9f2;
+    --album-edge-a: #1f2846;
+    --album-edge-b: #0b0f20;
+    --album-frame: rgba(214, 183, 122, 0.34);
+    --album-frame-inner: rgba(214, 183, 122, 0.14);
+    --album-accent: rgba(224, 192, 120, 0.82);
+    --album-foil: linear-gradient(180deg, #fbeecb 0%, #e0c078 55%, #a98846 100%);
+    --album-recess: rgba(4, 7, 18, 0.5);
+}
+
+/* 丝绒展柜：胡桃木外框 + 祖母绿绒面，卡片嵌在黄铜卡框里 */
+.ac-cardpack[data-album="velvet"] {
+    --album-board:
+        repeating-linear-gradient(91deg, rgba(0, 0, 0, 0.16) 0 0.4cqh, transparent 0.4cqh 1.5cqh, rgba(255, 216, 170, 0.035) 1.5cqh 2cqh, transparent 2cqh 3.1cqh),
+        linear-gradient(180deg, #4a2d1b, #2c1a0f);
+    --album-stitch: rgba(205, 169, 104, 0.46);
+    --album-ribbon: linear-gradient(90deg, #7f6530 0%, #d9bb74 48%, #7f6530 100%);
+    --album-paper:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .7 0 0 0 0 .95 0 0 0 0 .85 0 0 0 .34 -.12'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"),
+        radial-gradient(95% 80% at 42% 30%, #17594c 0%, #0f4035 58%, #0a2c25 100%);
+    --album-paper-size: 220px 220px, auto;
+    --album-ink: #f1e9d6;
+    --album-ink-dim: rgba(241, 233, 214, 0.78);
+    --album-ink-faint: rgba(241, 233, 214, 0.46);
+    --album-rule: rgba(205, 169, 104, 0.4);
+    --album-frame: rgba(205, 169, 104, 0.34);
+    --album-gutter-strength: 0.66;
+    --album-edge-a: #d0ad6c;
+    --album-edge-b: #6e5428;
+    --album-accent: rgba(224, 192, 120, 0.86);
+    --album-foil: linear-gradient(180deg, #fbeecb 0%, #d9bb74 55%, #9c7d3e 100%);
+    --album-recess: rgba(2, 16, 12, 0.5);
+    --album-recess-shadow:
+        inset 0 0.4cqh 1cqh rgba(0, 0, 0, 0.75),
+        0 0 0 0.24cqh #b4935a,
+        0 0 0 0.34cqh #6e5428,
+        0 0.6cqh 1.6cqh rgba(0, 0, 0, 0.45);
+}
+
+.ac-cardpack[data-album="velvet"] .ac-slot::before {
+    display: none;
+}
+
+/* ── 阅读设置里的款式选择 ──────────────────────────────────────────────── */
+
+.ac-set__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ac-set__chip {
+    padding: 5px 12px;
+    color: var(--ac-text-dim);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 999px;
+    background: transparent;
+}
+
+.ac-set__chip:hover {
+    color: var(--ac-text);
+}
+
+.ac-set__chip[aria-pressed="true"] {
+    color: #1a1712;
+    font-weight: 600;
+    border-color: var(--ac-gold-soft);
+    background: var(--ac-gold-soft);
+}

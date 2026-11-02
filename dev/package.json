@@ -1,0 +1,16 @@
+{
+  "name": "achievement-collection-preview",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview": "node tools/preview-server.mjs",
+    "preview:sync": "node tools/sync-preview.mjs",
+    "preview:fixtures": "node tools/make-preview-fixtures.mjs",
+    "test:preview": "node tools/test-preview.mjs",
+    "viewer:build": "node tools/build-viewer.mjs"
+  },
+  "devDependencies": {
+    "classic-level": "3.0.0",
+    "esbuild": "^0.25.10"
+  }
+}

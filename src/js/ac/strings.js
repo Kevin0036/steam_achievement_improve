@@ -46,18 +46,119 @@ export const STR = {
             failed > 0 ? `完成日期已读取 ${ok} 个，${failed} 个未取得（这些卡片不显示日期）` : `完成日期已读取 ${ok} 个`,
         datesDisabled: '完成日期读取已在主题设置里关闭',
 
-        // 手动补完成日期
-        manualDatesButton: '补日期',
-        manualDatesTitle: '手动补完成日期',
+        // 手动补完成日期 / 时长
+        manualDatesButton: '补日期 / 时长',
+        manualDatesTitle: '手动补完成日期与时长',
         manualDatesDesc:
-            '有些游戏（比如已经不在库里的家庭共享游戏）Steam 取不到最后一个成就的解锁时间。' +
-            '可以在这里自己填，日期只保存在本地。',
+            '有些游戏（比如已经不在库里的家庭共享游戏）Steam 取不到完成日期或游玩时长。' +
+            '可以在这里自己填，只保存在本地。',
         manualDatesRunning: '后台还在读取完成日期；取不到的游戏可以先手动补。',
-        manualDatesEmpty: '所有卡片的完成日期都已经有了。',
+        manualDatesEmpty: '所有卡片都有完成日期和游玩时长了。',
         manualDatesInput: (name) => `${name} 的完成日期`,
+        manualTimesInput: (name) => `${name} 的完成时长（小时）`,
+        manualTimesPlaceholder: '时长（小时）',
         manualDatesClear: '清除',
+        manualDatesClearFor: (name) => `清除 ${name} 的手动填写`,
         manualDatesManual: '手动',
         manualDatesClose: '关闭',
+
+        // 收录库外游戏（已不在库里，比如被移出家庭共享）
+        extraTitle: '收录库外游戏',
+        extraDesc:
+            '已经不在库里的游戏不会出现在册子里。扫描玩过的游戏，' +
+            'Steam 确认成就全部解锁后才会自动收录；完成日期仍然在这张卡上补。',
+        extraScan: '扫描玩过的游戏',
+        extraScanning: (done, total) =>
+            total > 0 ? `正在核对… ${done} / ${total}` : '正在读取游玩记录…',
+        extraFailed: '读取失败，请稍后再试。',
+        extraScanEmpty: '没有找到需要核对的库外游戏。',
+        extraScanDone: (added, rejected, unavailable) =>
+            `扫描完成：收录 ${added} 款`
+            + (rejected > 0 ? `，${rejected} 款未满` : '')
+            + (unavailable > 0 ? `，${unavailable} 款无法复核` : ''),
+        extraScanAdded: (name) => `已收录《${name}》`,
+        extraScanRejected: (name, unlocked, total) => `${name}：${unlocked} / ${total}，未满`,
+        extraScanUnavailable: (name) => `${name}：没有成就数据`,
+        extraTag: '库外',
+        extraRemove: '移除',
+        extraRemoveConfirm: '确认移除？',
+        extraRemoveFor: (name) => `移除《${name}》的库外收录`,
+    },
+
+    /* ── 阅读设置（readingpanel.js） ─────────────────────────────────────── */
+    reading: {
+        title: '阅读设置',
+        desc: '这里的改动会立即生效，并保存在本机。其它设置仍在 Millennium 的主题设置里。',
+        tabsLabel: '书口年份索引',
+        tabsDesc: '书口露出一列年份标签，点一下直接翻到那一年的年份页。',
+        albumLabel: '册子风格',
+        albumDesc: '换一本册子的纸张、书皮和卡位，立即生效。',
+        treeLabel: '年度之树',
+        treeTag: '实验',
+        treeDesc: '年份页的背面画一棵随全成就款数生长的树；满树之后超出的款数记作「盈枝」。',
+        treeNeedPages: '还没开启「年份特殊页」：树要等它开启后才会出现。',
+        targetLabel: '每年目标',
+        targetDesc: '树的生长以这个款数为目标；达到目标后不再长高，超出的部分只标「盈枝」。',
+        targetValue: (n) => `${n} 款`,
+        feedback: '日志反馈',
+        feedbackHint: '复制库内款数 / mapCache 条目 / 服务端条目 / 全成就 / total=0 / 无缓存，发给开发者排查。',
+        feedbackCopying: '正在复制…',
+        feedbackCopied: '已复制，粘贴发给开发者即可。',
+        feedbackFailed: '复制失败，请手动选中下面这行复制。',
+        feedbackUnavailable: '当前环境读不到 Steam 数据，请打开卡包后再试。',
+        extraLabel: '收录库外游戏',
+        extraDesc: '已经不在库里的游戏（比如被移出家庭共享）不会出现在册子里。扫描玩过的游戏，Steam 确认成就全部解锁后才会自动收录。',
+        extraButton: '扫描库外游戏',
+        accountsLabel: '多账号管理',
+        accountsDesc: '把小号等其它账号已经寄出的只读快照并进当前账号的册子；外部卡只在本机显示。',
+        accountsButton: '管理',
+        done: '完成',
+        close: '关闭设置',
+    },
+
+    /* ── 多账号管理（accountsui.js） ─────────────────────────────────────── */
+    accounts: {
+        title: '多账号管理',
+        desc: '把别的 Steam 账号已经寄出的只读快照并进这本册子。同一款游戏以当前账号的卡为准；合并进来的卡只在本机显示。',
+        enableLabel: '合并其他账号的收藏',
+        enableHint: '关掉后立刻回到只显示当前账号的册子，来源记录会保留。',
+        sourcesTitle: '来源',
+        autoLabel: '本机借阅记录',
+        codeLabel: (code) => `借阅码 ${code}`,
+        meta: (count, updated) => `${count} 张卡 · ${updated}`,
+        neverUpdated: '尚未取回',
+        errorPrefix: '取回失败：',
+        empty: '还没有发现别的账号的快照。先在小号上寄一次信，或者输入 9 位借阅码。',
+        loading: '正在读取来源…',
+        addLabel: '添加借阅码',
+        addPlaceholder: '9 位借阅码',
+        add: '添加',
+        addBad: '借阅码应为 9 位数字。',
+        addOk: '已添加，正在取回快照…',
+        remove: '移除',
+        removeFor: (name) => `移除 ${name} 的来源`,
+        refresh: '刷新快照',
+        refreshing: '正在取回快照…',
+        refreshDone: (ok, failed) => `取回 ${ok} 个来源${failed > 0 ? `，${failed} 个失败` : ''}。`,
+        refreshFailed: '暂时无法刷新，请先打开一次卡包或稍后再试。',
+        noAccount: '读不到当前 Steam 账号，暂时无法合并。',
+        hint: '只读取快照，不写分享服务器；寄信和借阅仍然只包含当前账号自己的卡。',
+        close: '关闭',
+    },
+
+    /* ── 一次性提示（onboarding.js 的 showTreeNotice） ──────────────────── */
+    notice: {
+        eyebrow: '1.1.6 · 实验功能',
+        title: '年度之树',
+        desc: '每一年的全成就款数会画成一棵树：完成得越多，树越繁茂；满树之后的款数会记成「盈枝」。',
+        points: [
+            '在卡包右上角的「设置」里打开「年度之树」即可尝鲜。',
+            '需要开启「年份特殊页」。',
+            '年度目标可以在同一个设置面板里用滑块调整（5～50 款）。',
+        ],
+        open: '去设置开启',
+        later: '以后再说',
+        close: '关闭提示',
     },
 
     /* ── 印刷素材导出（export.js） ──────────────────────────────────────── */
@@ -137,11 +238,12 @@ export const STR = {
     book: {
         title: '成就收藏册',
         subtitle: 'ACHIEVEMENT COLLECTION',
-        hint: '滚轮或轻点卡片翻页，下拉书签跳至另一端',
+        hint: '滚轮或点击页面翻页，下拉书签跳至另一端；悬停长按右键调整封面',
+        hintReadOnly: '滚轮或点击页面翻页，下拉书签跳至另一端',
         endTitle: '未完待续',
         endDesc: '下一款完美通关的游戏，会收进这一页',
         bookmark: '跳到最远的一端',
-        label: '成就收藏册，左右两页，滚轮或点击卡片翻页',
+        label: '成就收藏册，左右两页，滚轮或点击页面翻页',
         pageStatus: (page, total) => `第 ${page} / ${total} 页`,
         introduced: (names) => `新收录：${names.join('、')}`,
         statsCards: '收藏卡',
@@ -151,6 +253,103 @@ export const STR = {
             `收藏册内共 ${cards} 张收藏卡` +
             (gold == null ? '，金杯统计中' : `，金杯 ${gold} 个`) +
             (silver == null ? '，银杯统计中' : `，银杯 ${silver} 个`),
+        // 书口年份索引
+        yearTab: (year, count) => `${year} 年 · ${count} 款`,
+        yearTabJump: (year) => `跳到 ${year} 年`,
+        yearTabGap: (from, to, count) => `${from}–${to} 年（${count} 个年份）`,
+        yearTabGapJump: (year) => `跳到 ${year} 年附近`,
+    },
+
+    /* ── 年度之树（treepage.js） ────────────────────────────────────────── */
+    yearFill: {
+        monthsKicker: 'FOOTPRINTS OF THE YEAR',
+        monthsTitle: '月份足迹',
+        month: (month) => `${month} 月`,
+        count: (count) => `${count} 款`,
+        rareCount: (count) => `${count} 项稀有`,
+        peakLabel: '最高产',
+        longestLabel: '最久的一款',
+        rarestLabel: '稀有成就最多',
+        indexKicker: 'CONTENTS OF THE YEAR',
+        indexTitle: '本年目录',
+        indexSub: (count) => `这一年收进册子的 ${count} 款 · 点一行直接翻到那一页`,
+        jump: (name) => `翻到 ${name}`,
+        more: (count) => `还有 ${count} 款`,
+        monthsAria: (year) => `${year} 年月份足迹`,
+        indexAria: (year) => `${year} 年目录`,
+    },
+    tree: {
+        eyebrow: 'TREE OF THE YEAR',
+        title: '年度之树',
+        types: ['樱花', '新叶', '夏荫', '碧玉', '银杏', '枫叶', '赤枫', '紫藤', '蓝花楹', '白梅', '海棠', '琥珀'],
+        stages: {
+            flower: ['新芽', '绿荫', '初绽', '渐盛', '盛放', '满树'],
+            leaf: ['新芽', '绿荫', '初染', '渐浓', '尽染', '满树'],
+        },
+        aria: (year, name, lit, target, status) =>
+            `${year} 年年度之树：${name}，生长 ${lit} / ${target}，${status}`,
+        pageAria: (year) => `${year} 年，年度之树`,
+        lit: (lit, target) => `生长 ${lit}/${target}`,
+        over: (n) => `盈枝 +${n}`,
+        game: (name, date, hours) => [name, date, hours].filter(Boolean).join(' · '),
+    },
+
+    /* ── 封面取景（coveredit.js + book.js 的编辑器） ────────────────────── */
+    coverEdit: {
+        frontTitle: (name) => `调整 ${name} 的正面取景`,
+        backTitle: (name) => `调整 ${name} 的背面显示`,
+        frontEyebrow: '封面取景 · 正面',
+        backEyebrow: '封面显示 · 背面',
+        frontHint: '滚轮缩放 100%–120%，拖动卡片选择原图里的取景位置',
+        backHint: '默认：铺满卡片，竖版封面上下各裁约 3%；拉伸：横向拉伸铺满，画面略扁',
+        backModeLabel: '背面显示方式',
+        modeFit: '默认',
+        modeStretch: '拉伸',
+        sourceLabel: '封面原图与取景范围',
+        sourceMeta: (w, h, crop) => `原图 ${w}×${h} · 取景宽度 ${crop}%`,
+        reset: '重置',
+        done: '完成',
+        saveHint: '再次长按鼠标右键保存并退出，Esc 也可以',
+        savedFront: '正面取景已保存',
+        savedBack: '背面显示已保存',
+    },
+
+    /* ── 新手引导（onboarding.js） ──────────────────────────────────────── */
+    onboarding: {
+        eyebrow: '第一次翻开这本册子',
+        close: '关闭引导',
+        prev: '上一步',
+        next: '下一页',
+        start: '开始收藏',
+        stepsLabel: '引导步骤',
+        step: (n, title) => `第 ${n} 步：${title}`,
+        slides: [
+            {
+                title: '一册收齐',
+                desc: '每一款拿到全成就的游戏，都会在这里装订成一张收藏卡。下面用几步带你认识它。',
+            },
+            {
+                title: '翻页与书签',
+                desc: '滚动滚轮翻页，也可以点击左右两页的任意位置；向下拉动书签，直接翻到册子另一端。',
+            },
+            {
+                title: '封面微调',
+                desc: '在卡片上长按鼠标右键进入取景：拖动正面换画面，滚轮微调，再长按右键保存。背面还能切换「默认 / 拉伸」。',
+            },
+            {
+                title: '年份手账',
+                descOn: '每一年的开头都有四页：月份足迹、年份手账、年度最爱和本年目录，目录点一下就能跳到那张卡。',
+                descOff: '在设置里打开「年份特殊页」，每年开头就会多四页：月份足迹、年份手账、年度最爱和本年目录。',
+            },
+            {
+                title: '补日期与时长',
+                desc: '取不到完成日期或游玩时长的游戏，用右上角的「补日期 / 时长」手动填写，只保存在本地。',
+            },
+            {
+                title: '导出印刷素材',
+                desc: '在设置的「印刷素材」里可以导出 300 DPI 的卡片、票根和邮票，直接送去印刷。',
+            },
+        ],
     },
 
     /* ── 年份特殊页（yearpages.js） ─────────────────────────────────────── */

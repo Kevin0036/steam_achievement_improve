@@ -1263,7 +1263,7 @@ async function renderStamp(ctx, item) {
     host.append(root);
     try {
         const year = el(doc, 'div', 'ac-year ac-year--year', { style: 'position:absolute;inset:0;' });
-        const stamp = createBadgeStamp(doc, item.game, item.level);
+        const stamp = createBadgeStamp(doc, item.game, item.level, item.url ?? null);
         stamp.style.cssText += ';position:absolute;left:0;top:0;filter:none;';
         year.append(stamp);
         root.append(year);

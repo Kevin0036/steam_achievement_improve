@@ -11,13 +11,58 @@
  * 不主动扫全库，只有年份页要显示某个已选徽章、或选择器展开某款游戏时才取。
  */
 
-import { getBadgeStore } from './env.js';
+import { getBadgeStore, getSteamClientMethod } from './env.js';
 import { warn, tagged } from './utils.js';
 
 const out = tagged('badges');
 
-/** 官方图案 CDN；hash 自带扩展名（通常是 .png） */
-const ITEM_CDN = 'https://cdn.akamai.steamstatic.com/steamcommunity/public/images/items/';
+/**
+ * 新版游戏的徽章图只在 community_assets 路径下存在；旧路径
+ * steamcommunity/public/images/items 对它们返回 404。
+ * 这个主机同时开放 CORS，导出印刷图也能直接读。
+ */
+const ITEM_CDN = 'https://shared.steamstatic.com/community_assets/images/items/';
+
+/** Steam 语言代码可能是完整写法；统一成 item_key_values 里的键 */
+const LANGUAGE_ALIASES = {
+    'zh-cn': 'schinese',
+    'zh-sg': 'schinese',
+    'zh-hans': 'schinese',
+    'zh-tw': 'tchinese',
+    'zh-hk': 'tchinese',
+    'zh-hant': 'tchinese',
+    en: 'english',
+    ja: 'japanese',
+    ko: 'korean',
+};
+
+function clientLanguage() {
+    try {
+        const get = getSteamClientMethod('Settings.GetCurrentLanguage');
+        const raw = get?.();
+        if (typeof raw !== 'string' || !raw) return null;
+        const key = raw.trim().toLowerCase().replace(/_/g, '-');
+        return LANGUAGE_ALIASES[key] ?? key;
+    } catch {
+        return null;
+    }
+}
+
+/** level_names 的值可能是字符串，也可能是 { schinese, english, … } 形式的本地化对象 */
+function translatedName(value, fallback = '') {
+    if (typeof value === 'string') return value.trim() || fallback;
+    if (!value || typeof value !== 'object') return fallback;
+    for (const key of [clientLanguage(), 'schinese', 'english']) {
+        if (!key) continue;
+        const candidate = value[key];
+        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
+    for (const candidate of Object.values(value)) {
+        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
+    return fallback;
+}
+
 
 /** appid → { status: 'loading'|'ready', levels, current, promise } */
 const cache = new Map();
@@ -32,16 +77,18 @@ function fixtures() {
 }
 
 function imageUrl(appid, value) {
-    if (!value) return null;
-    if (/^(https?:)?\/\//i.test(value) || value.startsWith('/')) return value;
-    return `${ITEM_CDN}${appid}/${value}`;
+    if (typeof value !== 'string') return null;
+    const raw = value.trim();
+    if (!raw) return null;
+    if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
+    return `${ITEM_CDN}${appid}/${raw}`;
 }
 
 function normalizeLevelMap(appid, images, names = {}) {
     const levels = {};
     for (const key of ['1', '2', '3', '4', '5', 'foil']) {
         const url = imageUrl(appid, images?.[key]);
-        if (url) levels[key] = { url, name: names?.[key] ?? '' };
+        if (url) levels[key] = { url, name: translatedName(names?.[key]) };
     }
     return levels;
 }
@@ -85,7 +132,7 @@ function currentIcon(appid) {
         return {
             level: Number.isFinite(level) && level > 0 ? level : 5,
             url: badge.strIconURL,
-            name: badge.strName ?? '',
+            name: translatedName(badge.strName),
         };
     } catch {
         return null;
@@ -104,6 +151,16 @@ export function peekBadge(appid) {
     const icon = currentIcon(appid);
     if (icon) return { status: 'ready', levels: { [icon.level]: { url: icon.url, name: icon.name } }, current: icon };
     return null;
+}
+
+/** 某个等级（1–5 / foil）的图案地址；'cover' 与未缓存时返回 null */
+export function peekBadgeUrl(appid, level) {
+    if (!appid || level == null || level === 'cover') return null;
+    const key = level === 'foil' ? 'foil' : String(level);
+    const data = peekBadge(appid);
+    const url = data?.levels?.[key]?.url
+        ?? (data?.current && Number(data.current.level) === Number(level) ? data.current.url : null);
+    return typeof url === 'string' && url ? url : null;
 }
 
 /**
@@ -135,11 +192,12 @@ export function loadBadge(appid) {
         let settled = false;
         let timer = 0;
         const finish = (data) => {
-            if (settled) return;
+            if (settled) return true;
             settled = true;
             if (timer) clearInterval(timer);
             Object.assign(entry, data ?? { status: 'ready', levels: {} });
             resolve(entry);
+            return true;
         };
         const attempt = () => {
             let def = null;

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就收藏册 · 素材</title>
+<link rel="stylesheet" href="/theme/src/css/ac/art.css">
+<style>
+    body { margin: 0; padding: 24px; background: #111; color: #9aa3b2; font: 12px/1.5 "Be Vietnam Pro", "Microsoft YaHei UI", sans-serif; }
+    .row { display: flex; align-items: flex-end; gap: 28px; margin-bottom: 26px; flex-wrap: wrap; }
+    .cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .badge { background: var(--ac-badge-img) center / contain no-repeat; aspect-ratio: 100 / 118; filter: drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+    .bar { position: relative; width: 300px; height: 36px; border-radius: 0 0 6px 6px; background: linear-gradient(#4a86f0, #346ae0); }
+    .bar .badge { position: absolute; right: 8px; bottom: 3px; height: 46px; }
+    .light { padding: 16px; background: #f1ece2; border-radius: 6px; }
+    .mask { width: 48px; height: 48px; -webkit-mask: center / contain no-repeat; mask: center / contain no-repeat; }
+    .gold { background: linear-gradient(160deg, #fff1a8, #f6c33b 55%, #c98b16); }
+    .silver { background: linear-gradient(160deg, #ffffff, #c9d3de 55%, #8b97a6); }
+    .lime { background: linear-gradient(180deg, #c6f36a, #4fe0c9); }
+</style>
+</head>
+<body>
+    <div class="row">
+        <div class="cell"><div class="badge" style="height: 160px"></div>160px</div>
+        <div class="cell"><div class="badge" style="height: 96px"></div>96px</div>
+        <div class="cell"><div class="badge" style="height: 46px"></div>46px</div>
+        <div class="cell"><div class="badge" style="height: 28px"></div>28px</div>
+        <div class="cell light"><div class="badge" style="height: 96px"></div></div>
+    </div>
+    <div class="row">
+        <div class="cell"><div class="bar"><div class="badge"></div></div>展柜信息条</div>
+    </div>
+    <div class="row">
+        <div class="cell"><div class="mask lime" style="-webkit-mask-image: var(--ac-laurel); width: 40px; height: 100px"></div>月桂</div>
+        <div class="cell"><div class="mask gold" style="-webkit-mask-image: var(--ac-trophy)"></div>金杯</div>
+        <div class="cell"><div class="mask silver" style="-webkit-mask-image: var(--ac-trophy)"></div>银杯</div>
+        <div class="cell"><div class="mask silver" style="-webkit-mask-image: var(--ac-stopwatch)"></div>秒表</div>
+        <div class="cell"><div class="mask gold" style="-webkit-mask-image: var(--ac-sparkle)"></div>星芒</div>
+        <div class="cell"><div style="width: 120px; height: 80px; background: #1d1e22 var(--ac-grain); background-blend-mode: overlay"></div>纹理</div>
+    </div>
+</body>
+</html>

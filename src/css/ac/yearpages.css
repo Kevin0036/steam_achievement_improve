@@ -1239,3 +1239,7 @@
         transition: none;
     }
 }
+
+/* 借阅室：只读册子的年份页槽位不能点开选择器 */
+.ac-book--readonly .ac-year__mount,
+.ac-book--readonly .ac-year__ticket { pointer-events: none; }

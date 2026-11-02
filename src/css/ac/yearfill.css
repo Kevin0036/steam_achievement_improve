@@ -1,0 +1,192 @@
+/* ============================================================================
+ * 成就收藏册 · 年份跨页前后的两页：月份足迹 / 本年目录
+ * ----------------------------------------------------------------------------
+ * 版式壳沿用年度最爱；颜色走 --album-* 令牌，缺省值就是默认黑卡纸上的配色，
+ * 所以换册子风格时这两页会跟着变。
+ * ==========================================================================*/
+
+.ac-yf .ac-year__title {
+    margin-top: 3.2cqh;
+    font-size: 4.2cqh;
+}
+
+.ac-yf .ac-year__sub {
+    margin-top: 1.2cqh;
+}
+
+/* ── 月份足迹 ──────────────────────────────────────────────────────────── */
+
+.ac-yf__grid {
+    display: grid;
+    flex: 1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 1.2cqh;
+    width: 100%;
+    min-height: 0;
+    margin-top: 2.8cqh;
+}
+
+.ac-yf__month {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7cqh;
+    min-width: 0;
+    min-height: 0;
+    padding: 1cqh 1.1cqh;
+    border: 1px solid var(--album-frame, rgba(255, 255, 255, 0.07));
+    border-radius: 0.7cqh;
+    background: var(--album-cell, rgba(255, 255, 255, 0.035));
+}
+
+.ac-yf__month[data-empty] {
+    border-style: dashed;
+    background: none;
+    opacity: 0.55;
+}
+
+.ac-yf__month[data-peak] {
+    border-color: var(--album-accent, rgba(243, 211, 138, 0.7));
+}
+
+.ac-yf__month-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6cqh;
+}
+
+.ac-yf__month-name {
+    font-size: 1.36cqh;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+}
+
+.ac-yf__month-count {
+    font-size: 1.12cqh;
+    font-variant-numeric: tabular-nums;
+    color: var(--album-accent, rgba(243, 211, 138, 0.7));
+}
+
+.ac-yf__thumbs {
+    display: flex;
+    flex: 1;
+    align-items: flex-end;
+    gap: 0.45cqh;
+    min-height: 0;
+}
+
+.ac-yf__thumb {
+    flex: 0 1 30%;
+    min-width: 0;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: 0.3cqh;
+    box-shadow: 0 0.2cqh 0.5cqh rgba(0, 0, 0, 0.42);
+}
+
+.ac-yf__thumb--more {
+    display: grid;
+    place-items: center;
+    font-size: 1.1cqh;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--album-cell, rgba(255, 255, 255, 0.07));
+    box-shadow: inset 0 0 0 1px var(--album-frame, rgba(255, 255, 255, 0.1));
+}
+
+.ac-yf__records {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2cqh;
+    width: 100%;
+    margin-top: 2.2cqh;
+}
+
+.ac-yf__record {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45cqh;
+    min-width: 0;
+}
+
+.ac-yf__record-label {
+    font-size: 1.04cqh;
+    letter-spacing: 0.18em;
+    color: var(--album-ink-faint, rgba(255, 255, 255, 0.4));
+}
+
+.ac-yf__record-value {
+    overflow: hidden;
+    font-size: 1.44cqh;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+}
+
+.ac-yf__record-note {
+    font-size: 1.14cqh;
+    font-variant-numeric: tabular-nums;
+    color: var(--album-accent, rgba(243, 211, 138, 0.7));
+}
+
+/* ── 本年目录 ──────────────────────────────────────────────────────────── */
+
+.ac-yf__list {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(var(--rows), var(--row));
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    column-gap: 2.6cqh;
+    width: 100%;
+    margin-top: 3cqh;
+}
+
+.ac-year button.ac-yf__row,
+.ac-yf__row--more {
+    display: flex;
+    align-items: center;
+    gap: 1cqh;
+    min-width: 0;
+    padding: 0 0.6cqh;
+    font-size: 1.4cqh;
+    text-align: left;
+    color: var(--ink);
+    border-bottom: 1px dotted var(--album-rule, rgba(255, 255, 255, 0.16));
+    transition: background 140ms ease;
+}
+
+.ac-year button.ac-yf__row:hover,
+.ac-year button.ac-yf__row:focus-visible {
+    background: var(--album-cell, rgba(255, 255, 255, 0.06));
+}
+
+.ac-yf__row--more {
+    color: var(--album-ink-faint, rgba(255, 255, 255, 0.4));
+}
+
+.ac-yf__serial {
+    flex: none;
+    font-size: 1.04cqh;
+    letter-spacing: 0.1em;
+    font-variant-numeric: tabular-nums;
+    color: var(--album-ink-faint, rgba(255, 255, 255, 0.4));
+}
+
+.ac-yf__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ac-yf__date {
+    flex: none;
+    font-size: 1.14cqh;
+    font-variant-numeric: tabular-nums;
+    color: var(--album-accent, rgba(243, 211, 138, 0.7));
+}

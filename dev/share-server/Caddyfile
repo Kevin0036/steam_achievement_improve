@@ -1,0 +1,31 @@
+{
+    auto_https disable_redirects
+}
+
+ac-share.duckdns.org:8443 {
+    tls {
+        issuer acme {
+            disable_tlsalpn_challenge
+        }
+    }
+
+    encode zstd gzip
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8787
+    }
+
+    handle /healthz {
+        reverse_proxy 127.0.0.1:8787
+    }
+
+    # 借阅室背景音乐：跨域才能进 Web Audio；文件放在 /srv/ac-static/audio/
+    handle /audio/* {
+        root * /srv/ac-static
+        header Access-Control-Allow-Origin "*"
+        header Cache-Control "public, max-age=86400"
+        file_server
+    }
+
+    respond 404
+}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就收藏册 · 预览</title>
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<style>
+    html, body { margin: 0; height: 100%; background: rgb(10, 10, 10); color: #ebedf0; font-size: 13px; }
+    .wrap { display: flex; flex-direction: column; height: 100vh; }
+    .bar { display: flex; align-items: center; gap: 4px; padding: 8px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); background: rgb(17, 17, 17); }
+    .bar button { flex: none; white-space: nowrap; padding: 6px 14px; font: inherit; color: #a3a8b0; cursor: pointer; border: 0; border-radius: 8px; background: transparent; }
+    .bar button:hover { color: #ebedf0; background: rgba(255, 255, 255, 0.05); }
+    .bar button[aria-selected="true"] { color: #fff; background: rgba(102, 108, 255, 0.22); }
+    .bar .note { margin-left: auto; font-size: 11.5px; color: #6c7179; }
+    iframe { flex: 1; width: 100%; border: 0; background: rgb(17, 17, 17); }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="bar" role="tablist">
+        <button role="tab" data-src="./cardpack.html" aria-selected="true">成就卡包</button>
+        <button role="tab" data-src="./album-styles.html">册子风格</button>
+        <button role="tab" data-src="./cardpack.html?perPage=4">单页四张</button>
+        <button role="tab" data-src="./showcase.html">完满主义者展柜</button>
+        <button role="tab" data-src="./art.html">徽章与素材</button>
+        <button role="tab" data-src="./cardpack.html?intro=1">演示：新卡入册</button>
+        <button role="tab" data-src="./cardpack.html?perPage=4&intro=1">演示：四张版式入册</button>
+        <button role="tab" data-src="./borrow.html">借阅室</button>
+        <button role="tab" data-src="./borrow.html?mode=out">借阅室 · 寄信</button>
+        <span class="note" data-for="./cardpack.html">倒序：最近完成的在第一页 · 悬停卡片 = 3D 检视 · 单击右页 = 向后翻 · 单击左页 = 翻回 · <span data-card-count></span> 张来自客户端全成就快照</span>
+        <span class="note" data-for="./album-styles.html" hidden>四款册子 · 换款不用重新加载 · 左右方向键切换</span>
+        <span class="note" data-for="./borrow.html" hidden>点一下页面后音乐淡入 · 拆封蜡有音效 · 翻开册子音乐变丰满 · 左下角可关声音</span>
+        <span class="note" data-for="./borrow.html?mode=out" hidden>寄信演示：拖动印章盖在登记卡上 → 封蜡 → 生成借阅链接（目前为演示数据）</span>
+        <span class="note" data-for="./cardpack.html?perPage=4" hidden>2×2 四张一页 · 卡片按原样式等比缩小 · 翻页与检视同单页一张</span>
+        <span class="note" data-for="./cardpack.html?intro=1" hidden>假装最近完成的那一款是新全成就的：首次进入卡包时入册（再点一次这个标签可以重播）</span>
+        <span class="note" data-for="./cardpack.html?perPage=4&intro=1" hidden>四张版式下只有最新的一款是新全成就：它单独落进第一页左上角的卡槽（再点一次这个标签可以重播）</span>
+        <span class="note" data-for="./showcase.html" hidden>悬停格子查看抬升 · 封面为本机真实全成就游戏</span>
+        <span class="note" data-for="./art.html" hidden>展柜与卡片共用同一枚徽章</span>
+    </div>
+    <iframe src="./cardpack.html" title="预览"></iframe>
+</div>
+<script type="module">
+import { CARDS } from './fixtures.js';
+document.querySelector('[data-card-count]').textContent = CARDS.length;
+const frame = document.querySelector('iframe');
+for (const tab of document.querySelectorAll('[role="tab"]')) {
+    tab.addEventListener('click', () => {
+        for (const t of document.querySelectorAll('[role="tab"]')) t.setAttribute('aria-selected', String(t === tab));
+        for (const n of document.querySelectorAll('.note')) n.hidden = n.dataset.for !== tab.dataset.src;
+        frame.src = tab.dataset.src;
+    });
+}
+</script>
+</body>
+</html>

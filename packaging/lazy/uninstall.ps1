@@ -1,12 +1,12 @@
 ﻿#requires -Version 5.1
 <#
-  成就收藏册 · Windows 懒人包卸载器
-  默认只删除主题；完整卸载仅在本懒人包安装过 Millennium、且没有其它主题/插件时允许。
+  成就收藏册 · Windows 懒人包卸载器（插件版）
+  默认只删除插件；完整卸载仅在本懒人包安装过 Millennium、且没有其它主题/插件时允许。
 #>
 [CmdletBinding()]
 param(
     [string]$SteamPath = '',
-    [ValidateSet('menu', 'theme', 'full')]
+    [ValidateSet('menu', 'plugin', 'full')]
     [string]$Mode = 'menu',
     [switch]$InternalNoElevate,
     [switch]$InternalSkipProcessStop,
@@ -18,7 +18,7 @@ try {
     [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
     $global:OutputEncoding = New-Object Text.UTF8Encoding($false)
 } catch { }
-$script:ThemeFolderName = 'AchievementCollection'
+$script:PluginFolderName = 'AchievementCollection'
 $script:AutoYes = [bool]$InternalYes
 $script:ScriptRoot = $PSScriptRoot
 
@@ -145,7 +145,6 @@ function Get-OtherContent([string]$Root) {
     $themesDir = Join-Path $Root 'millennium\themes'
     if (Test-Path -LiteralPath $themesDir -PathType Container) {
         foreach ($dir in @(Get-ChildItem -LiteralPath $themesDir -Directory -Force)) {
-            if ($dir.Name -eq $script:ThemeFolderName) { continue }
             if ($dir.Name -eq 'Steam') { continue }
             if ($dir.Name -like '__tmp_*') { continue }
             $found.Add("主题：$($dir.Name)")
@@ -158,6 +157,7 @@ function Get-OtherContent([string]$Root) {
     foreach ($pluginDir in $pluginDirs) {
         if (-not (Test-Path -LiteralPath $pluginDir -PathType Container)) { continue }
         foreach ($dir in @(Get-ChildItem -LiteralPath $pluginDir -Directory -Force)) {
+            if ($dir.Name -eq $script:PluginFolderName) { continue }
             $found.Add("插件：$($dir.Name)")
         }
     }
@@ -193,13 +193,13 @@ function Stop-SteamIfNeeded([string]$Root) {
     Write-Ok 'Steam 已关闭'
 }
 
-function Remove-ThemeOnly([string]$Root) {
-    $themeDir = Join-Path $Root "millennium\themes\$script:ThemeFolderName"
-    if (Test-Path -LiteralPath $themeDir -PathType Container) {
-        Remove-Item -LiteralPath $themeDir -Recurse -Force
-        Write-Ok "已删除主题：$themeDir"
+function Remove-PluginOnly([string]$Root) {
+    $pluginDir = Join-Path $Root "millennium\plugins\$script:PluginFolderName"
+    if (Test-Path -LiteralPath $pluginDir -PathType Container) {
+        Remove-Item -LiteralPath $pluginDir -Recurse -Force
+        Write-Ok "已删除插件：$pluginDir"
     } else {
-        Write-Note '没有找到主题目录，可能已经删除。'
+        Write-Note '没有找到插件目录，可能已经删除。'
     }
 
     $manifest = Get-Manifest $Root
@@ -207,16 +207,16 @@ function Remove-ThemeOnly([string]$Root) {
     if ($manifest -and $manifest.installedCore -eq $true) {
         $path = Join-Path $installerDir 'manifest.json'
         try {
-            $manifest | Add-Member -NotePropertyName themeRemoved -NotePropertyValue $true -Force
+            $manifest | Add-Member -NotePropertyName pluginRemoved -NotePropertyValue $true -Force
             $json = $manifest | ConvertTo-Json -Depth 5
             [IO.File]::WriteAllText($path, $json, (New-Object Text.UTF8Encoding($false)))
         } catch {
-            Write-Note '更新安装记录失败，但不影响主题卸载。'
+            Write-Note '更新安装记录失败，但不影响插件卸载。'
         }
     } elseif (Test-Path -LiteralPath $installerDir -PathType Container) {
         Remove-Item -LiteralPath $installerDir -Recurse -Force
     }
-    Write-Note 'Millennium 核心、设置和其它主题都没有改动。'
+    Write-Note 'Millennium 核心、设置、主题和其它插件都没有改动。'
 }
 
 function Remove-Full([string]$Root, $Manifest) {
@@ -224,7 +224,7 @@ function Remove-Full([string]$Root, $Manifest) {
         Stop-Uninstaller '没有找到本懒人包的安装记录。为避免误删，完整卸载已停止。'
     }
     if ($Manifest.installedCore -ne $true) {
-        Stop-Uninstaller '本懒人包只安装过主题，没有安装 Millennium 核心。请选择“仅卸载主题”。'
+        Stop-Uninstaller '本懒人包只安装过插件，没有安装 Millennium 核心。请选择“仅卸载插件”。'
     }
 
     $others = @(Get-OtherContent $Root)
@@ -232,14 +232,14 @@ function Remove-Full([string]$Root, $Manifest) {
         Write-Note '检测到其它主题或插件，完整卸载已停止，避免误删：'
         foreach ($item in $others) { Write-Host "    - $item" -ForegroundColor Yellow }
         Write-Note '你可以先删除它们，或使用 Millennium 官方 Installer 卸载核心。'
-        Write-Note '如果只想移除本主题，请选择“仅卸载主题”。'
+        Write-Note '如果只想移除成就收藏册插件，请选择“仅卸载插件”。'
         if (-not $script:AutoYes) { Read-Host '按 Enter 退出' | Out-Null }
         exit 0
     }
 
     Write-Host ''
     Write-Host '将要删除：' -ForegroundColor Yellow
-    Write-Host '  - 成就收藏册主题'
+    Write-Host '  - 成就收藏册插件'
     Write-Host '  - Millennium 核心（lib、bin、wsock32.dll）'
     Write-Host '  - millennium 目录中的配置和缓存'
     Write-Host '  - 本安装器的安装记录'
@@ -252,8 +252,8 @@ function Remove-Full([string]$Root, $Manifest) {
 
     Stop-SteamIfNeeded $Root
 
-    $themeDir = Join-Path $Root "millennium\themes\$script:ThemeFolderName"
-    if (Test-Path -LiteralPath $themeDir) { Remove-Item -LiteralPath $themeDir -Recurse -Force }
+    $pluginDir = Join-Path $Root "millennium\plugins\$script:PluginFolderName"
+    if (Test-Path -LiteralPath $pluginDir) { Remove-Item -LiteralPath $pluginDir -Recurse -Force }
 
     $millenniumDir = Join-Path $Root 'millennium'
     if (Test-Path -LiteralPath $millenniumDir -PathType Container) {
@@ -272,14 +272,14 @@ function Remove-Full([string]$Root, $Manifest) {
     Write-Host '==============================================' -ForegroundColor Green
     Write-Host ''
     Write-Host 'Steam 本体、游戏和存档未被修改。'
-    Write-Host '如果之后还想使用本主题，重新运行安装包即可。'
+    Write-Host '如果之后还想使用成就收藏册，重新运行安装包即可。'
     Write-Host ''
     if (-not $script:AutoYes) { Read-Host '按 Enter 退出' | Out-Null }
 }
 
 function Main {
     Write-Host ''
-    Write-Host '  成就收藏册 · 懒人包卸载器' -ForegroundColor White
+    Write-Host '  成就收藏册 · 懒人包卸载器（插件版）' -ForegroundColor White
     Write-Host ''
 
     $root = Get-SteamPath $SteamPath
@@ -292,17 +292,17 @@ function Main {
         return
     }
 
-    $themeDir = Join-Path $root "millennium\themes\$script:ThemeFolderName"
+    $pluginDir = Join-Path $root "millennium\plugins\$script:PluginFolderName"
     $manifest = Get-Manifest $root
     $core = Test-Path -LiteralPath (Join-Path $root 'millennium\lib\millennium.dll') -PathType Leaf
 
-    if (-not (Test-Path -LiteralPath $themeDir) -and -not $core -and -not $manifest) {
-        Stop-Uninstaller '没有找到成就收藏册或本懒人包的安装记录。'
+    if (-not (Test-Path -LiteralPath $pluginDir) -and -not $core -and -not $manifest) {
+        Stop-Uninstaller '没有找到成就收藏册插件或本懒人包的安装记录。'
     }
 
-    if ($Mode -eq 'theme') {
+    if ($Mode -eq 'plugin') {
         Stop-SteamIfNeeded $root
-        Remove-ThemeOnly $root
+        Remove-PluginOnly $root
         if (-not $script:AutoYes) { Read-Host '按 Enter 退出' | Out-Null }
         return
     }
@@ -313,15 +313,15 @@ function Main {
 
     Write-Host ''
     Write-Host '请选择卸载方式：'
-    Write-Host '  [1] 仅卸载「成就收藏册」主题（推荐，保留 Millennium 和其它主题/插件）'
-    Write-Host '  [2] 卸载主题 + 本懒人包安装的 Millennium（仅限没有其它主题/插件）'
+    Write-Host '  [1] 仅卸载「成就收藏册」插件（推荐，保留 Millennium 和其它主题/插件）'
+    Write-Host '  [2] 卸载插件 + 本懒人包安装的 Millennium（仅限没有其它主题/插件）'
     Write-Host '  [0] 取消'
     Write-Host ''
     $choice = Read-Host '输入数字后回车'
     switch ($choice) {
         '1' {
             Stop-SteamIfNeeded $root
-            Remove-ThemeOnly $root
+            Remove-PluginOnly $root
             if (-not $script:AutoYes) { Read-Host '按 Enter 退出' | Out-Null }
         }
         '2' {

@@ -1,0 +1,13 @@
+{
+  "name": "ac-share",
+  "version": "1.1.0",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/server.test.cjs"
+  }
+}

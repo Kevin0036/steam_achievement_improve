@@ -1,0 +1,2809 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>借阅室 · 预览</title>
+
+<!--
+  借阅室（viewer）设计预览：收信 / 寄信两条信封动画链路。
+  视觉与徽章全部取自收藏册本身（--ac-badge-img、奶金、黑卡纸），
+  翻开册子后挂载的是主题里真实的 createBook（只读）。
+
+  预览参数：
+    ?t=<token>        直接播放收信动画（预览不请求服务器，用本地快照数据）
+    ?demo=1           使用示例链接自动收信
+    ?mode=out         直接进入寄信演示
+    ?reader=1         跳过拆封，直接摊开真实册子
+    ?fail=1           模拟链接失效（拆封时提示已收回）
+    ?owner=Player     替换昵称（公开素材用）
+    ?friend=39734272  阅读器「获取好友代码」复制的号码
+    ?perPage=4        册子单页四张（阅读设置里也能切换）
+    ?binding=newest   册子装订方式（默认 sequential，和主题默认一致）
+    ?stats=0          扉页不显示统计
+    ?years=1          开启年份特殊页（阅读设置里也能切换）
+    ?tree=1           年度之树（配合 years=1&spread=1）
+    ?tabs=1           书口年份索引（配合 years=1）
+-->
+
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/cardpack.css">
+
+<style>
+/* ── 房间 ─────────────────────────────────────────────────────────────── */
+
+:root {
+    --rm-ink: #ece5d6;
+    --rm-ink-dim: #a49d8d;
+    --rm-ink-faint: #6f6a5e;
+    --rm-gold: #d6b77a;
+    --rm-gold-hi: #f3e3b8;
+    --rm-gold-lo: #a2844a;
+    --rm-wax: #a3453d;
+    --rm-wax-deep: #7c2a23;
+    --rm-paper: #f4eddb;
+    --rm-paper-2: #e6dcc2;
+    --rm-ink-paper: #2f2b25;
+    --rm-line: rgba(255, 255, 255, 0.07);
+    --rm-ease: cubic-bezier(0.2, 0.85, 0.25, 1);
+    --rm-ease-back: cubic-bezier(0.3, 1.35, 0.4, 1);
+}
+
+* { box-sizing: border-box; margin: 0; }
+
+html, body { height: 100%; }
+
+body {
+    overflow: hidden;
+    background: #070708;
+    font-family: var(--ac-font);
+    color: var(--rm-ink);
+    -webkit-font-smoothing: antialiased;
+}
+
+button { font-family: inherit; }
+
+.rm-root {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background:
+        radial-gradient(80% 80% at 50% 40%, #141416, #070708 78%);
+}
+
+/* 舞台按 62:46 等比缩放（和参考稿一致），内部一律用 em */
+.rm-stage {
+    position: relative;
+    width: min(100vw, calc(100dvh * 62 / 46));
+    height: min(100dvh, calc(100vw * 46 / 62));
+    overflow: hidden;
+    border-radius: 1rem;
+    box-shadow: 0 0 0 1px #ffffff0d, 0 40px 120px #000c;
+    container-type: size;
+}
+
+.rm-room {
+    position: absolute;
+    inset: 0;
+    font-size: 1.613cqw;
+    color: var(--rm-ink);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.rm-wall {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg, #ffffff06 1px, transparent 1px) 0 0 / 1.15em 1.15em,
+        linear-gradient(#ffffff06 1px, transparent 1px) 0 0 / 1.15em 1.15em,
+        radial-gradient(130% 95% at 50% -10%, #26242b 0%, #18171b 48%, #0e0d10 100%);
+}
+
+.rm-wall::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        var(--ac-grain),
+        radial-gradient(70% 60% at 50% 42%, transparent 30%, #00000066 100%);
+    background-size: 160px 160px, auto;
+    background-blend-mode: soft-light, normal;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.rm-wall::after {
+    content: "";
+    position: absolute;
+    inset: 1.4em;
+    border: 1px solid #ffffff08;
+    border-radius: 0.6em;
+    pointer-events: none;
+}
+
+.rm-desk {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 26.5em;
+    bottom: 0;
+    background:
+        repeating-linear-gradient(92deg, #ffffff04 0 1px, transparent 1px 0.42em),
+        linear-gradient(#241f18, #16120d 46%, #0f0c08);
+    box-shadow: inset 0 0.12em 0 #ffffff12, 0 -1.4em 2.8em #0007;
+}
+
+.rm-desk::before {
+    content: "";
+    position: absolute;
+    left: 7%;
+    right: 7%;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #d6b77a4d, transparent);
+}
+
+/* ── 标题 / 分页 ───────────────────────────────────────────────────────── */
+
+.rm-head {
+    position: absolute;
+    top: 1.5em;
+    left: 0;
+    right: 0;
+    z-index: 3;
+    text-align: center;
+}
+
+.rm-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.9em;
+    margin: 0 3.4em;
+    font-size: 0.48em;
+    font-weight: 700;
+    letter-spacing: 0.36em;
+    color: #8b8578;
+}
+
+.rm-eyebrow i {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #d6b77a3d, transparent);
+}
+
+.rm-eyebrow b { color: var(--rm-gold); font-weight: 700; }
+
+.rm-title {
+    margin-top: 0.22em;
+    font-size: 2em;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: 0.42em;
+    text-indent: 0.42em;
+    background: linear-gradient(#f9f2e3 0%, #d3c19a 58%, #a38a54 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0.05em 0.08em #0009);
+}
+
+.rm-seg {
+    display: inline-flex;
+    margin-top: 0.7em;
+    padding: 0.2em;
+    border-radius: 2em;
+    background: #0006;
+    box-shadow: inset 0 0 0 1px #ffffff12;
+}
+
+.rm-seg button {
+    border: 0;
+    border-radius: 2em;
+    padding: 0.5em 1.9em;
+    color: var(--rm-ink-faint);
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    background: none;
+    cursor: pointer;
+    transition: color 0.25s, background 0.25s;
+}
+
+.rm-seg button:hover { color: var(--rm-ink-dim); }
+.rm-seg button.on {
+    color: #26221a;
+    background: linear-gradient(#eadcb4, #c0a367);
+    box-shadow: 0 0.1em 0.3em #0007;
+}
+
+/* ── 通用控件 ─────────────────────────────────────────────────────────── */
+
+.rm-glass {
+    border-radius: 0.9em;
+    background: linear-gradient(#ffffff10, #ffffff05);
+    box-shadow: inset 0 0 0 1px #ffffff14, 0 0.5em 1.4em #0009;
+    backdrop-filter: blur(10px);
+}
+
+.rm-panel {
+    position: absolute;
+    left: 50%;
+    top: 30.5em;
+    width: 38em;
+    margin-left: -19em;
+    z-index: 4;
+    display: none;
+}
+
+.rm-panel.on { display: block; animation: rm-fade-up 0.5s var(--rm-ease); }
+
+@keyframes rm-fade-up {
+    from { opacity: 0; transform: translateY(0.8em); }
+}
+
+.rm-req { padding: 1.3em 1.5em 1.1em; display: flex; flex-direction: column; gap: 0.9em; }
+
+.rm-req__title,
+.rm-result__title {
+    font-size: 0.6em;
+    font-weight: 700;
+    letter-spacing: 0.36em;
+    color: var(--rm-gold);
+}
+
+.rm-field {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0.35em 0.35em 0.35em 1em;
+    border-radius: 0.8em;
+    background: #0a0908;
+    box-shadow: inset 0 0 0 1px #ffffff1a;
+    transition: box-shadow 0.2s;
+}
+
+.rm-field:focus-within {
+    box-shadow: inset 0 0 0 1px #d6b77a99, 0 0 1.3em #d6b77a1f;
+}
+
+.rm-field.bad { animation: rm-shake 0.35s; box-shadow: inset 0 0 0 1px var(--rm-wax); }
+
+@keyframes rm-shake {
+    25% { transform: translateX(-0.3em); }
+    75% { transform: translateX(0.3em); }
+}
+
+.rm-field > svg {
+    flex: none;
+    width: 1.1em;
+    height: 1.1em;
+    fill: none;
+    stroke: var(--rm-ink-faint);
+    stroke-width: 1.7;
+    stroke-linecap: round;
+}
+
+.rm-field input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: none;
+    color: var(--rm-ink);
+    font: 600 0.82em var(--ac-font);
+    letter-spacing: 0.04em;
+}
+
+.rm-field input::placeholder { color: #5f5a50; font-weight: 500; }
+
+.rm-btn {
+    border: 0;
+    border-radius: 0.7em;
+    padding: 0.7em 1.5em;
+    color: #26221a;
+    font-size: 0.8em;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    white-space: nowrap;
+    cursor: pointer;
+    background: linear-gradient(#eadcb4, #c0a367);
+    box-shadow: 0 0.15em 0.5em #0006, inset 0 1px 0 #fff9;
+    transition: filter 0.2s, transform 0.15s;
+}
+
+.rm-btn:hover { filter: brightness(1.06); }
+.rm-btn:active { transform: translateY(1px); }
+.rm-btn:disabled { opacity: 0.45; cursor: default; }
+
+.rm-btn--ghost {
+    padding: 0.55em 1.1em;
+    font-size: 0.72em;
+    letter-spacing: 0.12em;
+    color: var(--rm-ink-dim);
+    background: none;
+    box-shadow: inset 0 0 0 1px #ffffff22;
+}
+
+.rm-btn--dark {
+    color: var(--rm-gold-hi);
+    background: linear-gradient(#37322b, #201c17);
+    box-shadow: inset 0 0 0 1px #ffffff1a, 0 0.15em 0.5em #0007;
+}
+
+.rm-req__foot {
+    display: flex;
+    align-items: center;
+    gap: 0.9em;
+}
+
+.rm-hint {
+    font-size: 0.66em;
+    line-height: 1.5;
+    letter-spacing: 0.08em;
+    color: var(--rm-ink-faint);
+}
+
+/* ── 信封 ─────────────────────────────────────────────────────────────── */
+
+.rm-mail {
+    position: absolute;
+    left: 50%;
+    top: 27.8em;
+    width: 22em;
+    height: 13.6em;
+    margin-left: -11em;
+    z-index: 8;
+    display: none;
+    perspective: 70em;
+    isolation: isolate;
+}
+
+.rm-mail.show { display: block; }
+.rm-mail > * { position: absolute; }
+
+.rm-mail.arrive { animation: rm-arrive 1s cubic-bezier(0.2, 0.9, 0.3, 1); }
+
+@keyframes rm-arrive {
+    0% { opacity: 0; transform: translate(-34em, -24em) rotate(-22deg) scale(0.42); }
+    60% { opacity: 1; transform: translate(0, 0.7em) rotate(1.4deg) scale(1.035); }
+    100% { transform: none; }
+}
+
+.rm-mail.away { animation: rm-away 1s cubic-bezier(0.5, 0, 0.9, 0.4) forwards; }
+
+@keyframes rm-away {
+    to { opacity: 0; transform: translate(36em, -26em) rotate(24deg) scale(0.34); }
+}
+
+.rm-mail__back {
+    inset: 0;
+    z-index: 1;
+    border-radius: 0.16em;
+    background:
+        var(--ac-grain),
+        linear-gradient(158deg, #2b251d 0%, #1c1711 55%, #14100c 100%);
+    background-size: 120px 120px, auto;
+    background-blend-mode: soft-light, normal;
+    box-shadow:
+        0 0.55em 1.4em #000b,
+        0 0.1em 0.3em #0008,
+        inset 0 0 0 1px #d6b77a2e;
+}
+
+.rm-mail__fold {
+    inset: 0;
+    z-index: 3;
+    /* 顶角压到 49%，在翻盖下面多搭 1%，避免两条斜边抗锯齿露出发白的信纸 */
+    clip-path: polygon(0 100%, 0 0, 50% 49%, 100% 0, 100% 100%);
+    background: linear-gradient(202deg, #383027 0%, #29221a 52%, #1f1912 100%);
+    filter: drop-shadow(0 0.18em 0.25em #0007);
+}
+
+.rm-mail__fold::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(158deg, #ffffff0a, transparent 42%);
+}
+
+.rm-mail.open .rm-mail__fold { z-index: 2; }
+
+.rm-mail__flap {
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 50%;
+    z-index: 4;
+    transform-origin: 50% 0;
+    transform-style: preserve-3d;
+    filter: drop-shadow(0 0.08em 0.06em #0008);
+    transition: transform 0.55s cubic-bezier(0.45, 0, 0.2, 1), z-index 0s 0.3s;
+}
+
+.rm-mail.open .rm-mail__flap {
+    transform: rotateX(180deg);
+    z-index: 0;
+    transition: transform 0.55s cubic-bezier(0.45, 0, 0.2, 1), z-index 0s 0.25s;
+}
+
+.rm-mail__flap > i,
+.rm-mail__flap > b {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+}
+
+.rm-mail__flap > i {
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+    background:
+        var(--ac-grain),
+        linear-gradient(180deg, #3a3228, #282119);
+    background-size: 110px 110px, auto;
+    background-blend-mode: soft-light, normal;
+}
+
+/* 封面受光只做一层很淡的斜向渐变，不再沿斜边留金边（那两条边会被看成缝隙） */
+.rm-mail__flap > i::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(112deg, #ffffff10 0%, transparent 42%, #00000024 100%);
+    pointer-events: none;
+}
+
+.rm-mail__flap > b {
+    clip-path: polygon(0 100%, 100% 100%, 50% 0);
+    transform: rotateX(180deg);
+    background: repeating-linear-gradient(45deg, #221c15 0 0.3em, #2d261e 0.3em 0.6em);
+}
+
+/* 落地光环 */
+.rm-mail__ring {
+    left: 50%;
+    bottom: -1.1em;
+    width: 28em;
+    height: 3.2em;
+    margin-left: -14em;
+    z-index: 0;
+    border-radius: 50%;
+    border: 0.1em solid #d6b77a;
+    opacity: 0;
+}
+
+.rm-mail__ring.go { animation: rm-ring 0.9s ease-out; }
+
+@keyframes rm-ring {
+    0% { opacity: 0.75; transform: scale(0.42); }
+    100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* ── 明信片 / 登记卡 ──────────────────────────────────────────────────── */
+
+.rm-letter {
+    left: 2em;
+    top: 1.2em;
+    width: 18em;
+    height: 11.2em;
+    z-index: 2;
+    perspective: 70em;
+    transition: transform 0.8s cubic-bezier(0.5, 0, 0.2, 1);
+}
+
+.rm-mail.hv .rm-letter {
+    z-index: 7;
+    transform: translateY(-16.5em) scale(1.16);
+    transition: transform 0.95s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.rm-mail.hv.big .rm-letter { transform: translateY(-13.4em) scale(1.62); }
+
+.rm-mail.ask .rm-letter { cursor: pointer; }
+.rm-mail.ask .rm-letter:hover { filter: brightness(1.05); }
+
+.rm-mail__dimmer {
+    inset: -9em -3.4em -1.4em;
+    z-index: 6;
+    background: radial-gradient(circle at 50% 42%, #080a0fcc, #06070bd9 60%);
+    opacity: 0;
+    transition: opacity 0.7s;
+    pointer-events: none;
+}
+
+.rm-mail.big .rm-mail__dimmer { opacity: 0.9; }
+
+.rm-letter__flip {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transition: transform 0.95s cubic-bezier(0.5, 0, 0.2, 1);
+}
+
+.rm-mail.back .rm-letter__flip { transform: rotateY(180deg); }
+
+.rm-postcard,
+.rm-register {
+    position: absolute;
+    inset: 0;
+    border-radius: 0.14em;
+    backface-visibility: hidden;
+    box-shadow: 0 0.4em 1em #000a, 0 0.06em 0.14em #0008;
+}
+
+.rm-postcard {
+    overflow: hidden;
+    color: var(--rm-ink-paper);
+    background:
+        var(--ac-grain),
+        linear-gradient(140deg, #f7f0df 0%, #efe6d0 52%, #e5dabf 100%);
+    background-size: 130px 130px, auto;
+    background-blend-mode: soft-light, normal;
+}
+
+.rm-postcard::before {
+    content: "";
+    position: absolute;
+    inset: 0.3em;
+    border: 1px solid #b7a06a59;
+    border-radius: 0.08em;
+    pointer-events: none;
+}
+
+.rm-postcard::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(45deg, transparent 0 0.24em, #7a6a3a05 0.24em 0.28em),
+        linear-gradient(115deg, transparent 45%, #ffffff52 55%, transparent 65%);
+    pointer-events: none;
+}
+
+.rm-plate {
+    position: absolute;
+    left: 1.2em;
+    top: 1.05em;
+    bottom: 0.95em;
+    width: 9.4em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.34em;
+    padding: 0.7em 0.6em;
+    border: 1px solid #b7a06a80;
+    box-shadow: inset 0 0 0 0.2em #f7f0df, inset 0 0 0 0.26em #b7a06a4d;
+}
+
+.rm-plate__badge {
+    width: 2.5em;
+    aspect-ratio: 100 / 118;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 0.14em 0.22em #0003);
+}
+
+.rm-plate__name {
+    font-size: 0.86em;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-indent: 0.3em;
+    color: #2c2820;
+}
+
+.rm-plate__rule {
+    width: 3.6em;
+    height: 1px;
+    margin: 0.1em 0;
+    background: linear-gradient(90deg, transparent, #b7a06a99, transparent);
+}
+
+.rm-plate__meta {
+    font-size: 0.38em;
+    letter-spacing: 0.1em;
+    color: #6d6350;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 邮票（金线蒸汽标记，与左侧册章徽章区分） */
+.rm-postage {
+    position: absolute;
+    right: 1.35em;
+    top: 1.15em;
+    width: 2.75em;
+    height: 3.3em;
+    filter: drop-shadow(0 0.08em 0.12em #0005);
+}
+
+.rm-postage > svg { display: block; width: 100%; height: 100%; }
+
+/* 邮戳 */
+.rm-postmark {
+    position: absolute;
+    right: 3.9em;
+    top: 1.05em;
+    width: 5.3em;
+    opacity: 0.62;
+    transform: rotate(-9deg);
+}
+
+.rm-postmark text {
+    font-family: var(--ac-font);
+    fill: #59534a;
+}
+
+.rm-postmark .rm-pm-line { stroke: #59534a; stroke-width: 1; fill: none; }
+
+/* 登记卡（背面） */
+.rm-register {
+    display: grid;
+    grid-template-columns: 1.34fr 1px 1fr;
+    gap: 0 1em;
+    padding: 0.95em 1.05em 0.85em;
+    color: var(--rm-ink-paper);
+    background:
+        var(--ac-grain),
+        linear-gradient(140deg, #f5edda 0%, #ede2c8 55%, #e2d5b6 100%);
+    background-size: 130px 130px, auto;
+    background-blend-mode: soft-light, normal;
+    transform: rotateY(180deg);
+}
+
+.rm-register__main { display: flex; flex-direction: column; min-width: 0; }
+
+/* 登记信息在两行之间留出呼吸感，并整体落在卡片中段 */
+.rm-register__main > .rm-kv {
+    flex: 1;
+    align-content: center;
+}
+
+.rm-register h3 {
+    padding-bottom: 0.42em;
+    border-bottom: 1px dashed #8a8473;
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: #2f2b25;
+}
+
+.rm-kv {
+    display: grid;
+    grid-template-columns: 3.1em 1fr;
+    align-items: center;
+    row-gap: 1.1em;
+    column-gap: 1.2em;
+    margin-top: 0.55em;
+    font-size: 0.58em;
+    letter-spacing: 0.06em;
+}
+
+.rm-kv > dt { color: #6b6556; white-space: nowrap; }
+
+/* 值和「分享者」拉开距离，并整体在右侧列居中 */
+.rm-kv > dd {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35em;
+    min-width: 0;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #36312a;
+}
+
+/* 册内：数量一行、年份一行，避免在数字和年份之间折行 */
+.rm-kv > dd.rm-kv__stack {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.12em;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.rm-kv__span {
+    font-size: 0.82em;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: #6b6556;
+}
+
+.rm-kv img {
+    width: 1.35em;
+    height: 1.35em;
+    object-fit: cover;
+    border-radius: 0.16em;
+    box-shadow: 0 0 0 1px #0002;
+}
+
+.rm-register__barcode {
+    margin-top: auto;
+    height: 1.15em;
+    background: repeating-linear-gradient(
+        90deg,
+        #26272e 0 2px, transparent 2px 4px,
+        #26272e 4px 5px, transparent 5px 8px,
+        #26272e 8px 11px, transparent 11px 13px
+    );
+    opacity: 0.85;
+}
+
+.rm-register__divider {
+    background: repeating-linear-gradient(180deg, #8a847466 0 0.3em, transparent 0.3em 0.5em);
+}
+
+.rm-register__side { display: flex; flex-direction: column; min-width: 0; }
+
+.rm-register__note {
+    font-size: 0.5em;
+    line-height: 1.5;
+    letter-spacing: 0.12em;
+    color: #6f6858;
+}
+
+.rm-register__stampbox {
+    position: relative;
+    flex: 1;
+    min-height: 3.2em;
+    margin: 0.5em 0;
+    border: 1px dashed #9a927d;
+    border-radius: 0.12em;
+}
+
+.rm-register__stampbox span {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 0.44em;
+    letter-spacing: 0.24em;
+    color: #9a927d;
+}
+
+.rm-register__stampbox .rm-mark {
+    left: 50%;
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    margin: -2.1em 0 0 -2.1em;
+}
+
+.rm-btn--paper {
+    width: 100%;
+    padding: 0.55em 0.6em;
+    border-radius: 0.3em;
+    font-size: 0.52em;
+    letter-spacing: 0.26em;
+}
+
+.rm-mark {
+    position: absolute;
+    right: 0.55em;
+    bottom: 0.55em;
+    width: 4.2em;
+    height: 4.2em;
+    display: grid;
+    place-items: center;
+    border: 0.16em double var(--rm-wax);
+    border-radius: 50%;
+    color: var(--rm-wax);
+    font-size: 0.8em;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    opacity: 0;
+    transform: rotate(-15deg) scale(1.8);
+    mix-blend-mode: multiply;
+    pointer-events: none;
+}
+
+.rm-mark.on { animation: rm-mark-slam 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+
+/* 收信时印章是「寄出方已经盖好」的，直接给出最终状态，不播盖章动画 */
+.rm-mark.on.set {
+    animation: none;
+    opacity: 0.9;
+    transform: rotate(-15deg) scale(1);
+}
+
+@keyframes rm-mark-slam {
+    to { opacity: 0.9; transform: rotate(-15deg) scale(1); }
+}
+
+/* ── 蜡封（上下（左右）两半，徽章嵌在蜡里） ────────────────────────────── */
+
+.rm-seal {
+    left: 50%;
+    top: 50%;
+    width: 5em;
+    height: 5em;
+    margin: -2.5em 0 0 -2.5em;
+    z-index: 6;
+    opacity: 0;
+    pointer-events: none;
+    filter: drop-shadow(0 0.2em 0.32em #000a);
+}
+
+.rm-mail.sealed .rm-seal { opacity: 1; pointer-events: auto; cursor: pointer; }
+
+.rm-seal__half { position: absolute; inset: 0; }
+
+.rm-seal__half--l {
+    clip-path: polygon(0 0, 57% 0, 44% 27%, 57% 51%, 43% 77%, 51% 100%, 0 100%);
+}
+
+.rm-seal__half--r {
+    clip-path: polygon(57% 0, 100% 0, 100% 100%, 51% 100%, 43% 77%, 57% 51%, 44% 27%);
+}
+
+.rm-seal__art {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+
+.rm-seal__art > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.rm-mail.sealed:not(.arrive) .rm-seal:not(.brk):hover { animation: rm-wobble 0.6s infinite; }
+
+@keyframes rm-wobble {
+    25% { transform: rotate(-4deg); }
+    75% { transform: rotate(4deg); }
+}
+
+.rm-seal.crack { animation: rm-wobble 0.12s 2; }
+
+.rm-seal.brk .rm-seal__half--l {
+    animation: rm-split-l 0.75s cubic-bezier(0.3, 0, 0.9, 0.5) forwards;
+}
+
+.rm-seal.brk .rm-seal__half--r {
+    animation: rm-split-r 0.75s cubic-bezier(0.3, 0, 0.9, 0.5) forwards;
+}
+
+@keyframes rm-split-l {
+    to { transform: translate(-1.7em, 4.6em) rotate(-38deg); opacity: 0; }
+}
+
+@keyframes rm-split-r {
+    to { transform: translate(1.7em, 5em) rotate(34deg); opacity: 0; }
+}
+
+.rm-seal.press { animation: rm-press 0.5s cubic-bezier(0.3, 0.9, 0.4, 1); }
+
+@keyframes rm-press {
+    0% { opacity: 0; transform: translateY(-3em) scale(2); }
+    50% { opacity: 1; transform: translateY(0) scale(1); }
+    68% { transform: scale(1.12, 0.86); }
+    100% { transform: scale(1); }
+}
+
+/* ── 印章架 ───────────────────────────────────────────────────────────── */
+
+.rm-rack {
+    position: absolute;
+    left: 50%;
+    top: 14.6em;
+    margin-left: 12.6em;
+    width: 8.8em;
+    height: 8.8em;
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.9em;
+    background: linear-gradient(145deg, #4b3b2b, #2a2018);
+    box-shadow:
+        inset 0 0 0 0.1em #ffffff10,
+        inset 0 0 1.2em #000a,
+        0 0.6em 1.2em #0009;
+}
+
+.rm-rack.on { display: flex; animation: rm-fade-up 0.5s var(--rm-ease); }
+
+.rm-rack__pad {
+    position: absolute;
+    inset: 1.1em;
+    border-radius: 0.6em;
+    background: radial-gradient(circle at 50% 40%, #7a2622, #3a0f0d 76%);
+    box-shadow: inset 0 0.16em 0.5em #000c, 0 0 0 0.1em #00000055;
+}
+
+.rm-stamp {
+    position: relative;
+    width: 4.6em;
+    height: 4.6em;
+    cursor: grab;
+    touch-action: none;
+    z-index: 2;
+}
+
+.rm-rack.on .rm-stamp:hover .rm-stamp__head { transform: scale(1.06); }
+.rm-stamp.dragging { cursor: grabbing; z-index: 40; }
+.rm-stamp.dragging .rm-stamp__head { transform: scale(1.1); }
+
+.rm-stamp__shadow {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: #000;
+    filter: blur(0.3em);
+    opacity: 0.55;
+    transform: translate(0.2em, 0.35em);
+    transition: transform 0.25s, opacity 0.25s;
+}
+
+.rm-stamp__head {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: radial-gradient(circle at 36% 30%, #b08660, #6b4a32 58%, #43301f);
+    box-shadow:
+        inset 0 0 0 0.18em #4f3524,
+        inset 0 0 0 0.3em #ffffff1a,
+        inset 0 0.1em 0.3em #ffffff33;
+    transition: transform 0.25s;
+}
+
+.rm-stamp__head::after {
+    content: "";
+    position: absolute;
+    inset: 1.05em;
+    border-radius: 50%;
+    background: radial-gradient(circle at 36% 30%, #38281c, #241810);
+    box-shadow: 0 0 0 0.08em #0005, inset 0 0 0.3em #0006;
+}
+
+.rm-stamp__badge {
+    position: relative;
+    z-index: 1;
+    width: 2.1em;
+    aspect-ratio: 100 / 118;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: grayscale(0.6) brightness(1.35) contrast(0.72) drop-shadow(0 0.04em 0.03em #0008);
+    opacity: 0.9;
+    mix-blend-mode: multiply;
+}
+
+.rm-stamp.dragging .rm-stamp__shadow { transform: translate(0.8em, 1.4em) scale(1.08); opacity: 0.26; }
+
+/* ── 寄信结果 ─────────────────────────────────────────────────────────── */
+
+.rm-result {
+    position: absolute;
+    left: 50%;
+    top: 29.6em;
+    width: 34em;
+    margin-left: -17em;
+    z-index: 5;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9em;
+    padding: 1.25em 1.5em 1.15em;
+}
+
+.rm-result.on { display: flex; animation: rm-fade-up 0.5s var(--rm-ease); }
+
+.rm-result input {
+    width: 100%;
+    padding: 0.75em 1em;
+    border: 0;
+    border-radius: 0.7em;
+    outline: none;
+    background: #0a0908;
+    color: var(--rm-gold);
+    font: 600 0.8em var(--ac-font);
+    text-align: center;
+    letter-spacing: 0.04em;
+    box-shadow: inset 0 0 0 1px #ffffff1a;
+}
+
+.rm-result__row { display: flex; gap: 0.9em; align-items: center; }
+
+.rm-result__note {
+    font-size: 0.62em;
+    letter-spacing: 0.06em;
+    color: var(--rm-ink-faint);
+}
+
+/* ── 提示 / toast / 尘埃 ──────────────────────────────────────────────── */
+
+.rm-tip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 1.3em;
+    z-index: 4;
+    text-align: center;
+    font-size: 0.76em;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: var(--rm-gold);
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+}
+
+.rm-tip.on { opacity: 1; animation: rm-pulse 1.9s infinite; }
+
+@keyframes rm-pulse {
+    50% { opacity: 0.55; }
+}
+
+.rm-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    z-index: 80;
+    transform: translate(-50%, 1em);
+    padding: 0.62em 1.5em;
+    border-radius: 2em;
+    background: #0c0d11;
+    color: var(--rm-gold-hi);
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    box-shadow: 0 0.4em 1.4em #000c, inset 0 0 0 1px #ffffff12;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    max-width: min(90vw, 640px);
+    text-align: center;
+}
+
+.rm-toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+.rm-dust {
+    position: absolute;
+    width: 0.26em;
+    height: 0.26em;
+    margin: -0.13em 0 0 -0.13em;
+    border-radius: 50%;
+    background: #f3e2a8;
+    box-shadow: 0 0 0.5em #d6b77a;
+    animation: rm-dust 0.9s ease-out forwards;
+    pointer-events: none;
+    z-index: 9;
+}
+
+@keyframes rm-dust {
+    to { transform: translate(var(--x), var(--y)) scale(0.2); opacity: 0; }
+}
+
+/* 舞台入场 */
+.rm-head, .rm-panel, .rm-tip { animation-fill-mode: both; }
+
+/* ── 开册覆盖层 ───────────────────────────────────────────────────────── */
+
+.rm-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    /* 和真实册子的舞台同色，幕布淡出时底色不会跳 */
+    background:
+        radial-gradient(60% 60% at 50% 46%, rgba(255, 255, 255, 0.04), transparent 70%),
+        var(--ac-surface-1);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.55s ease;
+}
+
+.rm-veil.on { opacity: 1; pointer-events: auto; }
+.rm-veil.fade { opacity: 0; transition-duration: 0.38s; }
+
+.rm-veil__rays {
+    position: absolute;
+    width: 78vmax;
+    height: 78vmax;
+    background: repeating-conic-gradient(#d6b77a1c 0 4deg, transparent 4deg 17deg);
+    -webkit-mask: radial-gradient(circle, #000 0%, transparent 64%);
+    mask: radial-gradient(circle, #000 0%, transparent 64%);
+    opacity: 0;
+    transition: opacity 1.4s;
+    animation: rm-spin 70s linear infinite;
+}
+
+.rm-veil.lit .rm-veil__rays { opacity: 1; }
+
+@keyframes rm-spin {
+    to { transform: rotate(360deg); }
+}
+
+.rm-cover {
+    position: relative;
+    perspective: 90em;
+    opacity: 0;
+    transform: translateY(4em) scale(0.96);
+    transition: opacity 0.6s ease, transform 1s var(--rm-ease);
+}
+
+.rm-veil.on .rm-cover { opacity: 1; transform: translateY(0) scale(1); }
+.rm-veil.open .rm-cover { transform: translateY(0) scale(1); }
+
+.rm-cover__book {
+    --rm-cw: min(23rem, 38vh);
+    --ac-paper: #1c1d21;
+    position: relative;
+    width: var(--rm-cw);
+    height: calc(var(--rm-cw) * 4 / 3);
+    font-size: calc(var(--rm-cw) / 23);
+    /* 单页尺寸容器：克隆过来的扉页 / 卡页里的 cqh 和真实册子一致 */
+    container-type: size;
+    transform-style: preserve-3d;
+    transition: transform 1.2s cubic-bezier(0.55, 0, 0.2, 1);
+}
+
+.rm-veil.open .rm-cover__book { transform: translateX(50%); }
+
+/* 封壳入场后保持静止：翻页的一刻不能从浮动动画的偏移上跳下来 */
+
+/* 封壳绕左脊翻转；正反两面各自隐藏背面，翻开后不会露出镜像字 */
+.rm-cover__front {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    transform-origin: left center;
+    transform-style: preserve-3d;
+    transition: transform 1.25s cubic-bezier(0.6, 0, 0.2, 1);
+}
+
+.rm-cover__face,
+.rm-cover__back {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    backface-visibility: hidden;
+    background:
+        var(--ac-grain),
+        radial-gradient(120% 140% at 30% 15%, #2e2b30 0%, #1b1a1e 55%, #111014 100%);
+    background-size: 130px 130px, auto;
+    background-blend-mode: soft-light, normal;
+    box-shadow:
+        inset 0 0 0 1px #ffffff0a,
+        inset 0 0.1em 0.2em #ffffff14,
+        0 1.6em 3em #000b;
+}
+
+.rm-cover__face {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.1em;
+    border-radius: 0.3em 0.5em 0.5em 0.3em;
+}
+
+.rm-veil.open .rm-cover__front { transform: rotateY(-180deg); }
+
+/* ── 摊开后的右半：假书皮 + 页边距 + 真册右页的克隆 ───────────────────── */
+
+.rm-cover__book > .rm-cover__board {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 0 0.5em 0.5em 0;
+    background:
+        var(--ac-grain),
+        radial-gradient(120% 140% at 30% 15%, #272a33 0%, #1a1c22 55%, #121317 100%);
+    background-size: 120px 120px, auto;
+    background-blend-mode: soft-light, normal;
+    box-shadow: inset 0 0 0 1px #ffffff0a;
+}
+
+.rm-cover__book > .rm-cover__board::before {
+    content: "";
+    position: absolute;
+    top: 0.38em;
+    right: 0.38em;
+    bottom: 0.38em;
+    left: 0;
+    border: 1px dashed #ffffff1a;
+    border-left: 0;
+    border-radius: 0 0.5em 0.5em 0;
+}
+
+.rm-cover__inside {
+    position: absolute;
+    inset: 2.8% 3% 2.8% 0;
+    z-index: 2;
+    overflow: hidden;
+    border-radius: 0 0.31em 0.31em 0;
+    background:
+        var(--ac-grain),
+        linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(180deg, #1f2024, #1c1d21 40%, #19191d);
+    background-size: 120px 120px, 3.3cqh 3.3cqh, 3.3cqh 3.3cqh, auto;
+    background-position: 0 0, center, center, 0 0;
+    background-blend-mode: soft-light, normal, normal, normal;
+    pointer-events: none;
+}
+
+.rm-cover__back {
+    transform: rotateY(180deg);
+    border-radius: 0.5em 0 0 0.5em;
+    background:
+        var(--ac-grain),
+        radial-gradient(120% 140% at 30% 15%, #272a33 0%, #1a1c22 55%, #121317 100%);
+    background-size: 120px 120px, auto;
+    background-blend-mode: soft-light, normal;
+    box-shadow:
+        inset 0 0 0 1px #ffffff0a,
+        inset 0 0.1em 0.2em #ffffff0a,
+        0 1.6em 3em #000b;
+}
+
+.rm-cover__back::before {
+    content: "";
+    position: absolute;
+    top: 0.38em;
+    right: 0;
+    bottom: 0.38em;
+    left: 0.38em;
+    border: 1px dashed #ffffff1a;
+    border-right: 0;
+    border-radius: 0.5em 0 0 0.5em;
+    pointer-events: none;
+}
+
+/* 封壳内侧贴的扉页：和真册左页同样的页边距 */
+.rm-cover__endpaper {
+    position: absolute;
+    inset: 2.8% 0 2.8% 3%;
+    overflow: hidden;
+    border-radius: 0.31em 0 0 0.31em;
+    background:
+        var(--ac-grain),
+        linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(180deg, #1f2024, #1c1d21 40%, #19191d);
+    background-size: 120px 120px, 3.3cqh 3.3cqh, 3.3cqh 3.3cqh, auto;
+    background-position: 0 0, center, center, 0 0;
+    background-blend-mode: soft-light, normal, normal, normal;
+    pointer-events: none;
+}
+
+/* 丝带书签：与真册一致，塞在书页后面，只从书底露出一截 */
+.rm-cover__ribbon {
+    position: absolute;
+    left: 10%;
+    bottom: -1.84em;
+    z-index: 0;
+    width: 0.62em;
+    height: 4.9em;
+    filter: drop-shadow(0 0.18em 0.22em #0009);
+    pointer-events: none;
+}
+
+.rm-cover__ribbon::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgb(54, 58, 140) 0%,
+        rgb(var(--st-accent-1, 102, 108, 255)) 48%,
+        rgb(54, 58, 140) 100%
+    );
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%);
+    opacity: 0.88;
+}
+
+.rm-cover__face::before {
+    content: "";
+    position: absolute;
+    inset: 1.15em 1.15em 1.15em 1.55em;
+    border: 0.1em solid #d6b77a99;
+    border-radius: 0.3em;
+    box-shadow:
+        0 0 0 0.2em #111014,
+        0 0 0 0.28em #d6b77a3d;
+    pointer-events: none;
+}
+
+.rm-cover__face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg, #000b, transparent 9%),
+        repeating-linear-gradient(0deg, transparent 0 0.5em, #ffffff04 0.5em 0.55em),
+        radial-gradient(120% 80% at 30% 0%, #ffffff16, transparent 60%);
+    pointer-events: none;
+}
+
+.rm-cover__spine {
+    position: absolute;
+    left: 1.05em;
+    top: 0;
+    bottom: 0;
+    width: 0.12em;
+    background: #0008;
+    box-shadow: 0.12em 0 0 #ffffff12;
+}
+
+.rm-corner {
+    position: absolute;
+    width: 2em;
+    height: 2em;
+    fill: none;
+    stroke: var(--rm-gold);
+    stroke-width: 1.1;
+    opacity: 0.82;
+}
+
+.rm-corner--a { left: 2.4em; top: 1.7em; }
+.rm-corner--b { right: 1.7em; top: 1.7em; transform: rotate(90deg); }
+.rm-corner--c { right: 1.7em; bottom: 1.7em; transform: rotate(180deg); }
+.rm-corner--d { left: 2.4em; bottom: 1.7em; transform: rotate(270deg); }
+
+.rm-cover__badge {
+    width: 6em;
+    aspect-ratio: 100 / 118;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 0 0.6em #ffd65926) drop-shadow(0 0.18em 0.3em #0008);
+}
+
+.rm-cover__name {
+    padding-left: 0.34em;
+    font-size: 2.1em;
+    font-weight: 600;
+    letter-spacing: 0.34em;
+    background: linear-gradient(180deg, #f7f3ea 0%, #d7d1c4 55%, #a8a296 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0.05em 0.06em #000a);
+}
+
+.rm-cover__sub {
+    margin-top: -0.5em;
+    padding-left: 0.52em;
+    font-size: 0.62em;
+    font-weight: 500;
+    letter-spacing: 0.52em;
+    color: #ffffff4d;
+}
+
+.rm-cover__rule {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    width: 52%;
+    margin-top: 0.6em;
+}
+
+.rm-cover__rule::before,
+.rm-cover__rule::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #d6b77a);
+}
+
+.rm-cover__rule::after { transform: scaleX(-1); }
+
+.rm-cover__rule i {
+    width: 0.4em;
+    height: 0.4em;
+    background: #d6b77a;
+    transform: rotate(45deg);
+}
+
+.rm-cover__span {
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.5em;
+    text-indent: 0.5em;
+    color: #9aa3b8;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 阅读器（真实册子） ───────────────────────────────────────────────── */
+
+.rm-reader {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    background: var(--ac-surface-1);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.55s ease;
+}
+
+.rm-reader.on { visibility: visible; }
+.rm-reader.visible { opacity: 1; }
+
+.rm-bar {
+    position: relative;
+    z-index: 3;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-height: 56px;
+    padding: 8px 18px;
+    color: var(--ac-text);
+    font-family: var(--ac-font);
+    background: linear-gradient(#17171af5, #101012f5);
+    border-bottom: 1px solid #ffffff0f;
+    box-shadow: 0 10px 30px #0006;
+    transition: opacity 0.45s ease 0.15s, transform 0.45s var(--rm-ease) 0.15s;
+}
+
+/* 开册转场期间工具条先不上场，书长到满屏后再滑下来 */
+.rm-reader.ceremony .rm-bar {
+    opacity: 0;
+    transform: translateY(-12px);
+    transition-delay: 0s;
+}
+
+.rm-bar__id {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    font-size: 12.5px;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+.rm-bar__badge {
+    flex: none;
+    width: 17px;
+    height: 20px;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 1px 2px #0008);
+}
+
+.rm-bar__id > b {
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    color: var(--rm-gold-hi);
+}
+
+.rm-bar__sep {
+    width: 1px;
+    height: 18px;
+    background: #ffffff1a;
+}
+
+.rm-bar__id img {
+    width: 24px;
+    height: 24px;
+    object-fit: cover;
+    border-radius: 5px;
+    box-shadow: 0 0 0 1px #ffffff1f;
+}
+
+.rm-bar__name { font-weight: 600; color: #e7e3d9; }
+
+.rm-bar__meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    color: var(--ac-text-dim);
+    font-size: 11.5px;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.rm-bar__ro {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid #d6b77a4d;
+    color: #d9c08c;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+}
+
+.rm-bar .rm-btn--ghost { flex: none; font-size: 12px; padding: 0.6em 1.1em; border-radius: 8px; }
+
+.rm-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+}
+
+/* 昵称旁的好友代码：只复制，不在页面上平铺显示 */
+.rm-friend {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: none;
+    margin-left: 2px;
+    padding: 3px 9px 3px 8px;
+    border: 1px solid #d6b77a2e;
+    border-radius: 999px;
+    background: #ffffff08;
+    color: #c9b88f;
+    font: inherit;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.rm-friend[hidden] { display: none; }
+.rm-friend svg { width: 11px; height: 11px; flex: none; }
+.rm-friend:hover { border-color: #d6b77a66; background: #d6b77a14; color: #ead9b2; }
+.rm-friend:focus-visible { outline: 2px solid #d6b77a55; outline-offset: 2px; }
+
+.rm-setpop {
+    position: absolute;
+    top: 62px;
+    right: 18px;
+    z-index: 8;
+    width: 252px;
+    padding: 13px 14px 11px;
+    border-radius: 12px;
+    border: 1px solid #ffffff14;
+    background: #16161af8;
+    box-shadow: 0 18px 40px #000b, inset 0 0 0 1px #ffffff05;
+    color: var(--ac-text);
+    font-family: var(--ac-font);
+    font-size: 12px;
+}
+
+.rm-setpop[hidden] { display: none; }
+
+.rm-setpop__title {
+    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    color: var(--rm-gold-hi);
+}
+
+.rm-setpop__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+.rm-setpop__row + .rm-setpop__row { border-top: 1px solid #ffffff0d; }
+
+.rm-setpop__label { color: #b9b3a5; letter-spacing: 0.08em; }
+
+.rm-setpop__chips {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 999px;
+    background: #0006;
+    box-shadow: inset 0 0 0 1px #ffffff12;
+}
+
+.rm-setpop__chips button {
+    border: 0;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: none;
+    color: #8f897c;
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+}
+
+.rm-setpop__chips button.on {
+    color: #26221a;
+    background: linear-gradient(#eadcb4, #c0a367);
+    font-weight: 700;
+}
+
+.rm-setpop__note {
+    margin-top: 8px;
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: #777162;
+    letter-spacing: 0.04em;
+}
+
+.rm-switch {
+    position: relative;
+    flex: none;
+    width: 34px;
+    height: 18px;
+    border: 0;
+    border-radius: 999px;
+    background: #3a3a3f;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.rm-switch i {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #d7d2c6;
+    transition: transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.rm-switch.on { background: linear-gradient(#d8c38e, #b89a5f); }
+.rm-switch.on i { transform: translateX(16px); background: #2a251c; }
+
+/* 借阅室是只读的：年份页的槽位只能看，不能点开选择器 */
+.rm-reader .ac-year__mount,
+.rm-reader .ac-year__ticket { pointer-events: none; }
+
+.rm-reader__book {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.rm-reader__book > .ac-cardpack {
+    position: absolute;
+    inset: 0;
+}
+
+@media (max-width: 760px) {
+    .rm-bar { flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; }
+    .rm-bar__meta { order: 3; width: 100%; margin-left: 0; }
+    .rm-bar__actions { margin-left: auto; }
+    .rm-setpop { top: 92px; right: 12px; }
+}
+
+/* 动效减弱：只保留状态变化 */
+@media (prefers-reduced-motion: reduce) {
+    .rm-wall::before,
+    .rm-veil__rays { animation: none !important; }
+    .rm-veil,
+    .rm-reader,
+    .rm-bar,
+    .rm-cover,
+    .rm-cover__book,
+    .rm-cover__front { transition-duration: 0.01s !important; }
+}
+
+@media (max-height: 620px) {
+    .rm-title { font-size: 1.6em; }
+    .rm-head { top: 1em; }
+}
+
+/* 预览页内滚动条不需要 */
+::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+</head>
+<body>
+<div class="rm-root" id="root">
+    <main class="rm-stage" id="stage">
+        <div class="rm-room" id="room">
+            <div class="rm-wall" aria-hidden="true"></div>
+            <div class="rm-desk" aria-hidden="true"></div>
+
+            <header class="rm-head">
+                <div class="rm-eyebrow"><i></i><span>ACHIEVEMENT COLLECTION</span><b>READING ROOM</b><i></i></div>
+                <h1 class="rm-title">借阅室</h1>
+                <nav class="rm-seg" role="tablist" aria-label="借阅室">
+                    <button type="button" class="on" data-mode="in" role="tab" aria-selected="true">收信</button>
+                    <button type="button" data-mode="out" role="tab" aria-selected="false">寄信</button>
+                </nav>
+            </header>
+
+            <!-- 收信：借阅单 -->
+            <section class="rm-panel rm-panel--in on" id="panelIn">
+                <div class="rm-glass rm-req">
+                    <h2 class="rm-req__title">借阅单</h2>
+                    <div class="rm-field" id="field">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+                        <input id="linkInput" type="text" spellcheck="false" autocomplete="off"
+                               placeholder="粘贴借阅链接，例如 https://…/borrow/?t=…" aria-label="借阅链接">
+                        <button type="button" class="rm-btn" id="borrowBtn">收信</button>
+                    </div>
+                    <div class="rm-req__foot">
+                        <button type="button" class="rm-btn rm-btn--ghost" id="demoBtn">使用示例链接</button>
+                        <span class="rm-hint">只会打开一册只读副本；链接里的编号决定你借到哪一版。</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 信封 -->
+            <div class="rm-mail" id="mail" aria-hidden="true">
+                <i class="rm-mail__ring" id="ring"></i>
+                <span class="rm-mail__back"></span>
+
+                <div class="rm-letter" id="letter">
+                    <div class="rm-letter__flip">
+                        <article class="rm-postcard" id="postcardFront">
+                            <div class="rm-plate">
+                                <span class="rm-plate__badge" aria-hidden="true"></span>
+                                <span class="rm-plate__name">成就收藏册</span>
+                                <span class="rm-plate__rule" aria-hidden="true"></span>
+                                <span class="rm-plate__meta" id="plateMeta">—</span>
+                            </div>
+                            <div class="rm-postage" aria-hidden="true">
+                                <svg viewBox="0 0 30 36">
+                                    <g mask="url(#rmPerf)">
+                                        <rect width="30" height="36" fill="#efe6cf"/>
+                                        <rect x="2.6" y="2.6" width="24.8" height="30.8" fill="#202a4c"/>
+                                        <rect x="3.6" y="3.6" width="22.8" height="28.8" fill="none" stroke="#d6b77a" stroke-width=".4"/>
+                                    </g>
+                                    <g transform="translate(8 11) scale(.5833)">
+                                        <use href="#rmSteam" fill="#d6b77a"/>
+                                    </g>
+                                </svg>
+                            </div>
+                            <svg class="rm-postmark" viewBox="0 0 64 36" aria-hidden="true">
+                                <g class="rm-pm-line">
+                                    <circle cx="17" cy="18" r="13.5"/>
+                                    <circle cx="17" cy="18" r="11"/>
+                                    <path d="M35 10q4-3 8 0t8 0 8 0M35 18q4-3 8 0t8 0 8 0M35 26q4-3 8 0t8 0 8 0"/>
+                                </g>
+                                <text x="17" y="17.5" text-anchor="middle" font-size="5.6" font-weight="700" id="pmDate">—</text>
+                                <text x="17" y="24.5" text-anchor="middle" font-size="4.6" id="pmYear">—</text>
+                            </svg>
+                        </article>
+
+                        <article class="rm-register" id="postcardBack">
+                            <div class="rm-register__main">
+                                <h3>借阅登记卡</h3>
+                                <dl class="rm-kv">
+                                    <dt>分享者</dt>
+                                    <dd><img id="regAvatar" alt=""><b id="regName">—</b></dd>
+                                    <dt>册内</dt>
+                                    <dd class="rm-kv__stack">
+                                        <span><b id="regCount">—</b> 款全成就</span>
+                                        <span class="rm-kv__span" id="regSpan">—</span>
+                                    </dd>
+                                </dl>
+                                <div class="rm-register__barcode" aria-hidden="true"></div>
+                            </div>
+                            <i class="rm-register__divider"></i>
+                            <div class="rm-register__side">
+                                <p class="rm-register__note">只读副本 · 阅毕合上寄回</p>
+                                <div class="rm-register__stampbox">
+                                    <span>盖章处</span>
+                                    <div class="rm-mark" id="mark">已寄出</div>
+                                </div>
+                                <button type="button" class="rm-btn rm-btn--dark rm-btn--paper" id="openBookBtn">翻开册子</button>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+
+                <span class="rm-mail__dimmer" aria-hidden="true"></span>
+                <span class="rm-mail__fold"></span>
+                <span class="rm-mail__flap"><i></i><b></b></span>
+
+                <div class="rm-seal" id="seal" role="button" tabindex="0" aria-label="拆开封蜡">
+                    <i class="rm-seal__half rm-seal__half--l">
+                        <i class="rm-seal__art">
+                            <svg viewBox="0 0 100 100" aria-hidden="true">
+                                <defs>
+                                    <radialGradient id="rmWax" cx=".35" cy=".3" r=".9">
+                                        <stop offset="0" stop-color="#c06256"/>
+                                        <stop offset=".52" stop-color="#a3453d"/>
+                                        <stop offset="1" stop-color="#6f241e"/>
+                                    </radialGradient>
+                                </defs>
+                                <path d="M50 4C61 2 71 8 80 13 88 18 95 26 97 37 99 47 95 56 93 64 90 75 83 83 73 89 63 95 54 97 44 96 33 94 23 88 16 80 9 71 6 61 6 50 5 39 9 30 16 21 24 12 37 6 50 4Z" fill="url(#rmWax)"/>
+                                <path d="M31 24C38 16 48 12 58 14" fill="none" stroke="#e08a7e" stroke-width="2.2" stroke-linecap="round" opacity=".38"/>
+                                <g transform="translate(22 22) scale(2.33)">
+                                    <use href="#rmSteam" fill="#f0b2a8" opacity=".35" transform="translate(.35 .45)"/>
+                                    <use href="#rmSteam" fill="#5e1a14"/>
+                                </g>
+                                <circle cx="50" cy="50" r="36.5" fill="none" stroke="#4a1511" stroke-opacity=".4" stroke-width="1.7"/>
+                            </svg>
+                        </i>
+                    </i>
+                    <i class="rm-seal__half rm-seal__half--r">
+                        <i class="rm-seal__art">
+                            <svg viewBox="0 0 100 100" aria-hidden="true">
+                                <path d="M50 4C61 2 71 8 80 13 88 18 95 26 97 37 99 47 95 56 93 64 90 75 83 83 73 89 63 95 54 97 44 96 33 94 23 88 16 80 9 71 6 61 6 50 5 39 9 30 16 21 24 12 37 6 50 4Z" fill="url(#rmWax)"/>
+                                <path d="M31 24C38 16 48 12 58 14" fill="none" stroke="#e08a7e" stroke-width="2.2" stroke-linecap="round" opacity=".38"/>
+                                <g transform="translate(22 22) scale(2.33)">
+                                    <use href="#rmSteam" fill="#f0b2a8" opacity=".35" transform="translate(.35 .45)"/>
+                                    <use href="#rmSteam" fill="#5e1a14"/>
+                                </g>
+                                <circle cx="50" cy="50" r="36.5" fill="none" stroke="#4a1511" stroke-opacity=".4" stroke-width="1.7"/>
+                            </svg>
+                        </i>
+                    </i>
+                </div>
+            </div>
+
+            <!-- 印章架 -->
+            <div class="rm-rack" id="rack">
+                <i class="rm-rack__pad"></i>
+                <div class="rm-stamp" id="stamp" role="button" tabindex="0" aria-label="盖章寄出">
+                    <i class="rm-stamp__shadow"></i>
+                    <i class="rm-stamp__head"><i class="rm-stamp__badge"></i></i>
+                </div>
+            </div>
+
+            <!-- 寄信结果 -->
+            <section class="rm-glass rm-result" id="result">
+                <h2 class="rm-result__title">借阅链接已生成</h2>
+                <input id="linkOut" type="text" readonly aria-label="借阅链接">
+                <div class="rm-result__row">
+                    <button type="button" class="rm-btn" id="copyBtn">复制借阅链接</button>
+                    <button type="button" class="rm-btn rm-btn--ghost" id="againBtn">再寄一封</button>
+                </div>
+                <p class="rm-result__note">朋友打开链接就会进入这间借阅室，看到的是当前这一版只读快照。</p>
+            </section>
+
+            <div class="rm-tip" id="tip" aria-live="polite"></div>
+        </div>
+    </main>
+
+    <!-- 开册覆盖层 -->
+    <div class="rm-veil" id="veil" aria-hidden="true">
+        <i class="rm-veil__rays"></i>
+        <div class="rm-cover" id="cover">
+            <div class="rm-cover__book">
+                <i class="rm-cover__ribbon" aria-hidden="true"></i>
+                <div class="rm-cover__board" aria-hidden="true"></div>
+                <div class="rm-cover__inside" aria-hidden="true"></div>
+                <div class="rm-cover__front">
+                    <div class="rm-cover__face">
+                        <i class="rm-cover__spine"></i>
+                        <svg class="rm-corner rm-corner--a" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21V5a4 4 0 0 1 4-4h16"/><path d="M5 12V6.5A1.5 1.5 0 0 1 6.5 5H12"/><path d="M9 9l1.6-1.6L12.2 9l-1.6 1.6z" fill="currentColor" stroke="none"/></svg>
+                        <svg class="rm-corner rm-corner--b" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21V5a4 4 0 0 1 4-4h16"/><path d="M5 12V6.5A1.5 1.5 0 0 1 6.5 5H12"/><path d="M9 9l1.6-1.6L12.2 9l-1.6 1.6z" fill="currentColor" stroke="none"/></svg>
+                        <svg class="rm-corner rm-corner--c" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21V5a4 4 0 0 1 4-4h16"/><path d="M5 12V6.5A1.5 1.5 0 0 1 6.5 5H12"/><path d="M9 9l1.6-1.6L12.2 9l-1.6 1.6z" fill="currentColor" stroke="none"/></svg>
+                        <svg class="rm-corner rm-corner--d" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21V5a4 4 0 0 1 4-4h16"/><path d="M5 12V6.5A1.5 1.5 0 0 1 6.5 5H12"/><path d="M9 9l1.6-1.6L12.2 9l-1.6 1.6z" fill="currentColor" stroke="none"/></svg>
+                        <span class="rm-cover__badge" aria-hidden="true"></span>
+                        <span class="rm-cover__name">成就收藏册</span>
+                        <span class="rm-cover__sub">ACHIEVEMENT COLLECTION</span>
+                        <span class="rm-cover__rule" aria-hidden="true"><i></i></span>
+                        <span class="rm-cover__span" id="coverSpan">—</span>
+                    </div>
+                    <div class="rm-cover__back" aria-hidden="true">
+                        <div class="rm-cover__endpaper" id="coverEnd"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 阅读器 -->
+    <section class="rm-reader" id="reader" aria-hidden="true" aria-label="借阅中的收藏册">
+        <header class="rm-bar">
+            <div class="rm-bar__id">
+                <span class="rm-bar__badge" aria-hidden="true"></span>
+                <b>借阅室</b>
+                <span class="rm-bar__sep" aria-hidden="true"></span>
+                <img id="barAvatar" alt="">
+                <span class="rm-bar__name" id="barName">—</span>
+                <button type="button" class="rm-friend" id="friendBtn" hidden>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <rect x="5.5" y="5.5" width="8" height="8" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+                        <path d="M10.5 3.5a1.6 1.6 0 0 0-1.6-1.6H4.1A1.6 1.6 0 0 0 2.5 3.5v4.8a1.6 1.6 0 0 0 1.6 1.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                    </svg>
+                    获取好友代码
+                </button>
+            </div>
+            <div class="rm-bar__meta">
+                <span id="barMeta">—</span>
+                <span class="rm-bar__ro">只读快照</span>
+            </div>
+            <div class="rm-bar__actions">
+                <button type="button" class="rm-btn rm-btn--ghost" id="setBtn" aria-expanded="false" aria-controls="setPop">阅读设置</button>
+                <button type="button" class="rm-btn rm-btn--ghost" id="closeBtn">合上并寄回</button>
+            </div>
+        </header>
+
+        <div class="rm-setpop" id="setPop" hidden>
+            <p class="rm-setpop__title">阅读设置</p>
+            <div class="rm-setpop__row">
+                <span class="rm-setpop__label">单页卡片数量</span>
+                <div class="rm-setpop__chips" role="group" aria-label="单页卡片数量">
+                    <button type="button" data-per="1" class="on">一页一卡</button>
+                    <button type="button" data-per="4">一页四卡</button>
+                </div>
+            </div>
+            <div class="rm-setpop__row">
+                <span class="rm-setpop__label">年份特殊页</span>
+                <button type="button" class="rm-switch" id="yearToggle" role="switch" aria-checked="false" aria-label="年份特殊页">
+                    <i></i>
+                </button>
+            </div>
+            <p class="rm-setpop__note">只调整这次阅读的排版，不会改变分享快照。</p>
+        </div>
+
+        <div class="rm-reader__book">
+            <div id="bookHost" class="ac-cardpack"></div>
+        </div>
+    </section>
+
+    <button type="button" class="rm-sound" id="soundBtn">
+        <span class="rm-sound__bars" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="rm-sound__label">声音</span>
+    </button>
+    <div class="rm-toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<!-- 贴纸 / 邮票共用定义 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <path id="rmSteam" d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/>
+    <mask id="rmPerf" maskUnits="userSpaceOnUse" x="0" y="0" width="30" height="36">
+        <rect width="30" height="36" fill="#fff"/>
+        <rect width="30" height="36" fill="none" stroke="#000" stroke-width="2.2" stroke-dasharray="0 3.1" stroke-linecap="round"/>
+    </mask>
+</defs></svg>
+
+<script type="module">
+import { CARDS, OWNER } from './fixtures.js';
+import { createBook } from '/theme/src/js/ac/book.js';
+import { setOptionProvider } from '/theme/src/js/ac/env.js';
+import { createRoomSound } from '/theme/src/js/ac/roomsound.js';
+
+/* ── 基础 ─────────────────────────────────────────────────────────────── */
+
+const $ = (id) => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sound = createRoomSound({
+    doc: document,
+    button: document.getElementById('soundBtn'),
+    src: '/viewer/src/audio/reading-room.mp3',
+});
+window.__roomSound = sound;
+const SPEED = reduceMotion ? 0.14 : 1;
+
+const stage = $('stage');
+const room = $('room');
+const mail = $('mail');
+const letter = $('letter');
+const seal = $('seal');
+const ring = $('ring');
+const veil = $('veil');
+const cover = $('cover');
+const reader = $('reader');
+const bookHost = $('bookHost');
+const rack = $('rack');
+const stamp = $('stamp');
+const result = $('result');
+const mark = $('mark');
+const stampBox = document.querySelector('.rm-register__stampbox');
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms * SPEED));
+const once = (node, type = 'click') => new Promise((resolve) => node.addEventListener(type, resolve, { once: true }));
+const play = (node, cls) => {
+    node.classList.remove(cls);
+    void node.offsetWidth;
+    node.classList.add(cls);
+};
+
+let toastTimer = 0;
+function toast(text, ms = 2100) {
+    const node = $('toast');
+    node.textContent = text;
+    node.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => node.classList.remove('on'), ms);
+}
+
+function tip(text) {
+    const node = $('tip');
+    node.textContent = text || '';
+    node.classList.toggle('on', !!text);
+}
+
+function burst(host, count, x, y) {
+    for (let i = 0; i < count; i += 1) {
+        const dot = document.createElement('i');
+        dot.className = 'rm-dust';
+        const angle = Math.random() * 6.283;
+        const dist = 1.4 + Math.random() * 4;
+        dot.style.cssText = `left:${x};top:${y};--x:${(Math.cos(angle) * dist * 1.4).toFixed(2)}em;--y:${(Math.sin(angle) * dist - 1).toFixed(2)}em;animation-delay:${(Math.random() * 0.1).toFixed(2)}s`;
+        host.appendChild(dot);
+        setTimeout(() => dot.remove(), 1200);
+    }
+}
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const fmtDay = (seconds) => {
+    const d = new Date(seconds * 1000);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+const fmtShort = (seconds) => {
+    const d = new Date(seconds * 1000);
+    return `${d.getMonth() + 1}.${d.getDate()}`;
+};
+
+/* ── 册子数据（预览直接用客户端快照；真实 viewer 换成 API） ────────────── */
+
+const DEMO_TOKEN = 'K7QM2XPA4T9R3VW6B8CDEF';
+const VIEWER_BASE = 'https://kevin0036.github.io/';
+
+const ownerName = q.has('owner') ? q.get('owner') : OWNER.persona;
+const ownerAvatar = q.has('owner') ? '' : OWNER.avatar;
+// 真实 viewer 用快照里的 owner.friendCode；预览按 ?friend= 或示例代码
+const ownerFriendCode = q.get('friend') || '39734272';
+
+const years = CARDS
+    .filter((card) => Number.isFinite(card.completedAt))
+    .map((card) => new Date(card.completedAt * 1000).getFullYear())
+    .sort((a, b) => a - b);
+const yearSpan = years.length ? `${years[0]}–${years[years.length - 1]}` : '—';
+
+/** 年份页的示例槽位：每年挑 3 张最稀有的完成卡（真实 viewer 用快照里的 years） */
+function demoYearSelections() {
+    const byYear = new Map();
+    for (const card of CARDS) {
+        if (!Number.isFinite(card.completedAt)) continue;
+        const key = String(new Date(card.completedAt * 1000).getFullYear());
+        if (!byYear.has(key)) byYear.set(key, []);
+        byYear.get(key).push(card);
+    }
+    const out = {};
+    for (const [key, list] of byYear) {
+        const picks = [...list]
+            .sort((a, b) => (Number(b.rare) || 0) - (Number(a.rare) || 0) || (Number(a.appid) - Number(b.appid)))
+            .slice(0, 3);
+        out[key] = {
+            badges: picks.map((card) => ({ appid: card.appid, level: 5 })),
+            banners: picks.map((card) => card.appid),
+        };
+    }
+    return out;
+}
+
+function makeAlbum(token) {
+    const now = Math.floor(Date.now() / 1000);
+    return {
+        token,
+        revision: 3,
+        sharedAt: now - 2 * 86400,
+        updatedAt: now - 3 * 3600,
+        owner: { name: ownerName, avatar: ownerAvatar, friendCode: ownerFriendCode },
+        count: CARDS.length,
+        span: yearSpan,
+        years: demoYearSelections(),
+    };
+}
+
+let album = null;
+
+function applyAlbum(data) {
+    album = data;
+    const name = data.owner.name || '匿名收藏家';
+
+    $('plateMeta').textContent = `${data.count} 款 · ${data.span}`;
+    $('pmDate').textContent = fmtShort(data.sharedAt);
+    $('pmYear').textContent = String(new Date(data.sharedAt * 1000).getFullYear());
+
+    $('regName').textContent = name;
+    $('regCount').textContent = String(data.count);
+    $('regSpan').textContent = data.span;
+
+    const avatar = $('regAvatar');
+    if (data.owner.avatar) {
+        avatar.src = data.owner.avatar;
+        avatar.hidden = false;
+    } else {
+        avatar.removeAttribute('src');
+        avatar.hidden = true;
+    }
+
+    $('coverSpan').textContent = data.span;
+
+    const barAvatar = $('barAvatar');
+    if (data.owner.avatar) {
+        barAvatar.src = data.owner.avatar;
+        barAvatar.hidden = false;
+    } else {
+        barAvatar.removeAttribute('src');
+        barAvatar.hidden = true;
+    }
+    $('barName').textContent = name;
+    $('barMeta').textContent = `同步于 ${fmtDay(data.updatedAt)}`;
+
+    const code = String(data.owner.friendCode ?? '').trim();
+    $('friendBtn').hidden = !/^\d{1,10}$/.test(code);
+}
+
+/** 预览里模拟一次 API 请求；?fail=1 时模拟链接失效 */
+async function loadAlbum(token) {
+    await sleep(750 + Math.random() * 450);
+    if (q.get('fail') === '1') throw new Error('album gone');
+    return makeAlbum(token);
+}
+
+/* ── 解析链接 ─────────────────────────────────────────────────────────── */
+
+function parseToken(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return null;
+    const fromUrl = text.match(/[?&]t=([A-Za-z0-9_-]{16,})/);
+    if (fromUrl) return fromUrl[1];
+    if (/^[A-Za-z0-9_-]{16,}$/.test(text)) return text;
+    return null;
+}
+
+/* ── 状态 ─────────────────────────────────────────────────────────────── */
+
+let busy = false;
+let reading = false;
+let mode = 'in';
+let directOpen = false;
+let canOpenBook = false;
+
+// 借阅室里的阅读设置：可以临时改排版，不回写分享快照
+const view = {
+    perPage: q.get('perPage') === '4' ? 4 : 1,
+    years: q.get('years') === '1',
+};
+
+const borrowBtn = $('borrowBtn');
+const linkInput = $('linkInput');
+
+function setLobby(visible, note) {
+    $('panelIn').classList.toggle('on', visible);
+    if (note) {
+        const hint = document.querySelector('.rm-hint');
+        if (hint) hint.textContent = note;
+    }
+}
+
+function resetMail() {
+    mail.className = 'rm-mail';
+    seal.classList.remove('crack', 'brk', 'press');
+    rack.classList.remove('on');
+    mark.classList.remove('on', 'set');
+    result.classList.remove('on');
+    canOpenBook = false;
+    tip('');
+}
+
+/* ── 收信 ─────────────────────────────────────────────────────────────── */
+
+async function borrow(raw) {
+    if (busy || reading) return;
+    const token = parseToken(raw);
+    if (!token) {
+        play($('field'), 'bad');
+        toast('链接无效，请检查后重试');
+        return;
+    }
+
+    busy = true;
+    setLobby(false);
+    resetMail();
+
+    const dataPromise = loadAlbum(token);
+    dataPromise.catch(() => {});
+
+    mail.className = 'rm-mail show sealed arrive';
+    await sleep(680);
+    burst(mail, 12, '50%', '100%');
+    play(ring, 'go');
+    await sleep(430);
+    mail.classList.remove('arrive');
+
+    tip('轻点封蜡，拆开信件');
+    await Promise.race([once(seal), once(seal, 'keydown')]);
+
+    let data;
+    try {
+        data = await dataPromise;
+    } catch {
+        seal.classList.add('crack');
+        toast('这本册子已经收回，或链接有误');
+        await sleep(700);
+        tip('');
+        await flyAway();
+        busy = false;
+        setLobby(true);
+        return;
+    }
+
+    applyAlbum(data);
+    // 寄出时已经盖过章：借到手的登记卡在盖章处直接就是「已寄出」
+    mark.classList.add('on', 'set');
+    tip('');
+    seal.classList.add('crack');
+    sound.cue('crack');
+    await sleep(240);
+    seal.classList.add('brk');
+    sound.cue('break');
+    burst(mail, 16, '50%', '50%');
+    await sleep(720);
+
+    mail.classList.remove('sealed');
+    mail.classList.add('open');
+    sound.cue('flap');
+    await sleep(480);
+    mail.classList.add('hv');
+    sound.cue('slide');
+    await sleep(880);
+    mail.classList.add('big');
+    await sleep(1050);
+
+    mail.classList.add('ask');
+    tip('轻点明信片，查看借阅登记卡');
+    await once(letter);
+    mail.classList.remove('ask');
+
+    mail.classList.add('back');
+    busy = false;
+    canOpenBook = true;
+    await sleep(700);
+    tip('翻开册子，开始翻阅');
+    $('openBookBtn').focus({ preventScroll: true });
+}
+
+/* ── 翻开真实册子 ─────────────────────────────────────────────────────── */
+
+let book = null;
+let hintObserver = null;
+
+function bookOptions() {
+    const perPage = view.perPage === 4 ? 4 : 1;
+    const binding = q.get('binding') === 'newest' ? 'newest' : 'sequential';
+    const yearPages = view.years;
+    const base = binding === 'sequential' ? [...CARDS].reverse() : CARDS;
+    return {
+        cards: base,
+        owner: { persona: album?.owner.name ?? ownerName, avatar: album?.owner.avatar ?? ownerAvatar },
+        perPage,
+        binding,
+        showStats: q.get('stats') !== '0',
+        yearPages,
+        yearTree: yearPages && q.get('tree') === '1',
+        yearIndex: yearPages && q.get('tabs') === '1',
+        yearTargets: yearPages && q.get('tree') === '1' ? 15 : null,
+        yearSelections: yearPages ? (album?.years ?? demoYearSelections()) : null,
+    };
+}
+
+function mountReader(initial = null) {
+    if (book) return;
+    // 与主题阅读设置面板一致：预览里没有 Millennium 设置，年份页开关直接跟随阅读设置
+    setOptionProvider((name) => {
+        if (name === '年份特殊页') return view.years ? '开启' : '关闭';
+        return undefined;
+    });
+    book = createBook(bookHost, { ...bookOptions(), initial, readOnly: true });
+
+    // 借阅室是只读的：右键长按的封面取景编辑器在这里不生效
+    bookHost.addEventListener('pointerdown', (event) => {
+        if (event.button === 2) event.stopPropagation();
+    }, true);
+    bookHost.addEventListener('contextmenu', (event) => event.preventDefault());
+
+    // 主题的翻页提示里带着「右键调整封面」，交给访客看时要换成只读说法；
+    // 书页是翻到才建的，所以用 MutationObserver 盯住后建的提示节点。
+    const pinHint = () => {
+        bookHost.querySelectorAll('.ac-page-hint').forEach((node) => {
+            if (node.textContent.includes('右键')) node.textContent = '滚轮或轻点卡片翻页，下拉书签跳至另一端';
+        });
+    };
+    pinHint();
+    hintObserver = new MutationObserver(pinHint);
+    hintObserver.observe(bookHost, { childList: true, subtree: true });
+}
+
+function unmountReader() {
+    hintObserver?.disconnect();
+    hintObserver = null;
+    book?.destroy();
+    book = null;
+    bookHost.replaceChildren();
+}
+
+/** 改排版后就地重装一册，停在同一张卡上 */
+function rebuildBook() {
+    if (!reading || busy || !book) return;
+    const position = book.position;
+    unmountReader();
+    mountReader(position);
+}
+
+function syncSettingsUI() {
+    $('setPop').querySelectorAll('[data-per]').forEach((btn) => {
+        btn.classList.toggle('on', Number(btn.dataset.per) === view.perPage);
+    });
+    const toggle = $('yearToggle');
+    toggle.classList.toggle('on', view.years);
+    toggle.setAttribute('aria-checked', String(view.years));
+}
+
+async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+        document.body.append(area);
+        area.select();
+        let ok = false;
+        try {
+            ok = document.execCommand('copy');
+        } catch {
+            ok = false;
+        }
+        area.remove();
+        return ok;
+    }
+}
+
+/**
+ * 幕布上的「假跨页」直接克隆真实册子当前这一跨页：
+ * 左半是封壳内侧（贴扉页），右半是册子的右页。尺寸、页边距、
+ * 纸张都对齐后，幕布淡出时真假两页完全重合，看不到内容跳变。
+ */
+function dressFakeSpread() {
+    const newest = bookOptions().binding === 'newest';
+    const leftNode = newest
+        ? bookHost.querySelector('.ac-page--end')
+        : bookHost.querySelector('.ac-page--title');
+    const rightNode = newest
+        ? bookHost.querySelector('.ac-leaf[data-show-back] .ac-leaf__face--back')
+        : bookHost.querySelector('.ac-leaf[data-show-front] .ac-leaf__face--front');
+
+    const leftHost = $('coverEnd');
+    const rightHost = cover.querySelector('.rm-cover__inside');
+
+    if (leftHost && leftNode) {
+        const clone = leftNode.cloneNode(true);
+        clone.classList.remove('ac-page--base');
+        clone.style.inset = '0';
+        leftHost.replaceChildren(clone);
+    }
+    if (rightHost && rightNode) {
+        const clone = rightNode.cloneNode(true);
+        rightHost.replaceChildren(clone);
+    }
+}
+
+async function openBook() {
+    if (reading || !canOpenBook) return;
+    reading = true;
+    busy = true;
+    canOpenBook = false;
+    tip('');
+    mail.classList.remove('ask');
+    sound.setBookOpen(true);
+
+    // 阅读器先藏在幕布后面排版好；幕布上的封面按真册单页的尺寸摆，
+    // 翻开后正好和真册的整个跨页同尺寸、同位置。
+    mountReader();
+    reader.classList.add('on', 'ceremony');
+    reader.setAttribute('aria-hidden', 'true');
+
+    const bookEl = bookHost.querySelector('.ac-book') ?? bookHost;
+    const bookRect = bookEl.getBoundingClientRect();
+    if (bookRect.width > 0) {
+        cover.querySelector('.rm-cover__book').style.setProperty('--rm-cw', `${bookRect.width / 2}px`);
+        // 幕布内容整体下移半个工具条高度，摊开后的假书与真书上下也对齐
+        const veilRect = veil.getBoundingClientRect();
+        const dy = bookRect.top + bookRect.height / 2 - (veilRect.top + veilRect.height / 2);
+        veil.style.paddingTop = `${Math.max(0, dy * 2)}px`;
+    }
+    dressFakeSpread();
+
+    veil.classList.add('on');
+    requestAnimationFrame(() => veil.classList.add('lit'));
+    await sleep(1740);
+    veil.classList.add('open');
+    await sleep(1500);
+
+    // 假跨页与真跨页已经重合，幕布一淡出看到的就是真实册子，书不再缩放
+    reader.style.transition = 'none';
+    reader.classList.add('visible');
+    void reader.offsetWidth;
+    reader.style.transition = '';
+    veil.classList.add('fade');
+    await sleep(520);
+
+    veil.classList.remove('on', 'lit', 'fade', 'open');
+    veil.style.paddingTop = '';
+    reader.classList.remove('ceremony');
+    reader.setAttribute('aria-hidden', 'false');
+    busy = false;
+    toast('光标停在卡片上可以细看，滚轮或点击页面翻页');
+}
+
+async function closeReader() {
+    if (!reading || busy) return;
+    busy = true;
+    $('setPop').hidden = true;
+    $('setBtn').setAttribute('aria-expanded', 'false');
+    const btn = $('closeBtn');
+    btn.disabled = true;
+    sound.setBookOpen(false);
+    reader.classList.remove('visible');
+    await sleep(560);
+    unmountReader();
+    reader.classList.remove('on');
+    reader.setAttribute('aria-hidden', 'true');
+    reading = false;
+
+    if (directOpen) {
+        directOpen = false;
+        btn.disabled = false;
+        resetMail();
+        setLobby(true);
+        busy = false;
+        toast('已合上，这本册子回到主人的书架');
+        return;
+    }
+
+    await sleep(260);
+    mail.classList.remove('big', 'hv', 'back');
+    // 等信纸完全落回信封，再让翻盖合上
+    await sleep(1000);
+    await flyAway();
+    await sleep(300);
+    resetMail();
+    setLobby(true);
+    btn.disabled = false;
+    busy = false;
+    toast('已寄回，欢迎下次再来借阅');
+}
+
+function openReaderDirect() {
+    applyAlbum(makeAlbum(DEMO_TOKEN));
+    directOpen = true;
+    reading = true;
+    mountReader();
+    reader.classList.add('on', 'visible');
+    reader.setAttribute('aria-hidden', 'false');
+}
+
+/* ── 封好寄走（归还 / 寄出共用） ──────────────────────────────────────── */
+
+async function flyAway() {
+    const letterOut = mail.classList.contains('hv') || mail.classList.contains('big');
+    mail.classList.remove('big', 'hv', 'ask');
+    // 信纸先落回信封，翻盖再合上——否则三角口会盖在还在外面的明信片上
+    if (letterOut) await sleep(1000);
+    mail.classList.remove('open');
+    await sleep(560);
+    seal.classList.remove('crack', 'brk');
+    mail.classList.add('sealed');
+    play(seal, 'press');
+    await sleep(300);
+    burst(mail, 14, '50%', '50%');
+    play(ring, 'go');
+    await sleep(650);
+    mail.classList.add('away');
+    await sleep(950);
+    mail.className = 'rm-mail';
+    seal.classList.remove('press');
+}
+
+/* ── 寄信：登记卡 + 盖章 + 生成链接 ───────────────────────────────────── */
+
+function randomToken() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const bytes = new Uint8Array(22);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map((b) => alphabet[b % alphabet.length]).join('');
+}
+
+function prepLend() {
+    resetMail();
+    setLobby(false);
+    mark.classList.remove('on');
+
+    // 寄信时登记卡朝向用户，信封保持敞开
+    mail.className = 'rm-mail show open hv back';
+    mail.classList.add('arrive');
+    rack.classList.add('on');
+    tip('拖动印章盖在登记卡上，也可以直接点击印章');
+    setTimeout(() => mail.classList.remove('arrive'), 1000 * SPEED);
+}
+
+function ensureAlbum() {
+    if (!album) applyAlbum(makeAlbum(DEMO_TOKEN));
+}
+
+async function doStamp(fromDx = 0, fromDy = 0) {
+    if (busy) return;
+    busy = true;
+    tip('');
+
+    const stampRect = stamp.getBoundingClientRect();
+    const targetRect = stampBox.getBoundingClientRect();
+    const tx = targetRect.left + targetRect.width / 2 - (stampRect.left + stampRect.width / 2);
+    const ty = targetRect.top + targetRect.height / 2 - (stampRect.top + stampRect.height / 2);
+
+    // 用计时器而不是 animation.finished 等动画：页面切到后台时 WAAPI 会被暂停，
+    // finished 永远不 resolve，整个寄信流程就卡住了（动画本身照旧照常播放）。
+    const opts = { easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' };
+    stamp.animate([
+        { transform: `translate(${fromDx}px, ${fromDy}px) scale(1)` },
+        { transform: `translate(${tx}px, ${ty - 12}px) scale(1.22)` },
+    ], { ...opts, duration: 320 * SPEED });
+    await sleep(320);
+
+    stamp.animate([
+        { transform: `translate(${tx}px, ${ty - 12}px) scale(1.22)` },
+        { transform: `translate(${tx}px, ${ty}px) scale(0.96)` },
+    ], { ...opts, duration: 120 * SPEED, easing: 'cubic-bezier(.6,0,1,1)' });
+    await sleep(120);
+
+    stamp.style.transform = `translate(${tx}px, ${ty}px) scale(.96)`;
+    stamp.classList.remove('dragging');
+    mark.classList.add('on');
+    stage.animate([
+        { transform: 'translate(0,0)' },
+        { transform: 'translate(-3px,2px)' },
+        { transform: 'translate(3px,-2px)' },
+        { transform: 'translate(0,0)' },
+    ], { duration: 260 * SPEED });
+
+    const sRect = stage.getBoundingClientRect();
+    const mRect = mark.getBoundingClientRect();
+    burst(stage, 8, `${mRect.left - sRect.left + mRect.width / 2}px`, `${mRect.top - sRect.top + mRect.height / 2}px`);
+    await sleep(380);
+
+    stamp.getAnimations().forEach((a) => a.cancel());
+    stamp.style.transform = '';
+    rack.classList.remove('on');
+    await sleep(200);
+
+    mail.classList.remove('back');
+    await sleep(1000);
+    await flyAway();
+    await sleep(280);
+
+    ensureAlbum();
+    album.token = randomToken();
+    applyAlbum(album);
+    $('linkOut').value = `${VIEWER_BASE}?t=${album.token}`;
+    result.classList.add('on');
+    busy = false;
+
+    resetMailKeepResult();
+}
+
+function resetMailKeepResult() {
+    mail.className = 'rm-mail';
+    seal.classList.remove('crack', 'brk', 'press');
+    rack.classList.remove('on');
+    mark.classList.remove('on');
+    tip('');
+}
+
+/* 印章拖拽 */
+let drag = null;
+
+stamp.addEventListener('pointerdown', (event) => {
+    if (busy || mode !== 'out' || !rack.classList.contains('on')) return;
+    const rect = stamp.getBoundingClientRect();
+    drag = {
+        x: event.clientX,
+        y: event.clientY,
+        cx: rect.left + rect.width / 2,
+        cy: rect.top + rect.height / 2,
+        dx: 0,
+        dy: 0,
+        moved: 0,
+    };
+    stamp.setPointerCapture(event.pointerId);
+    stamp.style.transition = 'none';
+    stamp.classList.add('dragging');
+});
+
+stamp.addEventListener('pointermove', (event) => {
+    if (!drag) return;
+    drag.dx = event.clientX - drag.x;
+    drag.dy = event.clientY - drag.y;
+    drag.moved = Math.max(drag.moved, Math.hypot(drag.dx, drag.dy));
+    stamp.style.transform = `translate(${drag.dx}px, ${drag.dy}px)`;
+});
+
+function endDrag(event) {
+    if (!drag) return;
+    const state = drag;
+    drag = null;
+    stamp.releasePointerCapture?.(event.pointerId);
+
+    const box = letter.getBoundingClientRect();
+    const px = state.cx + state.dx;
+    const py = state.cy + state.dy;
+    const inLetter = px > box.left && px < box.right && py > box.top && py < box.bottom;
+
+    if (state.moved < 6 || inLetter) {
+        doStamp(state.dx, state.dy);
+        return;
+    }
+    stamp.classList.remove('dragging');
+    stamp.style.transition = 'transform .45s cubic-bezier(.3,1.5,.4,1)';
+    stamp.style.transform = '';
+    setTimeout(() => {
+        stamp.style.transition = '';
+    }, 460);
+}
+
+stamp.addEventListener('pointerup', endDrag);
+stamp.addEventListener('pointercancel', endDrag);
+stamp.addEventListener('click', () => {
+    if (!drag && !busy && mode === 'out' && rack.classList.contains('on')) doStamp(0, 0);
+});
+stamp.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        if (!busy && mode === 'out' && rack.classList.contains('on')) doStamp(0, 0);
+    }
+});
+
+/* ── 模式切换 ─────────────────────────────────────────────────────────── */
+
+function setMode(next) {
+    if (busy || reading || next === mode) return;
+    mode = next;
+    document.querySelectorAll('.rm-seg button').forEach((btn) => {
+        const on = btn.dataset.mode === mode;
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-selected', String(on));
+    });
+
+    resetMail();
+    $('panelIn').classList.toggle('on', mode === 'in');
+    linkInput.value = '';
+    if (mode === 'out') {
+        ensureAlbum();
+        prepLend();
+    } else {
+        tip('');
+        setLobby(true);
+    }
+}
+
+document.querySelectorAll('.rm-seg button').forEach((btn) => {
+    btn.addEventListener('click', () => setMode(btn.dataset.mode));
+});
+
+/* ── 事件绑定 ─────────────────────────────────────────────────────────── */
+
+borrowBtn.addEventListener('click', () => borrow(linkInput.value));
+$('demoBtn').addEventListener('click', () => {
+    linkInput.value = `${VIEWER_BASE}?t=${DEMO_TOKEN}`;
+    borrow(linkInput.value);
+});
+linkInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') borrow(linkInput.value);
+});
+$('openBookBtn').addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (mail.classList.contains('back')) openBook();
+});
+$('copyBtn').addEventListener('click', async () => {
+    const text = $('linkOut').value;
+    try {
+        await navigator.clipboard.writeText(text);
+        toast('已复制借阅链接，发给朋友吧');
+    } catch {
+        $('linkOut').select();
+        try {
+            document.execCommand('copy');
+            toast('已复制借阅链接，发给朋友吧');
+        } catch {
+            toast('复制失败，请手动选中链接');
+        }
+    }
+});
+$('againBtn').addEventListener('click', () => {
+    if (busy) return;
+    result.classList.remove('on');
+    prepLend();
+});
+$('closeBtn').addEventListener('click', closeReader);
+
+$('setBtn').addEventListener('click', (event) => {
+    event.stopPropagation();
+    const pop = $('setPop');
+    pop.hidden = !pop.hidden;
+    $('setBtn').setAttribute('aria-expanded', String(!pop.hidden));
+    if (!pop.hidden) syncSettingsUI();
+});
+$('setPop').addEventListener('click', (event) => event.stopPropagation());
+document.addEventListener('click', () => {
+    if ($('setPop').hidden) return;
+    $('setPop').hidden = true;
+    $('setBtn').setAttribute('aria-expanded', 'false');
+});
+
+$('setPop').querySelectorAll('[data-per]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const next = Number(btn.dataset.per) === 4 ? 4 : 1;
+        if (next === view.perPage) return;
+        view.perPage = next;
+        syncSettingsUI();
+        rebuildBook();
+    });
+});
+
+$('yearToggle').addEventListener('click', () => {
+    view.years = !view.years;
+    syncSettingsUI();
+    rebuildBook();
+});
+
+$('friendBtn').addEventListener('click', async () => {
+    const code = String(album?.owner?.friendCode ?? '').trim();
+    if (!code) return;
+    const ok = await copyText(code);
+    toast(ok ? `好友代码已复制：${code}` : '复制失败，请稍后再试');
+});
+
+syncSettingsUI();
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !reading) return;
+    if (!$('setPop').hidden) {
+        $('setPop').hidden = true;
+        $('setBtn').setAttribute('aria-expanded', 'false');
+        return;
+    }
+    closeReader();
+});
+
+/* 登记卡翻到背面后，点卡片任意位置即可翻开册子 */
+letter.addEventListener('click', () => {
+    if (!mail.classList.contains('back') || busy || reading || !canOpenBook) return;
+    openBook();
+});
+
+/* ── 启动 ─────────────────────────────────────────────────────────────── */
+
+(async function boot() {
+    sound.enter();
+    // 让标题和借阅单先入场
+    room.style.opacity = '0';
+    room.style.transition = 'opacity .6s ease';
+    await sleep(30);
+    room.style.opacity = '1';
+
+    if (q.get('reader') === '1') {
+        sound.setBookOpen(true);
+        openReaderDirect();
+        return;
+    }
+    if (q.get('mode') === 'out') {
+        setMode('out');
+        return;
+    }
+    if (q.has('t') || q.has('demo')) {
+        linkInput.value = q.has('t')
+            ? `${VIEWER_BASE}?t=${q.get('t')}`
+            : `${VIEWER_BASE}?t=${DEMO_TOKEN}`;
+        await sleep(650);
+        borrow(linkInput.value);
+    }
+})();
+
+// 调试入口：控制台或自动化测试里直接触发
+window.__room = {
+    borrow,
+    openBook,
+    closeReader,
+    openReaderDirect,
+    setMode,
+    prepLend,
+    get state() {
+        return { busy, reading, mode, album, directOpen, mail: mail.className };
+    },
+    get book() {
+        return book;
+    },
+    get view() {
+        return { ...view };
+    },
+};
+</script>
+</body>
+</html>

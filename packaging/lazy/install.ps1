@@ -1,8 +1,8 @@
 ﻿#requires -Version 5.1
 <#
-  成就收藏册 · Windows 懒人包安装器
-  内置官方 Millennium v3.6.2 原版发布包（未修改），只负责解压、复制主题和写入安装记录。
-  本脚本不会修改 Steam 的登录信息或游戏文件。
+  成就收藏册 · Windows 懒人包安装器（插件版）
+  内置官方 Millennium v3.6.2 原版发布包（未修改），只负责解压、复制插件和写入安装记录。
+  本脚本不会修改 Steam 的登录信息或游戏文件，也不会安装任何主题。
 #>
 [CmdletBinding()]
 param(
@@ -10,7 +10,7 @@ param(
     [switch]$NoLaunch,
     [switch]$InternalNoElevate,
     [switch]$InternalSkipProcessStop,
-    [switch]$InternalThemeOnly,
+    [switch]$InternalPluginOnly,
     [switch]$InternalYes
 )
 
@@ -19,9 +19,9 @@ try {
     [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
     $global:OutputEncoding = New-Object Text.UTF8Encoding($false)
 } catch { }
-$script:ThemeVersion = '1.1.0'
+$script:PluginVersion = '1.1.8-beta'
 $script:MillenniumVersion = '3.6.2'
-$script:ThemeFolderName = 'AchievementCollection'
+$script:PluginFolderName = 'AchievementCollection'
 $script:PackageDir = $PSScriptRoot
 $script:AutoYes = [bool]$InternalYes
 
@@ -136,14 +136,27 @@ function Invoke-Elevated([string]$Root) {
 
 function Assert-Package {
     Write-Step '检查安装包'
-    $themeSkin = Join-Path $script:PackageDir 'theme\skin.json'
+    $pluginDir = Join-Path $script:PackageDir "plugin\$script:PluginFolderName"
+    $pluginManifest = Join-Path $pluginDir 'plugin.json'
+    $pluginBundle = Join-Path $pluginDir '.millennium\Dist\index.js'
+    $pluginBackend = Join-Path $pluginDir 'backend\main.lua'
     $zip = Join-Path $script:PackageDir ("millennium-v{0}-windows-x86_64.zip" -f $script:MillenniumVersion)
     $shaFile = Join-Path $script:PackageDir ("millennium-v{0}-windows-x86_64.sha256" -f $script:MillenniumVersion)
-    if (-not (Test-Path -LiteralPath $themeSkin -PathType Leaf)) {
-        Stop-Installer '安装包不完整：缺少 theme\skin.json。请先把整个压缩包解压到文件夹，再运行 Install.bat。'
+    if (-not (Test-Path -LiteralPath $pluginManifest -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $pluginBundle -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $pluginBackend -PathType Leaf)) {
+        Stop-Installer '安装包不完整：缺少 plugin\AchievementCollection 的插件文件。请先把整个压缩包解压到文件夹，再运行 Install.bat。'
     }
     if (-not (Test-Path -LiteralPath $zip -PathType Leaf) -or -not (Test-Path -LiteralPath $shaFile -PathType Leaf)) {
         Stop-Installer '安装包不完整：缺少内置的 Millennium 压缩包或校验文件。请重新下载并完整解压。'
+    }
+    try {
+        $pluginInfo = Get-Content -LiteralPath $pluginManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        Stop-Installer '插件清单 plugin.json 无法读取，安装包可能已损坏。'
+    }
+    if ($pluginInfo.version -ne $script:PluginVersion) {
+        Stop-Installer ("插件版本不一致：包内为 {0}，安装脚本期望 {1}。请重新下载完整的懒人包。" -f $pluginInfo.version, $script:PluginVersion)
     }
     $expected = ([IO.File]::ReadAllText($shaFile)).Trim().Split()[0].ToLowerInvariant()
     if ($expected -notmatch '^[0-9a-f]{64}$') {
@@ -153,7 +166,7 @@ function Assert-Package {
     if ($actual -ne $expected) {
         Stop-Installer "内置 Millennium 压缩包校验失败，文件可能损坏或被修改。`n  期望：$expected`n  实际：$actual"
     }
-    Write-Ok "主题 v$script:ThemeVersion"
+    Write-Ok "插件 v$script:PluginVersion"
     Write-Ok "Millennium v$script:MillenniumVersion（SHA256 校验通过）"
     return $zip
 }
@@ -164,28 +177,29 @@ function Get-InstallerDir([string]$Root) {
     return $dir
 }
 
-function Install-ThemeFiles([string]$Root) {
-    Write-Step '安装主题'
-    $source = Join-Path $script:PackageDir 'theme'
-    $themesDir = Join-Path $Root 'millennium\themes'
-    $destination = Join-Path $themesDir $script:ThemeFolderName
-    New-Item -ItemType Directory -Path $themesDir -Force | Out-Null
+function Install-PluginFiles([string]$Root) {
+    Write-Step '安装插件'
+    $source = Join-Path $script:PackageDir "plugin\$script:PluginFolderName"
+    $pluginsDir = Join-Path $Root 'millennium\plugins'
+    $destination = Join-Path $pluginsDir $script:PluginFolderName
+    New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
 
     $backup = $null
     if (Test-Path -LiteralPath $destination) {
         $backupRoot = Join-Path (Get-InstallerDir $Root) 'backup'
         New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
-        $backup = Join-Path $backupRoot ('theme-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        $backup = Join-Path $backupRoot ('plugin-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
         Copy-Item -LiteralPath $destination -Destination $backup -Recurse -Force
         Remove-Item -LiteralPath $destination -Recurse -Force
-        Write-Note "已备份旧主题到 $backup"
+        Write-Note "已备份旧插件到 $backup"
     }
 
     Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
-    if (-not (Test-Path -LiteralPath (Join-Path $destination 'skin.json') -PathType Leaf)) {
-        Stop-Installer "主题复制失败，请检查目标目录：$destination"
+    if (-not (Test-Path -LiteralPath (Join-Path $destination 'plugin.json') -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $destination '.millennium\Dist\index.js') -PathType Leaf)) {
+        Stop-Installer "插件复制失败，请检查目标目录：$destination"
     }
-    Write-Ok "主题已放到 $destination"
+    Write-Ok "插件已放到 $destination"
     return $backup
 }
 
@@ -237,10 +251,10 @@ function Install-MillenniumCore([string]$Root, [string]$Zip) {
     if (-not (Test-Path -LiteralPath (Join-Path $Root 'wsock32.dll') -PathType Leaf)) {
         Stop-Installer 'Millennium 核心安装失败，wsock32.dll 不存在。'
     }
-    Write-Ok 'Millennium v3.6.2 核心文件已就位'
+    Write-Ok "Millennium v$script:MillenniumVersion 核心文件已就位"
 }
 
-function Write-InstallManifest([string]$Root, [bool]$InstalledCore, [string]$ThemeBackup) {
+function Write-InstallManifest([string]$Root, [bool]$InstalledCore, [string]$PluginBackup) {
     $installerDir = Get-InstallerDir $Root
     $path = Join-Path $installerDir 'manifest.json'
     $existing = $null
@@ -252,14 +266,14 @@ function Write-InstallManifest([string]$Root, [bool]$InstalledCore, [string]$The
         $coreFlag = $true
     }
     $manifest = [ordered]@{
-        schema               = 1
-        theme                = '成就收藏册'
-        themeFolder          = $script:ThemeFolderName
-        themeVersion         = $script:ThemeVersion
+        schema               = 2
+        plugin               = '成就收藏册'
+        pluginFolder         = $script:PluginFolderName
+        pluginVersion        = $script:PluginVersion
         millenniumVersion    = $script:MillenniumVersion
         installedAt          = (Get-Date).ToString('o')
         installedCore        = $coreFlag
-        themeBackup          = $ThemeBackup
+        pluginBackup         = $PluginBackup
     }
     $json = $manifest | ConvertTo-Json -Depth 4
     [IO.File]::WriteAllText($path, $json, (New-Object Text.UTF8Encoding($false)))
@@ -298,19 +312,22 @@ function Show-Finish([string]$Root, [bool]$CoreInstalled) {
     Write-Host ' 安装完成' -ForegroundColor Green
     Write-Host '==============================================' -ForegroundColor Green
     Write-Host ''
-    Write-Host "主题目录：$(Join-Path $Root "millennium\themes\$script:ThemeFolderName")"
+    Write-Host "插件目录：$(Join-Path $Root "millennium\plugins\$script:PluginFolderName")"
     if ($CoreInstalled) {
         Write-Host "Millennium：v$script:MillenniumVersion（内置官方原版）"
     } else {
-        Write-Host 'Millennium：未改动（仅安装/更新了主题）'
+        Write-Host 'Millennium：未改动（仅安装/更新了插件）'
     }
     Write-Host ''
     Write-Host '接下来：'
-    Write-Host '  1. 启动 Steam，打开 Steam 设置 → Millennium → Themes'
-    Write-Host '  2. 选择「成就收藏册」并启用'
-    Write-Host '  3. 打开 Steam 库顶部菜单 → ★ 成就卡包'
+    Write-Host '  1. 启动 Steam'
+    Write-Host '  2. 打开 Steam 设置 → Millennium → Plugins，启用「成就收藏册」'
+    Write-Host '  3. 完全退出 Steam 再打开一次（或重启 Steam 界面）'
+    Write-Host '  4. 打开 Steam 库顶部 Library 菜单 → ★ 成就卡包'
     Write-Host ''
-    Write-Host '卸载：运行 Uninstall.bat，可选择只删主题或连同 Millennium 一起卸载。'
+    Write-Host '借阅功能仍是内测：卡册页左上角「借阅室」，寄信会生成 9 位借阅码。'
+    Write-Host ''
+    Write-Host '卸载：运行 Uninstall.bat，可选择只删插件或连同 Millennium 一起卸载。'
     Write-Host ''
 
     if (-not $script:AutoYes -and -not $NoLaunch) {
@@ -327,8 +344,8 @@ function Show-Finish([string]$Root, [bool]$CoreInstalled) {
 
 function Main {
     Write-Host ''
-    Write-Host '  成就收藏册 · 懒人包安装器' -ForegroundColor White
-    Write-Host "  主题 v$script:ThemeVersion  |  Millennium v$script:MillenniumVersion" -ForegroundColor DarkGray
+    Write-Host '  成就收藏册 · 懒人包安装器（插件版）' -ForegroundColor White
+    Write-Host "  插件 v$script:PluginVersion  |  Millennium v$script:MillenniumVersion" -ForegroundColor DarkGray
     Write-Host ''
 
     if (-not [Environment]::Is64BitOperatingSystem) {
@@ -348,33 +365,33 @@ function Main {
 
     $hasMillennium = Test-Path -LiteralPath (Join-Path $root 'millennium\lib\millennium.dll') -PathType Leaf
     $hasWsock = Test-Path -LiteralPath (Join-Path $root 'wsock32.dll') -PathType Leaf
-    $themeOnly = $false
+    $pluginOnly = $false
 
-    if ($hasMillennium -or $hasWsock) {
-        Write-Note '检测到 Steam 目录里已经存在 Millennium 或 wsock32.dll。'
-        Write-Host '  懒人包不会覆盖现有 Millennium/其它注入，只提供“仅安装/更新主题”。'
-        if (-not $hasMillennium) {
-            Write-Note '没有找到 millennium.dll，这个 wsock32.dll 可能来自其它模组。仅安装主题后仍需要单独的 Millennium 才能使主题生效。'
-        }
-        Write-Host '  如果你的 Millennium 已经能正常使用，这个选项是安全的。'
-        if ($InternalThemeOnly -or (Confirm-Step '仅安装/更新主题吗？' $true)) {
-            $themeOnly = $true
+    if ($hasWsock -and -not $hasMillennium) {
+        Stop-Installer 'Steam 目录里已有 wsock32.dll，但没有找到 Millennium。这个文件可能来自其它模组，为避免覆盖，安装已停止。请先备份并移除它，或改用 Millennium 官方 Installer。'
+    }
+
+    if ($hasMillennium) {
+        Write-Note '检测到已经安装 Millennium。'
+        Write-Host '  懒人包不会覆盖现有 Millennium 或其它插件，只安装/更新「成就收藏册」插件。'
+        if ($InternalPluginOnly -or (Confirm-Step '仅安装/更新插件吗？' $true)) {
+            $pluginOnly = $true
         } else {
-            Stop-Installer '已取消。已安装 Millennium 的用户请使用主题版压缩包。'
+            Stop-Installer '已取消。已安装 Millennium 的用户也可以直接使用插件版压缩包。'
         }
     }
 
     Stop-SteamIfNeeded $root
 
-    if ($themeOnly) {
-        $backup = Install-ThemeFiles $root
+    if ($pluginOnly) {
+        $backup = Install-PluginFiles $root
         Write-InstallManifest $root $false $backup
         Show-Finish $root $false
         return
     }
 
     Install-MillenniumCore $root $zip
-    $backup = Install-ThemeFiles $root
+    $backup = Install-PluginFiles $root
     Write-InstallManifest $root $true $backup
     Show-Finish $root $true
 }

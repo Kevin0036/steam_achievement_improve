@@ -1,11 +1,11 @@
 /**
  * 成就收藏册 · 年份特殊页
  *
- * 每一年在册子里插入一张手账（同一叶的正反两面）：
- *   · 正面「年份页」：手写年份 + 红色橡皮章 + 年度数据；三枚徽章邮票插在集邮册的透明插袋里，
+ * 每一年的开头有一组左右相对的跨页：
+ *   · 左页「年份页」：手写年份 + 红色橡皮章 + 年度数据；三枚徽章邮票插在集邮册的透明插袋里，
  *     邮戳是这款游戏的完成日期（徽章可选普通 1–5 级 / 闪亮徽章）；
- *   · 背面「年度最爱」：三张票根放游戏横幅，第 1 名的存根上压一枚红章。
- * 两页不会同时摊开，翻过这一叶才看得到背面。
+ *   · 右页「年度最爱」：三张票根放游戏横幅，第 1 名的存根上压一枚红章。
+ * 跨页前后的月份足迹和本年目录在 yearfill.js。
  *
  * 槽位由用户点选，选择写进 cache.js 的 yearpages；徽章图案来自 badges.js。
  * 这一文件只负责画页面与选择器，不知道翻页结构（那在 book.js 里）。
@@ -69,7 +69,14 @@ export function normalizeSelection(raw) {
     for (let i = 0; i < SLOTS; i += 1) {
         const badge = raw?.badges?.[i];
         const badgeAppid = appidOf(badge?.appid);
-        selection.badges.push(badgeAppid == null ? null : { appid: badgeAppid, level: badge.level ?? 5 });
+        if (badgeAppid == null) {
+            selection.badges.push(null);
+        } else {
+            const picked = { appid: badgeAppid, level: badge.level ?? 5 };
+            // 借阅快照会带上徽章图案地址：访客没有 badgeStore，只能靠这一份
+            if (typeof badge?.url === 'string' && badge.url) picked.url = badge.url;
+            selection.badges.push(picked);
+        }
         selection.banners.push(appidOf(raw?.banners?.[i]));
     }
     return selection;
@@ -106,7 +113,7 @@ function yearStats(games) {
 function pickedBadges(selection, byId) {
     return selection.badges.map((picked) => {
         const game = picked ? byId.get(Number(picked.appid)) ?? null : null;
-        return { game, level: game ? picked.level : null };
+        return { game, level: game ? picked.level : null, url: game ? picked.url ?? null : null };
     });
 }
 
@@ -114,24 +121,26 @@ function pickedBanners(selection, byId) {
     return selection.banners.map((appid) => (appid ? byId.get(Number(appid)) ?? null : null));
 }
 
-function badgeImageCard(game, level) {
+function badgeImageCard(game, level, url = null) {
+    // 快照带来的徽章图优先；加载失败时退到封面，别在邮票里留一个空框
+    if (level !== 'cover' && url) return [url, ...(game.art?.capsule ?? game.art?.hero ?? [])];
     const data = peekBadge(game.appid);
     if (level === 'cover') return game.art?.capsule ?? game.art?.hero ?? [];
     const key = level === 'foil' ? 'foil' : String(level);
-    const url = data?.levels?.[key]?.url;
-    if (url) return [url];
+    const found = data?.levels?.[key]?.url;
+    if (found) return [found];
     if (data?.current && Number(data.current.level) === Number(level)) return [data.current.url];
     return game.art?.capsule ?? game.art?.hero ?? [];
 }
 
-function badgeNode(doc, game, level, className) {
+function badgeNode(doc, game, level, className, url = null) {
     const key = level === 'foil' ? 'foil' : String(level);
-    const peek = level === 'cover' ? null : peekBadge(game.appid);
-    const hasArt = !!peek?.levels?.[key]?.url || (peek?.current && Number(peek.current.level) === Number(level));
-    const img = artImage(doc, badgeImageCard(game, level), className, game.name);
+    const peek = level === 'cover' || url ? null : peekBadge(game.appid);
+    const hasArt = !!url || !!peek?.levels?.[key]?.url || (peek?.current && Number(peek.current.level) === Number(level));
+    const img = artImage(doc, badgeImageCard(game, level, url), className, game.name);
     if (!hasArt) img.dataset.cover = '';
     // 定义晚到：先用封面顶着，等 loadBadge 回来再换成真正的等级图案
-    if (level !== 'cover' && !peek?.levels?.[key]?.url) {
+    if (level !== 'cover' && !url && !peek?.levels?.[key]?.url) {
         loadBadge(game.appid).then((loaded) => {
             const url = loaded?.levels?.[key]?.url;
             if (!url || !img.isConnected) return;
@@ -174,7 +183,7 @@ function slotButton(doc, className, { kind, index, game, onPick, rot = null, ran
     button.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        onPick(kind, index);
+        onPick?.(kind, index);
     });
     return button;
 }
@@ -253,12 +262,12 @@ function postmark(doc, date) {
  * 一枚徽章邮票（齿孔 + 票面 + 徽章）。页面和印刷导出共用。
  * 票面不印等级；闪亮徽章多一层镭射光泽。
  */
-export function createBadgeStamp(doc, game, level) {
+export function createBadgeStamp(doc, game, level, url = null) {
     const stamp = el(doc, 'span', 'ac-year__stamp');
     const perf = el(doc, 'span', 'ac-year__perf');
     const face = el(doc, 'span', 'ac-year__stamp-face');
     if (game) {
-        face.append(badgeNode(doc, game, level, 'ac-year__badge'));
+        face.append(badgeNode(doc, game, level, 'ac-year__badge', url));
         if (level === 'foil') face.append(el(doc, 'span', 'ac-year__holo', { 'aria-hidden': 'true' }));
     } else {
         face.append(plus(doc));
@@ -275,9 +284,9 @@ function badgeAlbum(doc, badges, onPick) {
     const album = el(doc, 'div', 'ac-year__album');
     const mounts = el(doc, 'div', 'ac-year__mounts');
     const rots = [-2.4, 1.6, -1.2];
-    badges.forEach(({ game, level }, i) => {
+    badges.forEach(({ game, level, url }, i) => {
         const button = slotButton(doc, 'ac-year__mount', { kind: 'badge', index: i, game, onPick, rot: rots[i] });
-        button.append(createBadgeStamp(doc, game, level));
+        button.append(createBadgeStamp(doc, game, level, url));
         const date = game ? formatCardDate(game.completedAt) : null;
         if (date) button.append(postmark(doc, date));
         button.append(el(doc, 'span', 'ac-year__cap', { text: game ? game.name : YEAR_TEXT.pickBadge }));

@@ -21,8 +21,21 @@ import { getReact, getReactDom, getThemeOption, isPluginMode, ensureNodeStyles }
 import * as store from './store.js';
 import * as cache from './cache.js';
 import { createBook } from './book.js';
+import { openBorrowRoom } from './borrowroom.js';
 import { openExportDialog } from './export.js';
+import {
+    markOnboardingSeen,
+    markTreeNoticeSeen,
+    shouldShowOnboarding,
+    shouldShowTreeNotice,
+    showOnboarding,
+    showTreeNotice,
+} from './onboarding.js';
+import { readReading, TREE_FEATURE } from './reading.js';
+import { openReadingSettings } from './readingpanel.js';
 import { yearKeyOf } from './yearpages.js';
+import { sortCards } from './model.js';
+import { createCardView, createYearSnapshot, sameYearSnapshot } from './view.js';
 import { tagged } from './utils.js';
 import { STR } from './strings.js';
 
@@ -97,13 +110,6 @@ function statePageProps(phase, state, onRetry) {
 
 /* ── 页面 ───────────────────────────────────────────────────────────────── */
 
-/** 卡面上会画出来的那几样数据；变了才需要重画这张卡 */
-function cardSignature(card) {
-    return `${card.name}|${card.completedAt ?? ''}|${card.rare ?? ''}|${card.common ?? ''}|${card.unrated ?? ''}|${card.playtimeMin ?? ''}|${card.total ?? ''}|${JSON.stringify(card.art ?? null)}`;
-}
-
-const orderOf = (cards) => cards.map((c) => c.appid).join(',');
-
 /** 主题设置「单页卡片数量」：只认 1 / 4，其余一律按 1 处理 */
 const currentPerPage = () => (String(getThemeOption('单页卡片数量', '1')) === '4' ? 4 : 1);
 
@@ -118,12 +124,6 @@ const currentTitleStats = () => String(getThemeOption('扉页统计', '开启'))
 
 /** 主题设置「年份特殊页」：默认关闭，只有明确开启才插入年份页 */
 const currentYearPages = () => String(getThemeOption('年份特殊页', '关闭')) === '开启';
-
-/** 主题设置「年份页左右展开」：默认关闭；开启后年份页与年度最爱分列左右 */
-const currentYearSpread = () => currentYearPages() && String(getThemeOption('年份页左右展开', '关闭')) === '开启';
-
-/** 分组依据的指纹：完成日期补上后年份会变，需要重新装订 */
-const yearSignature = (cards) => cards.map((card) => `${card.appid}:${yearKeyOf(card)}`).join(',');
 
 /* ── 手动补完成日期 ─────────────────────────────────────────────────────── */
 
@@ -149,25 +149,86 @@ function secondsFromDay(value, today) {
     return Math.floor(date.getTime() / 1000);
 }
 
-/** 弹窗里的一行：游戏名 + 日期输入 + 清除 */
-function DateRow({ card, today, onSave, onClear }) {
+/** 分钟 → 时长输入框里的文本（保留一位小数；没有值就是空串） */
+function hoursText(minutes) {
+    if (!Number.isFinite(minutes) || minutes <= 0) return '';
+    return String(Math.round(minutes / 6) / 10);
+}
+
+/** 时长输入框 → 分钟；空值 / 非法值 / 非正数返回 null */
+function minutesFromHours(value) {
+    const hours = Number(value);
+    if (!Number.isFinite(hours) || hours <= 0) return null;
+    return Math.max(1, Math.round(hours * 60));
+}
+
+/** 弹窗里的一行：游戏名 + 日期输入 + 时长输入 + 清除 */
+function DateRow({ card, today, onSaveDate, onSaveTime, onClearTime, onClear, onRemove }) {
     const React = getReact();
-    const manual = card.completedAtSource === 'manual' ? card.completedAt : null;
-    const [draft, setDraft] = React.useState(() => (manual ? isoDay(manual) : ''));
+    const manualDate = card.completedAtSource === 'manual' ? card.completedAt : null;
+    const manualTime = card.playtimeSource === 'manual' ? card.playtimeMin : null;
+    const [dateDraft, setDateDraft] = React.useState(() => (manualDate ? isoDay(manualDate) : ''));
+    const [timeDraft, setTimeDraft] = React.useState(() => hoursText(manualTime));
+    const [confirmRemove, setConfirmRemove] = React.useState(false);
+    const [removing, setRemoving] = React.useState(false);
+    const isExtra = card.source === 'manual-extra';
 
     // 清除 / 外部状态变化后，把输入框同步回当前真实值
     React.useEffect(() => {
-        setDraft(manual ? isoDay(manual) : '');
-    }, [manual]);
+        setDateDraft(manualDate ? isoDay(manualDate) : '');
+    }, [manualDate]);
 
-    const onChange = (event) => {
+    React.useEffect(() => {
+        setTimeDraft(hoursText(manualTime));
+    }, [manualTime]);
+
+    const onDateChange = (event) => {
         const value = event.target.value;
-        setDraft(value);
+        setDateDraft(value);
         const seconds = secondsFromDay(value, today);
-        if (seconds != null) onSave(card.appid, seconds);
+        if (seconds != null) onSaveDate(card.appid, seconds);
+    };
+
+    const onTimeChange = (event) => {
+        const value = event.target.value;
+        setTimeDraft(value);
+        if (value.trim() === '') {
+            if (manualTime != null) onClearTime(card.appid);
+            return;
+        }
+        const minutes = minutesFromHours(value);
+        if (minutes != null) onSaveTime(card.appid, minutes);
+    };
+
+    // 只输了不合法的内容就离开：退回当前的真实值
+    const onTimeBlur = () => {
+        if (timeDraft.trim() !== '' && minutesFromHours(timeDraft) == null) setTimeDraft(hoursText(manualTime));
+    };
+
+    // 「移除」要按两次：第一次只是把按钮换成确认文字，4 秒后自动收回
+    React.useEffect(() => {
+        if (!confirmRemove) return undefined;
+        const timer = window.setTimeout(() => setConfirmRemove(false), 4000);
+        return () => window.clearTimeout(timer);
+    }, [confirmRemove]);
+
+    const onRemoveClick = async () => {
+        if (removing || !isExtra) return;
+        if (!confirmRemove) {
+            setConfirmRemove(true);
+            return;
+        }
+        setRemoving(true);
+        try {
+            await onRemove?.(card.appid);
+        } finally {
+            setRemoving(false);
+            setConfirmRemove(false);
+        }
     };
 
     const name = card.name ?? `App ${card.appid}`;
+    const manual = manualDate != null || manualTime != null;
     return React.createElement(
         'div',
         { className: 'ac-date-row', 'data-ac-manual': manual ? '' : null },
@@ -176,21 +237,54 @@ function DateRow({ card, today, onSave, onClear }) {
             { className: 'ac-date-row__game' },
             React.createElement('span', { className: 'ac-date-row__name' }, name),
             React.createElement('span', { className: 'ac-date-row__meta' }, `#${card.appid}`),
+            isExtra
+                ? React.createElement('span', { className: 'ac-date-row__tag ac-date-row__tag--extra' }, STR.page.extraTag)
+                : null,
             manual ? React.createElement('span', { className: 'ac-date-row__tag' }, STR.page.manualDatesManual) : null,
+            isExtra
+                ? React.createElement(
+                      'button',
+                      {
+                          type: 'button',
+                          className: 'ac-date-row__remove',
+                          'data-ac-confirm': confirmRemove ? '' : null,
+                          'aria-label': STR.page.extraRemoveFor(name),
+                          title: STR.page.extraRemoveFor(name),
+                          disabled: removing,
+                          onClick: onRemoveClick,
+                      },
+                      confirmRemove ? STR.page.extraRemoveConfirm : STR.page.extraRemove,
+                  )
+                : null,
         ),
         React.createElement('input', {
             type: 'date',
             className: 'ac-date-row__input',
-            value: draft,
+            value: dateDraft,
             max: today,
             'aria-label': STR.page.manualDatesInput(name),
-            onChange,
+            title: STR.page.manualDatesInput(name),
+            onChange: onDateChange,
+        }),
+        React.createElement('input', {
+            type: 'number',
+            className: 'ac-date-row__input ac-date-row__input--hours',
+            value: timeDraft,
+            min: '0',
+            step: '0.1',
+            inputMode: 'decimal',
+            placeholder: STR.page.manualTimesPlaceholder,
+            'aria-label': STR.page.manualTimesInput(name),
+            title: STR.page.manualTimesInput(name),
+            onChange: onTimeChange,
+            onBlur: onTimeBlur,
         }),
         React.createElement(
             'button',
             {
                 type: 'button',
                 className: 'ac-date-row__clear',
+                'aria-label': STR.page.manualDatesClearFor(name),
                 disabled: !manual,
                 onClick: () => onClear(card.appid),
             },
@@ -199,11 +293,89 @@ function DateRow({ card, today, onSave, onClear }) {
     );
 }
 
-function DateModal({ cards, running, today, onSave, onClear, onClose }) {
+function DateModal({
+    cards,
+    running,
+    today,
+    extraScan,
+    autoScan,
+    onSaveDate,
+    onSaveTime,
+    onClearTime,
+    onClear,
+    onRemoveExtra,
+    onScan,
+    onClose,
+}) {
     const React = getReact();
     const rows = [...cards].sort((a, b) =>
         String(a.name ?? '').localeCompare(String(b.name ?? ''), 'zh-Hans-CN'),
     );
+    const scan = extraScan ?? {
+        running: false,
+        finished: false,
+        done: 0,
+        total: 0,
+        added: [],
+        rejected: [],
+        rejectedTotal: 0,
+        unavailable: [],
+    };
+    const [extraNote, setExtraNote] = React.useState(null);
+
+    const runScan = async () => {
+        if (scan.running) return;
+        setExtraNote(null);
+        try {
+            const result = await onScan();
+            if (result?.ok === false) setExtraNote({ tone: 'error', text: STR.page.extraFailed });
+        } catch (error) {
+            out.log(`扫描库外游戏失败：${error?.message ?? error}`);
+            setExtraNote({ tone: 'error', text: STR.page.extraFailed });
+        }
+    };
+
+    // 从「收录库外」进来时自动扫一次；本册已经扫过就直接看上次结果
+    const autoScanRef = React.useRef(false);
+    React.useEffect(() => {
+        if (!autoScan || autoScanRef.current) return;
+        if (scan.running || scan.finished) return;
+        autoScanRef.current = true;
+        runScan();
+    }, [autoScan, scan.running, scan.finished]);
+
+    const scanResults = [];
+    for (const item of scan.added) {
+        scanResults.push(
+            React.createElement(
+                'li',
+                { key: `added-${item.appid}`, 'data-tone': 'ok' },
+                STR.page.extraScanAdded(item.name ?? `App ${item.appid}`),
+            ),
+        );
+    }
+    for (const item of scan.rejected) {
+        scanResults.push(
+            React.createElement(
+                'li',
+                { key: `rejected-${item.appid}`, 'data-tone': 'warn' },
+                STR.page.extraScanRejected(
+                    item.name ?? `App ${item.appid}`,
+                    Number.isFinite(item.unlocked) ? item.unlocked : '?',
+                    Number.isFinite(item.total) ? item.total : '?',
+                ),
+            ),
+        );
+    }
+    for (const item of scan.unavailable) {
+        scanResults.push(
+            React.createElement(
+                'li',
+                { key: `unavailable-${item.appid}`, 'data-tone': 'warn' },
+                STR.page.extraScanUnavailable(item.name ?? `App ${item.appid}`),
+            ),
+        );
+    }
 
     return React.createElement(
         'div',
@@ -219,22 +391,81 @@ function DateModal({ cards, running, today, onSave, onClear, onClose }) {
         React.createElement(
             'div',
             { className: 'ac-date-modal__panel' },
-            React.createElement('h2', { className: 'ac-date-modal__title', id: 'ac-date-title' }, STR.page.manualDatesTitle),
-            React.createElement('p', { className: 'ac-date-modal__desc' }, STR.page.manualDatesDesc),
+            React.createElement(
+                'h2',
+                { className: 'ac-date-modal__title', id: 'ac-date-title' },
+                autoScan ? STR.page.extraTitle : STR.page.manualDatesTitle,
+            ),
+            React.createElement(
+                'p',
+                { className: 'ac-date-modal__desc' },
+                autoScan ? STR.page.extraDesc : STR.page.manualDatesDesc,
+            ),
             running ? React.createElement('p', { className: 'ac-date-modal__hint' }, STR.page.manualDatesRunning) : null,
+            autoScan
+                ? React.createElement(
+                      'section',
+                      { className: 'ac-extra' },
+                      React.createElement(
+                          'button',
+                          {
+                              type: 'button',
+                              className: 'ac-extra__scan',
+                              disabled: scan.running,
+                              onClick: runScan,
+                          },
+                          scan.running ? STR.page.extraScanning(scan.done, scan.total) : STR.page.extraScan,
+                      ),
+                      extraNote
+                          ? React.createElement('p', { className: 'ac-extra__note', 'data-tone': extraNote.tone }, extraNote.text)
+                          : null,
+                      scan.finished && scan.total === 0 && scanResults.length === 0
+                          ? React.createElement('p', { className: 'ac-extra__note' }, STR.page.extraScanEmpty)
+                          : null,
+                      scan.finished && (scan.total > 0 || scanResults.length > 0)
+                          ? React.createElement(
+                                'p',
+                                { className: 'ac-extra__note', 'data-tone': 'info' },
+                                STR.page.extraScanDone(
+                                    scan.added.length,
+                                    scan.rejectedTotal ?? scan.rejected.length,
+                                    scan.unavailable.length,
+                                ),
+                            )
+                          : null,
+                      scanResults.length > 0
+                          ? React.createElement('ul', { className: 'ac-extra__results' }, scanResults)
+                          : null,
+                  )
+                : null,
             rows.length === 0
                 ? React.createElement('p', { className: 'ac-date-modal__empty' }, STR.page.manualDatesEmpty)
                 : React.createElement(
-                      'div',
-                      { className: 'ac-date-modal__list' },
-                      rows.map((card) =>
-                          React.createElement(DateRow, {
-                              key: card.appid,
-                              card,
-                              today,
-                              onSave,
-                              onClear,
-                          }),
+                      React.Fragment,
+                      null,
+                      React.createElement(
+                          'div',
+                          { className: 'ac-date-modal__columns', 'aria-hidden': 'true' },
+                          React.createElement('span', null, '游戏'),
+                          React.createElement('span', null, '完成日期'),
+                          React.createElement('span', null, STR.page.manualTimesPlaceholder),
+                          React.createElement('span', null),
+                      ),
+                      React.createElement(
+                          'div',
+                          { className: 'ac-date-modal__list' },
+                          rows.map((card) =>
+                              React.createElement(DateRow, {
+                                  key: card.appid,
+                                  card,
+                                  today,
+                                  onSaveDate,
+                                  onSaveTime,
+                                  onClearTime,
+                                  onClear,
+                                  onRemove: onRemoveExtra,
+                              }),
+                          ),
                       ),
                   ),
             React.createElement(
@@ -250,58 +481,61 @@ function DateModal({ cards, running, today, onSave, onClear, onClose }) {
     );
 }
 
-/**
- * 顺序入册的次序：按「入册先后」排（旧的在前）。
- * 只把没见过的 appid 追加到缓存次序末尾 —— 已入册卡片的编号和位置永远不动，
- * 新卡自然落在最后一页的空卡槽里，填满后再开新页。
- *
- * @param {Array} cards 最新优先排好序的卡片
- * @param {boolean} persist false 时只算不写（首屏缓存阶段，等客户端数据到了再定次序）
- */
-function sequentialOrder(cards, persist) {
-    const history = cache.readOrder();
-    const byAppid = new Map(cards.map((c) => [c.appid, c]));
-    const kept = history.filter((appid) => byAppid.has(appid));
-    const known = new Set(kept);
-    const fresh = cards
-        .filter((c) => !known.has(c.appid))
-        .sort((a, b) => {
-            const da = a.completedAt ?? Infinity;
-            const db = b.completedAt ?? Infinity;
-            if (da === db) return a.appid - b.appid;
-            return da - db;
-        });
-    if (persist && fresh.length > 0) cache.writeOrder([...history, ...fresh.map((c) => c.appid)]);
-    return [...kept.map((appid) => byAppid.get(appid)), ...fresh];
-}
-
 export function Page({ onClose } = {}) {
     const React = getReact();
     const state = useStoreState();
     const [, reloadOptions] = React.useState(0);
     const [dateOpen, setDateOpen] = React.useState(false);
+    const [dateAutoScan, setDateAutoScan] = React.useState(false);
     const [exportOpen, setExportOpen] = React.useState(false);
+    const [guideOpen, setGuideOpen] = React.useState(false);
+    const [settingsOpen, setSettingsOpen] = React.useState(false);
+    const [noticeOpen, setNoticeOpen] = React.useState(false);
+    const [borrowOpen, setBorrowOpen] = React.useState(false);
+    /** 借阅室开着时不重装主册：只读册会临时接管全局封面取景 */
+    const borrowOpenRef = React.useRef(false);
+    const borrowRef = React.useRef(null);
+    const borrowButtonRef = React.useRef(null);
+    /** 挂载时是否还是第一次进入：新用户先看完整引导，不叠加「年度之树」尝鲜提示 */
+    const newUserRef = React.useRef(null);
+    if (newUserRef.current === null) newUserRef.current = shouldShowOnboarding();
     const hostRef = React.useRef(null);
     const bookRef = React.useRef(null);
+    const viewRef = React.useRef(null);
+    if (!viewRef.current) viewRef.current = createCardView({
+        sortCards: cards => sortCards(cards, 'completed'),
+        readOrder: () => cache.readOrder(),
+        writeOrder: appids => cache.writeOrder(appids),
+    });
+    const shownRef = React.useRef(null);
+    const appliedRef = React.useRef(null);
+    const appliedCardsRef = React.useRef(new Map());
     const stateRef = React.useRef(state);
     stateRef.current = state;
     const builtRef = React.useRef({
-        order: '',
+        order: null,
         owner: '',
         state: '',
         perPage: 0,
         binding: '',
         showStats: null,
         yearPages: null,
-        yearSpread: null,
-        yearSig: '',
+        yearTree: null,
+        yearIndex: null,
+        yearTarget: null,
+        yearSig: null,
+        yearCards: null,
         manualRevision: 0,
     });
     /** 正在播的入册动画（一个令牌，防止旧书的回调影响新书） */
     const introRef = React.useRef(null);
     /** 上次离开时翻到哪一页；首次挂载从缓存读，之后每次翻页就地更新 */
     const positionRef = React.useRef(undefined);
-    if (positionRef.current === undefined) positionRef.current = cache.readPosition();
+    if (positionRef.current === undefined) {
+        // 缓存键按账号隔离，读页码前必须先确定当前账号
+        store.ensureAccountScope();
+        positionRef.current = cache.readPosition();
+    }
 
     // 插件版：把样式补进卡册实际所在的文档（模态窗口 / 主窗口都可能不是模块自己的 document）。
     // 主题版没有注册 ensurer，这里什么也不做。
@@ -330,6 +564,8 @@ export function Page({ onClose } = {}) {
             if (event.key !== 'Escape' || event.defaultPrevented) return;
             // 导出弹窗自己监听 Esc（关弹窗 / 取消导出），这里不能把它连同卡包一起关掉
             if (exportOpen) return;
+            // 阅读设置面板自己处理 Esc，不能把整个卡包一起关掉
+            if (settingsOpen) return;
             // 补日期弹窗开着时 Esc 只关弹窗，不能把整个卡包一起关掉
             if (dateOpen) {
                 event.preventDefault();
@@ -339,6 +575,10 @@ export function Page({ onClose } = {}) {
             if (typeof onClose !== 'function') return;
             // 插件更新弹窗自己处理 Esc，不能把它连同卡包一起关掉
             if (hostRef.current?.ownerDocument?.querySelector('.ac-update')) return;
+            // 借阅室自己处理 Esc（关设置 / 关借来的册子 / 关房间）
+            if (hostRef.current?.ownerDocument?.querySelector('.ac-borrow')) return;
+            // 封面取景 / 新手引导开着时 Esc 只关这一层
+            if (hostRef.current?.querySelector('.ac-coveredit, .ac-onboarding')) return;
             // 年份选择器开着时 Esc 只关选择器，不能把整个卡包一起关掉
             if (hostRef.current?.querySelector('.ac-year-picker')) return;
             event.preventDefault();
@@ -346,7 +586,7 @@ export function Page({ onClose } = {}) {
         };
         win.addEventListener('keydown', onKeyDown, true);
         return () => win.removeEventListener('keydown', onKeyDown, true);
-    }, [onClose, dateOpen, exportOpen]);
+    }, [onClose, dateOpen, exportOpen, settingsOpen]);
 
     // 首次挂载：读数据 + 取当前账号（再挂载时走 silent，避免用缓存先铺一层造成闪烁）
     React.useEffect(() => {
@@ -368,31 +608,39 @@ export function Page({ onClose } = {}) {
     React.useEffect(() => {
         const host = hostRef.current;
         if (!host) return;
+        // 借阅室开着时主册暂停重装：借来的只读册会临时接管全局封面取景
+        if (borrowOpenRef.current) return;
 
-        const byCompletion = store.selectVisibleCards();
         const binding = currentBinding();
-        const ordered = binding === 'sequential' ? sequentialOrder(byCompletion, !state.fromCache) : byCompletion;
+        const orderedView = viewRef.current.select(state.cards, {
+            binding,
+            persist: !state.fromCache,
+            freezeOrder: state.dates.running,
+            manualRevision: state.manualRevision,
+        });
+        const ordered = orderedView.cards;
         const phase = state.phase === 'ready' && ordered.length === 0 ? 'empty' : state.phase;
         const perPage = currentPerPage();
-
-        // 新收录、还没入册的卡先不放进册子（入册动画开始后由 book 自己接手）
-        const pending = introRef.current ? new Set() : new Set(state.intro.appids);
-        const shown = pending.size > 0 ? ordered.filter((c) => !pending.has(c.appid)) : ordered;
 
         const destroyBook = () => {
             bookRef.current?.destroy();
             bookRef.current = null;
             introRef.current = null;
+            appliedRef.current = null;
+            appliedCardsRef.current = new Map();
             builtRef.current = {
-                order: '',
+                order: null,
                 owner: '',
                 state: '',
                 perPage: 0,
                 binding: '',
                 showStats: null,
                 yearPages: null,
-                yearSpread: null,
-                yearSig: '',
+                yearTree: null,
+                yearIndex: null,
+                yearTarget: null,
+                yearSig: null,
+                yearCards: null,
                 manualRevision: 0,
             };
         };
@@ -411,13 +659,13 @@ export function Page({ onClose } = {}) {
             return;
         }
 
-        const orderKey = orderOf(shown);
         const ownerKey = `${state.owner?.persona ?? ''}|${state.owner?.avatar ?? ''}`;
         const showStats = currentTitleStats();
         const yearPages = currentYearPages();
-        const yearSpread = currentYearSpread();
-        const yearSig = yearPages ? yearSignature(shown) : '';
-
+        const reading = readReading();
+        const yearTree = TREE_FEATURE && yearPages && reading.tree;
+        const yearIndex = yearPages && reading.tabs;
+        const yearTarget = reading.target;
         if (
             bookRef.current &&
             (builtRef.current.owner !== ownerKey ||
@@ -425,11 +673,34 @@ export function Page({ onClose } = {}) {
                 builtRef.current.binding !== binding ||
                 builtRef.current.showStats !== showStats ||
                 builtRef.current.yearPages !== yearPages ||
-                builtRef.current.yearSpread !== yearSpread)
+                builtRef.current.yearTree !== yearTree ||
+                builtRef.current.yearIndex !== yearIndex ||
+                builtRef.current.yearTarget !== yearTarget)
         ) {
-            // 昵称/头像晚到了，或单页数量 / 装订方式 / 扉页统计 / 年份页（左右展开）改了：整册重画一次
+            // 昵称/头像晚到了，或单页数量 / 装订方式 / 扉页统计 / 年份页 / 阅读设置改了：整册重画一次
             destroyBook();
         }
+
+        // 设置重建可能中止正在播放的入册动画；按重建后的令牌重新隐藏待入册卡。
+        const pendingIds = introRef.current ? null : state.intro.appids;
+        let filtered = shownRef.current;
+        if (!filtered || filtered.view !== orderedView || filtered.pendingIds !== pendingIds) {
+            const pending = new Set(pendingIds ?? []);
+            const ids = pending.size ? orderedView.ids.filter(id => !pending.has(id)) : orderedView.ids;
+            const previousIds = filtered?.ids;
+            filtered = { view: orderedView, pendingIds, pending,
+                cards: pending.size ? ordered.filter(card => !pending.has(card.appid)) : ordered,
+                ids: previousIds && ids.length === previousIds.length && ids.every((id, i) => id === previousIds[i]) ? previousIds : ids };
+            shownRef.current = filtered;
+        }
+        const { cards: shown, pending, ids: orderKey } = filtered;
+        const manualChanged = state.manualRevision !== builtRef.current.manualRevision;
+        const deferYearRegroup = state.dates.running && !manualChanged;
+        const yearChanged = bookRef.current && yearPages && !deferYearRegroup
+            && (manualChanged || (
+                shown !== builtRef.current.yearCards
+                && !sameYearSnapshot(shown, builtRef.current.yearSig ?? [], yearKeyOf)
+            ));
 
         if (!bookRef.current) {
             host.replaceChildren();
@@ -440,7 +711,9 @@ export function Page({ onClose } = {}) {
                 binding,
                 showStats,
                 yearPages,
-                yearSpread,
+                yearTree,
+                yearTargets: yearTarget,
+                yearIndex,
                 yearSelections: cache.readYearSelections(),
                 onYearChange: (yearKey, selection) => {
                     const all = cache.readYearSelections();
@@ -461,18 +734,22 @@ export function Page({ onClose } = {}) {
                 binding,
                 showStats,
                 yearPages,
-                yearSpread,
-                yearSig,
+                yearTree,
+                yearIndex,
+                yearTarget,
+                yearSig: yearPages ? createYearSnapshot(shown, yearKeyOf) : null,
+                yearCards: shown,
                 manualRevision: state.manualRevision,
             };
+            appliedRef.current = ordered;
+            appliedCardsRef.current = new Map(shown.map(card => [card.appid, card]));
             out.log(
-                `收藏册已装订：${shown.length} 张卡（每页 ${perPage} 张，${binding === 'sequential' ? '顺序入册' : '最新优先'}${yearPages ? `，按年份分页${yearSpread ? '（年份页左右展开）' : ''}` : ''}）`,
+                `收藏册已装订：${shown.length} 张卡（每页 ${perPage} 张，${binding === 'sequential' ? '顺序入册' : '最新优先'}${yearPages ? `，按年份分页${yearTree ? `，年度之树目标 ${yearTarget}` : ''}${yearIndex ? '，书口年份索引' : ''}` : ''}）`,
             );
         } else if (
             // 日期后台补全期间通常不重排（避免看着看着书页跳走）；
             // 但用户手动补了日期，就必须立刻按新日期重新装订。
-            (!state.dates.running || state.manualRevision !== builtRef.current.manualRevision) &&
-            (orderKey !== builtRef.current.order || (yearPages && yearSig !== builtRef.current.yearSig))
+            orderKey !== builtRef.current.order || yearChanged
         ) {
             // 日期补完了，重新按完成时间 / 年份装订。
             // 还停在第一页（没翻过）就留在第一页；翻过了就把正在看的那张留在原处。
@@ -480,17 +757,26 @@ export function Page({ onClose } = {}) {
             const atStart = book.page === 0;
             book.replaceCards(shown, atStart ? { atStart } : { keepAppid: book.position.appid });
             builtRef.current.order = orderKey;
-            builtRef.current.yearSig = yearSig;
+            builtRef.current.yearSig = yearPages ? createYearSnapshot(shown, yearKeyOf) : null;
+            builtRef.current.yearCards = shown;
+            appliedRef.current = ordered;
+            appliedCardsRef.current = new Map(shown.map(card => [card.appid, card]));
             out.log('完成日期已补全，收藏册重新装订');
-        } else {
+        } else if (appliedRef.current !== ordered) {
             // 日期 / 稀有数 / 游戏名是逐张补上来的：只换变了的那几张卡，不重排
             const book = bookRef.current;
-            const current = new Map(book.cards.map((c) => [c.appid, c]));
+            const current = appliedCardsRef.current;
             for (const card of ordered) {
                 const before = current.get(card.appid);
-                if (before && cardSignature(before) !== cardSignature(card)) book.updateCard(card.appid, card);
+                if (before && before !== card) {
+                    book.updateCard(card.appid, card, { deferYearRegroup });
+                    current.set(card.appid, card);
+                }
             }
+            appliedRef.current = ordered;
         }
+
+        if (!deferYearRegroup) builtRef.current.yearCards = shown;
 
         builtRef.current.manualRevision = state.manualRevision;
 
@@ -500,8 +786,11 @@ export function Page({ onClose } = {}) {
             const appids = [...pending];
             const token = {};
             introRef.current = token;
-            builtRef.current.order = orderOf(ordered);
-            builtRef.current.yearSig = yearPages ? yearSignature(ordered) : '';
+            builtRef.current.order = orderedView.ids;
+            builtRef.current.yearSig = yearPages ? createYearSnapshot(ordered, yearKeyOf) : null;
+            builtRef.current.yearCards = ordered;
+            appliedRef.current = ordered;
+            appliedCardsRef.current = new Map(ordered.map(card => [card.appid, card]));
             out.log(`新卡入册：${appids.join(', ')}`);
             book.introduce(ordered, appids).then((done) => {
                 if (introRef.current !== token) return;
@@ -519,14 +808,116 @@ export function Page({ onClose } = {}) {
         [],
     );
 
+    // 第一次进入：等册子摊开、新卡入册播完，再把引导盖上去
+    const introPending = state.intro.appids.length > 0;
+    React.useEffect(() => {
+        if (state.phase !== 'ready' || state.cards.length === 0 || introPending) return undefined;
+        if (!shouldShowOnboarding()) return undefined;
+        const timer = window.setTimeout(() => {
+            setGuideOpen(true);
+            markOnboardingSeen();
+        }, 1200);
+        return () => window.clearTimeout(timer);
+    }, [state.phase, state.cards.length, introPending]);
+
+    // 引导是纯 DOM 浮层，挂在册子的宿主上（和预览页共用同一份 onboarding.js）
+    React.useEffect(() => {
+        if (!guideOpen || state.phase !== 'ready') return undefined;
+        const host = hostRef.current;
+        if (!host) return undefined;
+        const guide = showOnboarding(host, { yearPages: currentYearPages() }, { onClose: () => setGuideOpen(false) });
+        return () => guide.destroy();
+    }, [guideOpen, state.phase]);
+
+    React.useEffect(() => {
+        if (state.phase !== 'ready' && guideOpen) setGuideOpen(false);
+    }, [state.phase, guideOpen]);
+
+    // 1.1.6 年度之树尝鲜提示：只对升级上来的老用户弹一次；新用户先看完完整引导。
+    // 已经自己打开过年度之树的用户也不用再提示。
+    React.useEffect(() => {
+        if (!TREE_FEATURE || newUserRef.current) return undefined;
+        if (state.phase !== 'ready' || state.cards.length === 0 || introPending || guideOpen || noticeOpen) {
+            return undefined;
+        }
+        if (!shouldShowTreeNotice()) return undefined;
+        if (readReading().tree) {
+            markTreeNoticeSeen();
+            return undefined;
+        }
+        const timer = window.setTimeout(() => {
+            markTreeNoticeSeen();
+            setNoticeOpen(true);
+        }, 900);
+        return () => window.clearTimeout(timer);
+    }, [state.phase, state.cards.length, introPending, guideOpen, noticeOpen]);
+
+    // 尝鲜提示是纯 DOM 浮层；「去设置开启」关掉提示后打开阅读设置
+    React.useEffect(() => {
+        if (!noticeOpen || state.phase !== 'ready') return undefined;
+        const host = hostRef.current;
+        if (!host) return undefined;
+        const notice = showTreeNotice(host, {
+            onOpenSettings: () => {
+                // 插件版的三项设置在插件面板里，主题版才用卡包自己的阅读设置
+                if (isPluginMode()) window.dispatchEvent(new CustomEvent('ac:open-settings'));
+                else setSettingsOpen(true);
+            },
+            onClose: () => setNoticeOpen(false),
+        });
+        return () => notice.destroy();
+    }, [noticeOpen, state.phase]);
+
+    React.useEffect(() => {
+        if (state.phase !== 'ready' && noticeOpen) setNoticeOpen(false);
+    }, [state.phase, noticeOpen]);
+
+    // 阅读设置面板改一项就会重建册子（宿主会被清空），所以挂在册子宿主的父节点上
+    React.useEffect(() => {
+        if (!settingsOpen || state.phase !== 'ready') return undefined;
+        const host = hostRef.current?.parentElement ?? hostRef.current;
+        if (!host) return undefined;
+        const panel = openReadingSettings(host, {
+            onClose: () => setSettingsOpen(false),
+            diagnostics: store.getDiagnostics,
+            onExtraScan: () => {
+                setDateAutoScan(true);
+                setDateOpen(true);
+            },
+        });
+        return () => panel.destroy();
+    }, [settingsOpen, state.phase]);
+
+    React.useEffect(() => {
+        if (state.phase !== 'ready' && settingsOpen) setSettingsOpen(false);
+    }, [state.phase, settingsOpen]);
+
     const pluginMode = isPluginMode();
 
-    // 补日期入口只在「后台已经确认取不到日期、现在仍然空着」的卡存在时出现；
+    // 补日期入口只在「取不到日期 / 时长、现在仍然空着」的卡存在时出现；
     // 弹窗里同时列出手动填过的卡，方便就地修改。
+    // 库外收录的卡始终列出：日期和时长都填好后还能在这里移除。
     const unavailable = state.dates.unavailable ?? new Set();
-    const needDate = state.cards.filter((c) => c.completedAt == null && unavailable.has(c.appid));
-    const manualFilled = state.cards.filter((c) => c.completedAtSource === 'manual');
-    const dateCards = [...new Map([...needDate, ...manualFilled].map((c) => [c.appid, c])).values()];
+    const { needInfo, infoCards } = React.useMemo(() => {
+        const needInfo = [], infoCards = [];
+        for (const card of state.cards) {
+            // 别的账号的卡是只读快照，补日期 / 时长只针对当前账号自己的卡
+            if (card.source === 'external') continue;
+            const missingDate = card.completedAt == null && unavailable.has(card.appid);
+            const missingTime = card.playtimeMin == null;
+            if (missingDate || missingTime) needInfo.push(card);
+            if (
+                missingDate
+                || missingTime
+                || card.completedAtSource === 'manual'
+                || card.playtimeSource === 'manual'
+                || card.source === 'manual-extra'
+            ) {
+                infoCards.push(card);
+            }
+        }
+        return { needInfo, infoCards };
+    }, [state.cards, unavailable]);
     const today = isoDay(Math.floor(Date.now() / 1000));
 
     React.useEffect(() => {
@@ -543,6 +934,29 @@ export function Page({ onClose } = {}) {
         };
         window.addEventListener('ac:export-open', onExport);
         return () => window.removeEventListener('ac:export-open', onExport);
+    }, []);
+
+    // 设置面板里的「新手引导」：卡册页在册时由这里接手打开引导浮层
+    React.useEffect(() => {
+        const onGuide = (event) => {
+            if (stateRef.current.phase !== 'ready' || stateRef.current.cards.length === 0) return;
+            event.detail?.onOpen?.();
+            setGuideOpen(true);
+        };
+        window.addEventListener('ac:onboarding-open', onGuide);
+        return () => window.removeEventListener('ac:onboarding-open', onGuide);
+    }, []);
+
+    // 设置面板里的「收录库外游戏」：打开补日期弹窗并自动扫一次
+    React.useEffect(() => {
+        const onExtra = (event) => {
+            if (stateRef.current.phase !== 'ready') return;
+            event.detail?.onOpen?.();
+            setDateAutoScan(true);
+            setDateOpen(true);
+        };
+        window.addEventListener('ac:extra-open', onExtra);
+        return () => window.removeEventListener('ac:extra-open', onExtra);
     }, []);
 
     // 导出弹窗挂到窗口顶层：设置面板可能是模态或快速访问，挂在卡册内部会被它挡住
@@ -573,14 +987,80 @@ export function Page({ onClose } = {}) {
         if (state.phase !== 'ready' && exportOpen) setExportOpen(false);
     }, [state.phase, exportOpen]);
 
+    // 借阅室：整窗覆盖（挂到窗口顶层，和导出弹窗同一套做法）。
+    // 翻过借来的册子后，只读册留下的封面取景已经被清掉；
+    // 主册在借阅室开着的这段时间暂停重装，关掉后重装一次，确保用的是自己的封面。
+    React.useEffect(() => {
+        if (!borrowOpen) return undefined;
+        const doc = hostRef.current?.ownerDocument ?? document;
+        try {
+            borrowRef.current = openBorrowRoom({
+                doc,
+                trigger: borrowButtonRef.current,
+                onClosed: ({ borrowed } = {}) => {
+                    borrowOpenRef.current = false;
+                    if (borrowed) {
+                        bookRef.current?.destroy();
+                        bookRef.current = null;
+                    }
+                    // 等借阅室自己淡出并销毁（约 200ms）再放开 React 这一侧，
+                    // 否则 effect 清理会立刻把它删掉，淡出动画看不见。
+                    window.setTimeout(() => setBorrowOpen(false), 240);
+                },
+            });
+        } catch (error) {
+            out.log(`借阅室打开失败：${error?.message ?? error}`);
+            borrowOpenRef.current = false;
+            setBorrowOpen(false);
+        }
+        return () => {
+            borrowRef.current?.destroy();
+            borrowRef.current = null;
+            borrowOpenRef.current = false;
+        };
+    }, [borrowOpen]);
+
+    React.useEffect(() => {
+        if (state.phase === 'ready' || !borrowOpen) return;
+        borrowOpenRef.current = false;
+        setBorrowOpen(false);
+    }, [state.phase, borrowOpen]);
+
+    const openBorrow = React.useCallback(() => {
+        if (borrowRef.current) return;
+        borrowOpenRef.current = true;
+        setBorrowOpen(true);
+    }, []);
+
+    // 册子风格挂在 .ac-cardpack 上：设置一改就重新渲染到这里，换款不用重建册子
+    const { album } = readReading();
+
     return React.createElement(
         'div',
-        { className: 'ac-cardpack', 'data-ac': 'cardpack' },
+        { className: 'ac-cardpack', 'data-ac': 'cardpack', 'data-album': album && album !== 'grid' ? album : undefined },
         React.createElement('div', { className: 'ac-book-host', ref: hostRef, 'data-ac': 'book-host' }),
         React.createElement(
             'div',
+            { className: 'ac-page-toolbar ac-page-toolbar--left' },
+            state.phase === 'ready'
+                ? React.createElement(
+                      'button',
+                      {
+                          type: 'button',
+                          className: 'ac-borrow-open',
+                          title: '打开借阅室',
+                          'aria-label': '打开借阅室',
+                          ref: borrowButtonRef,
+                          onClick: openBorrow,
+                      },
+                      '借阅室',
+                  )
+                : null,
+        ),
+        React.createElement(
+            'div',
             { className: 'ac-page-toolbar' },
-            state.phase === 'ready' && needDate.length > 0
+            state.phase === 'ready' && needInfo.length > 0
                 ? React.createElement(
                       'button',
                       {
@@ -588,24 +1068,28 @@ export function Page({ onClose } = {}) {
                           className: 'ac-date-open',
                           title: STR.page.manualDatesTitle,
                           'aria-label': STR.page.manualDatesTitle,
-                          onClick: () => setDateOpen(true),
+                          onClick: () => {
+                              setDateAutoScan(false);
+                              setDateOpen(true);
+                          },
                       },
                       STR.page.manualDatesButton,
                   )
                 : null,
-            pluginMode
-                ? React.createElement(
-                      'button',
-                      {
-                          type: 'button',
-                          className: 'ac-plugin-settings',
-                          title: '成就收藏册设置',
-                          'aria-label': '打开成就收藏册设置',
-                          onClick: () => window.dispatchEvent(new CustomEvent('ac:open-settings')),
-                      },
-                      '设置',
-                  )
-                : null,
+            React.createElement(
+                'button',
+                {
+                    type: 'button',
+                    className: 'ac-plugin-settings',
+                    title: pluginMode ? '成就收藏册设置' : '阅读设置',
+                    'aria-label': pluginMode ? '打开成就收藏册设置' : '打开阅读设置',
+                    onClick: () => {
+                        if (pluginMode) window.dispatchEvent(new CustomEvent('ac:open-settings'));
+                        else setSettingsOpen(true);
+                    },
+                },
+                '设置',
+            ),
             typeof onClose === 'function'
                 ? React.createElement(
                       'button',
@@ -622,11 +1106,17 @@ export function Page({ onClose } = {}) {
         ),
         dateOpen && state.phase === 'ready'
             ? React.createElement(DateModal, {
-                  cards: dateCards,
+                  cards: infoCards,
                   running: state.dates.running,
                   today,
-                  onSave: (appid, seconds) => store.setManualDate(appid, seconds),
-                  onClear: (appid) => store.clearManualDate(appid),
+                  extraScan: state.extraScan,
+                  autoScan: dateAutoScan,
+                  onSaveDate: (appid, seconds) => store.setManualDate(appid, seconds),
+                  onSaveTime: (appid, minutes) => store.setManualTime(appid, minutes),
+                  onClearTime: (appid) => store.clearManualTime(appid),
+                  onClear: (appid) => store.clearManualEntry(appid),
+                  onRemoveExtra: (appid) => store.removeExtraGame(appid),
+                  onScan: () => store.scanOutsideGames(),
                   onClose: () => setDateOpen(false),
               })
             : null,

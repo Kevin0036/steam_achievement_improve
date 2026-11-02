@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>年份章节：邮戳月历与蜡封颁奖</title>
+<style>
+/* ===== 公共：深石板纸张 + 细网格。全部用 em，页面字号 --fs 由页宽决定 ===== */
+:root{--bg1:#2b2f3c;--bg2:#222530;--ink:#ece7d9;--mute:#858c9a;--gold:#b39a66;
+--sans:"Poppins","Montserrat","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box;margin:0}
+body{background:#101218;min-height:100vh;display:flex;gap:2.5rem;flex-wrap:wrap;justify-content:center;align-items:flex-start;padding:2rem;font-family:var(--sans)}
+.slot{color:#7d8394;font:12px var(--sans);text-align:center}.slot p{margin-bottom:.7rem}
+.slot button{font:inherit;color:#c9ced9;background:#1c1f29;border:1px solid #3a3f4e;border-radius:6px;padding:.25rem .7rem;margin:0 .2rem;cursor:pointer}
+.slot button.on{background:#3a3f4e}
+.page{--fs:16px;font-size:var(--fs);width:28em;aspect-ratio:5/7;padding:2em 1.9em 1.7em;position:relative;color:var(--ink);display:flex;flex-direction:column;box-shadow:0 .6em 1.6em #000b;background-size:1.1em 1.1em,1.1em 1.1em,auto,auto}
+.page.r{border-radius:0 .7em .7em 0;background-image:linear-gradient(#ffffff08 1px,#0000 1px),linear-gradient(90deg,#ffffff08 1px,#0000 1px),linear-gradient(90deg,#0009,#0000 9%),linear-gradient(160deg,var(--bg1),var(--bg2))}
+.page.l{border-radius:.7em 0 0 .7em;background-image:linear-gradient(#ffffff08 1px,#0000 1px),linear-gradient(90deg,#ffffff08 1px,#0000 1px),linear-gradient(270deg,#0009,#0000 9%),linear-gradient(200deg,var(--bg1),var(--bg2))}
+@keyframes stamp{from{transform:rotate(var(--r)) scale(1.7);opacity:0}55%{opacity:1}to{transform:rotate(var(--r)) scale(1)}}
+
+/* ===== 序章：邮戳月历（白色印章；一个月一枚，中间是当月完成款数） ===== */
+.cal{flex:1;display:grid;grid-template-columns:repeat(3,1fr);align-content:space-evenly;gap:.6em .3em;padding:0 .2em}
+.pm{width:100%;height:auto;overflow:visible;opacity:.9;transform:rotate(var(--r));animation:stamp .5s calc(var(--i)*90ms) backwards;filter:url(#inkf)}
+.pm .ring circle{fill:none;stroke:var(--ink)}
+.pm text{fill:var(--ink);font-family:var(--sans)}
+.pm .arc{font-weight:700;font-size:7.2px;letter-spacing:.3em}
+.pm .num{font-weight:800;font-size:26px}
+.pm .gm{font-weight:700;font-size:4.6px;letter-spacing:.35em}
+.pm .sp{fill:var(--ink)}
+.pm.empty{filter:none;animation:none;opacity:.3}
+.pm.empty circle{fill:none;stroke:var(--mute);stroke-width:.9;stroke-dasharray:1.5 3}
+.pm.empty text{fill:var(--mute);font-weight:700;font-size:11px;letter-spacing:.1em}
+
+/* ===== 尾声：年度颁奖 ===== */
+.hd{position:relative;isolation:isolate;text-align:center}
+.title{font-weight:800;font-size:2.2em;letter-spacing:.38em;text-indent:.38em;color:var(--ink)}
+.brush{position:absolute;left:50%;bottom:-.1em;width:11em;height:.7em;margin-left:-5.5em;z-index:-1;opacity:.55;transform:rotate(-1.4deg);filter:url(#grain);
+background:linear-gradient(90deg,#0000,#8c7850 12%,#b39d71 50%,#8c7850 88%,#0000);clip-path:polygon(0 55%,6% 20%,30% 8%,70% 12%,94% 25%,100% 60%,92% 85%,60% 95%,25% 90%,5% 80%)}
+.spk{position:absolute;fill:var(--mute);opacity:.5;pointer-events:none}
+.awards{flex:1;display:grid;grid-template-columns:1fr 1fr;align-content:space-evenly;margin-top:.6em}
+.awards[data-n="6"] .pin{font-size:.74em}
+
+/* 手贴摆放：每个信封各自倾斜、错位、缩放，并贴一截和纸胶带 */
+.pin{--b1:#3c4857;--b2:#28313d;--p1:#414e5c;--p2:#2e3945;--f1:#465564;--f2:#333f4b;
+position:relative;width:11.8em;height:7.2em;justify-self:center;transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(var(--s))}
+.pin.t1{--b1:#36423f;--b2:#232d2b;--p1:#3d4b47;--p2:#2a3532;--f1:#43534e;--f2:#303b38}
+.pin.t2{--b1:#403c49;--b2:#2b2832;--p1:#494451;--p2:#332f3a;--f1:#504a58;--f2:#39343f}
+.pin.open{z-index:6}
+.tape{position:absolute;z-index:9;width:3.4em;height:1em;opacity:.84;pointer-events:none;
+background:repeating-linear-gradient(90deg,var(--tp) 0 .32em,var(--tq) .32em .64em);
+clip-path:polygon(0 0,3% 18%,0 36%,3% 54%,0 72%,3% 90%,0 100%,100% 100%,97% 82%,100% 64%,97% 46%,100% 28%,97% 10%,100% 0)}
+.tape.l{left:-.9em;top:-.15em;transform:rotate(-34deg)}
+.tape.r{right:-.9em;top:-.15em;transform:rotate(33deg)}
+
+/* 信封：点击后 封口翻开（三角尖朝上翻到信封上方）→ 信纸升出；再点：信纸落回 → 封口合上 */
+.env{position:relative;isolation:isolate;width:100%;height:100%;padding:0;border:0;background:none;font:inherit;color:inherit;cursor:pointer;perspective:40em;transition:transform .25s}
+.env:not(.open):hover{transform:translateY(-.12em)}
+.env:focus-visible{outline:.1em solid #9fb4cf;outline-offset:.35em}
+.env.open{z-index:5}
+.env>*{position:absolute}
+.env .back{inset:0;z-index:1;background:linear-gradient(160deg,var(--b1),var(--b2));border:.06em solid #efe6cf33;box-shadow:0 .2em .5em #0008}
+.letter{left:7%;top:1em;width:86%;height:6em;z-index:2;filter:drop-shadow(0 .1em .3em #0009);transition:transform .42s cubic-bezier(.5,0,.8,.4)}
+.env.open .letter{transform:translateY(-5.9em) rotate(calc(var(--rot) * -1));transition:transform .6s cubic-bezier(.2,.8,.25,1) .38s}
+.paper{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;padding:.6em .5em 0;text-align:center;color:#2a2b33;border-top:.32em solid var(--c);background:linear-gradient(#f2ead4,#e5dbc0);
+-webkit-mask:radial-gradient(circle .5em at 0 45%,#0000 98%,#000),radial-gradient(circle .5em at 100% 45%,#0000 98%,#000);-webkit-mask-composite:source-in;mask:radial-gradient(circle .5em at 0 45%,#0000 98%,#000),radial-gradient(circle .5em at 100% 45%,#0000 98%,#000);mask-composite:intersect}
+.paper small{font-size:.56em;letter-spacing:.2em;color:#8a8473}
+.paper .st{font-weight:800;font-size:1.7em;line-height:1.1;color:var(--n)}
+.paper .st em{font:700 .38em var(--sans);margin-left:.25em;color:#2a2b33}
+.paper b{font-size:.74em;margin-top:.1em;line-height:1.3;max-width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.paper i{font:normal .5em var(--sans);letter-spacing:.15em;color:#8a8473;margin-top:.25em}
+.fw{inset:0;z-index:3;filter:drop-shadow(0 -.06em 0 #efe6cf44) drop-shadow(0 .12em .15em #0007)}
+.fw i{position:absolute;inset:0;background:linear-gradient(200deg,var(--p1),var(--p2));clip-path:polygon(0 100%,0 0,50% 50%,100% 0,100% 100%)}
+.stp{right:.75em;bottom:.65em;width:1.5em;height:1.8em;z-index:3;transform:rotate(6deg);filter:drop-shadow(0 .05em .08em #0008)}
+.stp .pf{stroke:var(--p2)}
+.wv{right:2.2em;bottom:1.9em;width:2.4em;z-index:3}
+/* 封口：闭合时在最上层；翻开越过 90° 后沉到信纸后面。关闭时等信纸落下后才合上 */
+.flap{left:0;top:0;width:100%;height:50%;z-index:4;transform-origin:50% 0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.45,0,.2,1) .38s,z-index 0s .38s}
+.env.open .flap{transform:rotateX(180deg);z-index:1;transition:transform .5s cubic-bezier(.45,0,.2,1),z-index 0s .25s}
+.flap>i,.flap>b{position:absolute;inset:0;backface-visibility:hidden}
+.flap>i{clip-path:polygon(0 0,100% 0,50% 100%);background:linear-gradient(180deg,var(--f1),var(--f2))}
+/* 背面（内衬）：自身再翻一次，所以形状要上下颠倒，翻开后三角尖才会朝上 */
+.flap>b{clip-path:polygon(0 100%,100% 100%,50% 0);transform:rotateX(180deg);background:repeating-linear-gradient(45deg,var(--b2) 0 .3em,var(--b1) .3em .6em)}
+/* 蜡封分两半：上半随封口翻走，下半留在信封上；裁线留出叠压，合上时看不出接缝 */
+.wax,.wax-b,.wax-full{position:absolute;width:3em;height:3em;pointer-events:none}
+.wax{left:50%;bottom:-1.5em;margin-left:-1.5em;backface-visibility:hidden;filter:drop-shadow(0 .1em .16em #0009);
+clip-path:polygon(0 0,100% 0,100% 53%,93% 56%,86% 52%,79% 56%,72% 52%,65% 56%,58% 52%,51% 56%,44% 52%,37% 56%,30% 52%,23% 56%,16% 52%,9% 56%,2% 53%,0 55%)}
+.wax-b{left:50%;top:calc(50% - 1.5em);margin-left:-1.5em;z-index:4;filter:drop-shadow(0 .1em .16em #0009);
+clip-path:polygon(0 100%,100% 100%,100% 47%,93% 50%,86% 46%,79% 50%,72% 46%,65% 50%,58% 46%,51% 50%,44% 46%,37% 50%,30% 46%,23% 50%,16% 46%,9% 50%,2% 47%,0 49%)}
+/* 合上时用整枚蜡封盖住裁线；点开的瞬间隐藏，两半正好接成同一枚，不闪 */
+.wax-full{left:50%;top:calc(50% - 1.5em);margin-left:-1.5em;z-index:4;transition:opacity 0s .9s}
+.env.open .wax-full{opacity:0;transition:opacity 0s}
+.wax svg,.wax-b svg,.wax-full svg{width:100%;height:100%;display:block}
+.label{left:0;right:0;bottom:.55em;z-index:6;text-align:center;pointer-events:none;font-weight:700;font-size:.95em;letter-spacing:.16em;text-indent:.16em;color:var(--ink);text-shadow:0 .06em .12em #000a}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+ <filter id="inkf"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="n"/><feColorMatrix in="n" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.5 1.45" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in"/></filter>
+ <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".015 .9" numOctaves="2" seed="3" result="n"/><feColorMatrix in="n" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.4 1.9" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in"/></filter>
+ <!-- 蜡封：平滑蜡面，只留下很轻的压印与高光 -->
+ <radialGradient id="waxg" cx=".38" cy=".3" r=".82"><stop offset="0" stop-color="#98534c"/><stop offset=".52" stop-color="#743331"/><stop offset="1" stop-color="#49191b"/></radialGradient>
+ <linearGradient id="rimg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c99a8f" stop-opacity=".4"/><stop offset=".52" stop-color="#743331" stop-opacity="0"/><stop offset="1" stop-color="#2b0809" stop-opacity=".55"/></linearGradient>
+ <linearGradient id="pressg" x1=".2" y1=".15" x2=".8" y2=".9"><stop offset="0" stop-color="#4d1616" stop-opacity=".32"/><stop offset="1" stop-color="#c59084" stop-opacity=".14"/></linearGradient>
+ <radialGradient id="waxhi" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffe3d8" stop-opacity=".26"/><stop offset="1" stop-color="#ffe3d8" stop-opacity="0"/></radialGradient>
+ <!-- Steam 图标（Simple Icons 路径）。想用自己的图标，替换这个 path 即可 -->
+ <path id="steamIcon" d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/>
+</defs></svg>
+
+<div class="slot"><p>序章（右页，紧跟上一年最后一张卡背）</p>
+  <section class="page r"><div class="cal" id="cal"></div></section></div>
+
+<div class="slot"><p>尾声（左页，紧挨这一年第一张卡）　<button data-n="4" class="on">4 个奖</button><button data-n="6">6 个奖</button></p>
+  <section class="page l">
+    <div class="hd"><div class="title">年度颁奖</div><i class="brush"></i></div>
+    <div class="awards" id="awards"></div>
+    <svg class="spk" style="left:9%;top:8%;width:1.3em" viewBox="0 0 20 20"><path d="M10 0Q11 8.5 20 10Q11 11.5 10 20Q9 11.5 0 10Q9 8.5 10 0Z"/></svg>
+    <svg class="spk" style="right:8%;top:17%;width:.8em;opacity:.35" viewBox="0 0 20 20"><path d="M10 0Q11 8.5 20 10Q11 11.5 10 20Q9 11.5 0 10Q9 8.5 10 0Z"/></svg>
+    <svg class="spk" style="left:6%;top:50%;width:.9em;opacity:.35" viewBox="0 0 20 20"><path d="M10 0Q11 8.5 20 10Q11 11.5 10 20Q9 11.5 0 10Q9 8.5 10 0Z"/></svg>
+    <svg class="spk" style="right:7%;bottom:8%;width:1.5em" viewBox="0 0 20 20"><path d="M10 0Q11 8.5 20 10Q11 11.5 10 20Q9 11.5 0 10Q9 8.5 10 0Z"/></svg>
+    <svg class="spk" style="left:14%;bottom:6%;width:.7em;opacity:.3" viewBox="0 0 20 20"><path d="M10 0Q11 8.5 20 10Q11 11.5 10 20Q9 11.5 0 10Q9 8.5 10 0Z"/></svg>
+  </section></div>
+
+<script>
+/* 示例数据：换成你缓存里的完成月份与统计 */
+const YEAR=2026;
+const done=[["01","星海旅人"],["01","像素迷宫"],["02","雾中小镇"],["03","夜行列车"],["03","纸上王国"],["04","深潜"],["05","锈蚀都市"],["06","群山之间"],["08","终末花园"],["09","砂海古卷"],["10","潮汐之塔"],["11","永夜守望"],["12","旧日列车"]];
+const awardList=[
+ {t:"坚持就是胜利",s:"最肝的一款",v:"286",u:"小时",w:"永夜守望",d:"2026.11.02",c:"#b0996a",n:"#8a7040"},
+ {t:"快如闪电",s:"最速通关",v:"3:12",u:"小时",w:"像素迷宫",d:"2026.01.23",c:"#8fa0af",n:"#647786"},
+ {t:"万里挑一",s:"最稀有的成就",v:"0.4",u:"%",w:"深潜",d:"成就 无人幸存",c:"#ae8a72",n:"#88644e"},
+ {t:"满载而归",s:"成就最多的一款",v:"142",u:"个",w:"星海旅人",d:"2026.01.09",c:"#95a18d",n:"#6b7a64"},
+ {t:"披星戴月",s:"最深夜的解锁",v:"03:47",u:"",w:"夜行列车",d:"2026.03.03",c:"#9b93a6",n:"#786e85"},
+ {t:"一鼓作气",s:"单日解锁最多",v:"38",u:"个",w:"锈蚀都市",d:"2026.05.07",c:"#aa8e8d",n:"#846667"}];
+/* 手贴参数：倾斜角、位移(em)、缩放、胶带位置与配色 */
+const hand=[
+ {rot:-2.6,dx:-.4,dy:.3,s:1,tp:"#b0a385",tq:"#a39678",side:"l"},
+ {rot:2.1,dx:.5,dy:-.4,s:.98,tp:"#87919b",tq:"#7b8690",side:"r"},
+ {rot:1.6,dx:.3,dy:.5,s:1.02,tp:"#9d8b85",tq:"#917f79",side:"r"},
+ {rot:-2.2,dx:-.5,dy:-.2,s:.99,tp:"#8a9080",tq:"#7e8575",side:"l"},
+ {rot:2.8,dx:-.2,dy:.3,s:1,tp:"#938b98",tq:"#877f8c",side:"l"},
+ {rot:-1.4,dx:.4,dy:.1,s:1.01,tp:"#aa9a7c",tq:"#9e8e70",side:"r"}];
+const MON=["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+
+/* 邮戳月历 */
+const by={};done.forEach(([m,n])=>(by[+m]??=[]).push(n));
+let k=0;
+document.getElementById("cal").innerHTML=MON.map((name,i)=>{
+  const m=i+1,list=by[m]||[],r=(i*53)%11-5;
+  if(!list.length)return`<svg viewBox="0 0 100 100" class="pm empty" style="--r:${r}deg"><circle cx="50" cy="50" r="46"/><text x="50" y="55" text-anchor="middle">${String(m).padStart(2,"0")}</text></svg>`;
+  return`<svg viewBox="0 0 100 100" class="pm" style="--r:${r}deg;--i:${k++}"><title>${YEAR}年${m}月：${list.join("、")}</title>
+  <defs><path id="t${m}" d="M18,50 A32,32 0 0 1 82,50"/><path id="b${m}" d="M10,50 A40,40 0 0 0 90,50"/></defs>
+  <g class="ring"><circle cx="50" cy="50" r="47" stroke-width="2"/><circle cx="50" cy="50" r="43.5" stroke-width=".6"/><circle cx="50" cy="50" r="27" stroke-width=".6"/></g>
+  <text class="arc"><textPath href="#t${m}" startOffset="50%" text-anchor="middle">${name}</textPath></text>
+  <text class="arc"><textPath href="#b${m}" startOffset="50%" text-anchor="middle">${YEAR}</textPath></text>
+  <path class="sp" d="M12.5 46Q13 49.5 16.5 50Q13 50.5 12.5 54Q12 50.5 8.5 50Q12 49.5 12.5 46Z"/>
+  <path class="sp" d="M87.5 46Q88 49.5 91.5 50Q88 50.5 87.5 54Q87 50.5 83.5 50Q87 49.5 87.5 46Z"/>
+  <text class="num" x="50" y="56" text-anchor="middle">${list.length}</text>
+  <text class="gm" x="50" y="65" text-anchor="middle">GAMES</text></svg>`}).join("");
+
+/* 蜡封：平滑深酒红蜡面，压印圈 + Steam 图标，只用柔和的高光表现厚度 */
+const WAX=`<svg viewBox="0 0 100 100">
+<path d="M50 9.7C54.8 9.9 59.7 9.7 64.2 11.1C68.6 12.5 73.3 15 76.8 18.1C80.3 21.2 82.7 25.5 85.3 29.6C87.8 33.7 90.9 38 92 42.6C93.2 47.2 93.1 52.8 91.9 57.4C90.7 62 87.6 66.2 85.1 70.3C82.6 74.4 80.4 78.9 77 82.2C73.5 85.4 68.9 88.2 64.4 89.7C60 91.2 54.8 91 50 91C45.2 91.1 39.9 91.5 35.4 90C30.9 88.6 26.3 85.6 22.9 82.2C19.6 78.9 17.7 74.2 15.4 70C13.1 65.8 10.3 61.8 9.1 57.2C8 52.7 7.7 47.3 8.5 42.7C9.3 38 11.9 33.6 14.2 29.3C16.5 25 18.7 20.2 22.3 16.9C25.8 13.7 30.8 11.1 35.4 9.9C40 8.7 45.2 9.5 50 9.7Z" fill="url(#waxg)"/>
+<circle cx="50" cy="50" r="35" fill="url(#pressg)"/>
+<path d="M50 9.7C54.8 9.9 59.7 9.7 64.2 11.1C68.6 12.5 73.3 15 76.8 18.1C80.3 21.2 82.7 25.5 85.3 29.6C87.8 33.7 90.9 38 92 42.6C93.2 47.2 93.1 52.8 91.9 57.4C90.7 62 87.6 66.2 85.1 70.3C82.6 74.4 80.4 78.9 77 82.2C73.5 85.4 68.9 88.2 64.4 89.7C60 91.2 54.8 91 50 91C45.2 91.1 39.9 91.5 35.4 90C30.9 88.6 26.3 85.6 22.9 82.2C19.6 78.9 17.7 74.2 15.4 70C13.1 65.8 10.3 61.8 9.1 57.2C8 52.7 7.7 47.3 8.5 42.7C9.3 38 11.9 33.6 14.2 29.3C16.5 25 18.7 20.2 22.3 16.9C25.8 13.7 30.8 11.1 35.4 9.9C40 8.7 45.2 9.5 50 9.7Z" fill="none" stroke="url(#rimg)" stroke-width="1.1"/>
+<circle cx="50.2" cy="50.3" r="35.3" fill="none" stroke="#e5b1a5" stroke-opacity=".16" stroke-width=".7"/><circle cx="50" cy="50" r="35" fill="none" stroke="#3f0f10" stroke-opacity=".35" stroke-width="1.1"/>
+<g transform="translate(26 26) scale(2)"><use href="#steamIcon" fill="#c39387" opacity=".28" transform="translate(.3 .4)"/><use href="#steamIcon" fill="#571c1c"/></g>
+<ellipse cx="33" cy="22" rx="16" ry="7" fill="url(#waxhi)" transform="rotate(-28 33 22)"/>
+<ellipse cx="68" cy="81" rx="12" ry="4" fill="#2a0708" opacity=".1" transform="rotate(-28 68 81)"/>
+</svg>`;
+/* 信封前襟上的小邮票与波浪戳线 */
+const STAMP=`<svg class="stp" viewBox="0 0 20 24"><rect x="1.2" y="1.2" width="17.6" height="21.6" fill="#efe6cf"/><rect x="3.6" y="3.6" width="12.8" height="16.8" fill="#25303f"/><path d="M10 7.5Q10.6 11.4 14.5 12Q10.6 12.6 10 16.5Q9.4 12.6 5.5 12Q9.4 11.4 10 7.5Z" fill="#b39a66"/><rect class="pf" x="1.2" y="1.2" width="17.6" height="21.6" fill="none" stroke-width="2.2" stroke-dasharray="0 3.2" stroke-linecap="round"/></svg>
+<svg class="wv" viewBox="0 0 30 10"><path d="M0 2q3.75-3 7.5 0t7.5 0 7.5 0 7.5 0M0 6q3.75-3 7.5 0t7.5 0 7.5 0 7.5 0" fill="none" stroke="#efe6cf" stroke-opacity=".32" stroke-width=".8"/></svg>`;
+
+/* 颁奖信封（4 或 6 个） */
+const box=document.getElementById("awards");
+function renderAwards(n){
+  box.dataset.n=n;
+  box.innerHTML=awardList.slice(0,n).map((a,i)=>{const h=hand[i];return`<div class="pin t${i%3}" style="--rot:${h.rot}deg;--dx:${h.dx}em;--dy:${h.dy}em;--s:${h.s};--tp:${h.tp};--tq:${h.tq}">
+  <i class="tape ${h.side}"></i>
+  <button class="env" aria-expanded="false" aria-label="${a.t}">
+   <span class="back"></span>
+   <span class="letter" style="--c:${a.c};--n:${a.n}"><span class="paper"><small>${a.s}</small><span class="st">${a.v}<em>${a.u}</em></span><b>${a.w}</b><i>${a.d}</i></span></span>
+   <span class="fw"><i></i></span>${STAMP}
+   <span class="flap"><i></i><b></b><span class="wax">${WAX}</span></span>
+   <span class="wax-b" aria-hidden="true">${WAX}</span>
+   <span class="wax-full" aria-hidden="true">${WAX}</span>
+   <span class="label">${a.t}</span></button></div>`}).join("");
+}
+box.addEventListener("click",e=>{const b=e.target.closest(".env");if(!b)return;const was=b.classList.contains("open");
+  box.querySelectorAll(".env.open").forEach(x=>{x.classList.remove("open");x.parentNode.classList.remove("open");x.setAttribute("aria-expanded","false")});
+  if(!was){b.classList.add("open");b.parentNode.classList.add("open");b.setAttribute("aria-expanded","true")}});
+document.querySelectorAll(".slot button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".slot button").forEach(x=>x.classList.toggle("on",x===b));renderAwards(+b.dataset.n)});
+const query=new URLSearchParams(location.search);
+const previewN=query.get("n")==="6"?6:4;
+document.querySelectorAll(".slot button").forEach(x=>x.classList.toggle("on",+x.dataset.n===previewN));
+renderAwards(previewN);
+const openIndex=Number(query.get("open"));
+if(openIndex)setTimeout(()=>box.querySelectorAll(".env")[openIndex-1]?.click(),480);
+</script></body></html>

@@ -31,6 +31,148 @@ export function classify(entry) {
 }
 
 /**
+ * 用**完整成就列表**复核服务端的「已完成」结论。
+ *
+ * Player.GetAchievementsProgress 对部分游戏只返回它已知的成就子集
+ * （实测 3/45 的游戏被报成 3/3），单看 unlocked >= total 会误判。
+ * evidence 来自 Apps.GetMyAchievementsForApp 或本地 achievements 缓存，
+ * 是这款游戏完整的成就总数与本人已解锁数。
+ *
+ * 拿不到证据时维持原判：接口失败 / 缓存缺失不等于没打满（铁律 2）。
+ *
+ * @param {object} entry  进度条目
+ * @param {{total?:number, achieved?:number}|null} evidence
+ * @returns {boolean}
+ */
+export function confirmCompletion(entry, evidence) {
+    if (classify(entry) !== 'complete') return false;
+    if (!evidence || typeof evidence !== 'object') return true;
+
+    const total = Number(evidence.total);
+    if (!Number.isFinite(total) || total <= 0) return true;
+
+    const achieved = Number(evidence.achieved);
+    // 有本人已解锁数时它是最终判据；完整列表总数少于服务端总数时
+    // 多出来的是归档成就，已全部解锁照样算全成就。
+    if (Number.isFinite(achieved)) return achieved >= total;
+
+    // 只有总数时：完整 schema 比服务端声称的总数还多 => 服务端只看到了一部分
+    const claimed = Number(entry.total);
+    return !(Number.isFinite(claimed) && total > claimed);
+}
+
+/**
+ * 从 Apps.GetMyAchievementsForApp 的完整个人列表算出复核证据。
+ * @returns {{total:number, achieved:number}|null}
+ */
+export function completionEvidence(data) {
+    const list = data?.rgAchievements;
+    if (!Array.isArray(list) || list.length === 0) return null;
+
+    let achieved = 0;
+    for (const item of list) if (item?.bAchieved === true) achieved += 1;
+    return { total: list.length, achieved };
+}
+
+/**
+ * 复核一款「准备手动收录」的库外游戏是否真的全成就。
+ *
+ * 三份证据按可信度合并：完整个人列表 > 官方成就表 > 服务端进度。
+ * 总数一律取三者最大值 —— 游戏加了新成就后，旧口径不能再算全成就；
+ * 只有服务端数据时，残缺 schema（3/3、实际 45 个）也会被官方表的总数拆穿。
+ *
+ * @param {{personal?:{total:number,achieved:number}|null, officialTotal?:number|null, service?:object|null}} input
+ * @returns {{status:'complete'|'incomplete'|'unavailable', total:number|null, unlocked:number|null}}
+ */
+export function verifyExtraCompletion({ personal, officialTotal, service } = {}) {
+    const totals = [];
+    if (Number.isFinite(personal?.total) && personal.total > 0) totals.push(personal.total);
+    if (Number.isFinite(officialTotal) && officialTotal > 0) totals.push(officialTotal);
+    if (Number.isFinite(service?.total) && service.total > 0) totals.push(service.total);
+
+    if (totals.length === 0) return { status: 'unavailable', total: null, unlocked: null };
+    const total = Math.max(...totals);
+
+    let unlocked = null;
+    if (Number.isFinite(personal?.achieved)) {
+        unlocked = personal.achieved;
+    } else if (Number.isFinite(service?.unlocked)) {
+        unlocked = service.unlocked;
+    } else if (service?.all_unlocked === true && Number.isFinite(service?.total)) {
+        unlocked = service.total;
+    }
+
+    if (unlocked == null) return { status: 'unavailable', total, unlocked: null };
+    return { status: unlocked >= total ? 'complete' : 'incomplete', total, unlocked };
+}
+
+/**
+ * 手动收录的库外游戏与客户端/服务端后来的进度合并。
+ *
+ * 收录时的结论来自完整成就列表（见 verifyExtraCompletion），比
+ * Player.GetAchievementsProgress 常见的残缺 schema 可靠。所以：
+ *   1. 没有条目，或条目总数不大于收录总数 → 用收录结论；
+ *   2. 条目总数更大 → 游戏加了新成就，旧的「全成就」作废，用条目。
+ * 两种情况都保留 manual-extra 来源，卡面上的「库外」标记和移除入口才不会丢。
+ *
+ * @param {{total:number, unlocked:number}} extra
+ * @param {object|null} entry  客户端 / 服务端进度条目
+ * @returns {{total:number|null, unlocked:number|null, all_unlocked:boolean, source:'manual-extra'}|object}
+ */
+export function mergeExtraProgress(extra, entry) {
+    const total = Number(extra?.total);
+    const unlocked = Number(extra?.unlocked);
+    const own = {
+        total: Number.isFinite(total) ? total : null,
+        unlocked: Number.isFinite(unlocked) ? unlocked : (Number.isFinite(total) ? total : null),
+        all_unlocked: true,
+        source: 'manual-extra',
+    };
+
+    const claimed = Number(entry?.total);
+    if (!Number.isFinite(claimed) || claimed <= (Number.isFinite(total) ? total : 0)) return own;
+    return { ...entry, source: 'manual-extra' };
+}
+
+/**
+ * 合并本地 mapCache 与服务端 Player.GetAchievementsProgress 的同一条进度。
+ *
+ * 本地缓存只覆盖「Steam 最近刷新过」的游戏，缺条、total=0、进度过期都很常见；
+ * 服务端是 Steam 自己算「完美游戏」用的权威数据。合并原则：
+ *   1. 只有一边有可用数据就用那一边；
+ *   2. 总数不同 → 取更大的（游戏加了新成就，旧缓存必须作废）；
+ *   3. 总数相同 → all_unlocked 优先，其次解锁数更多，最后缓存时间更新的；
+ *      打满不会退回，所以「完成」永远不会被「未完成」覆盖。
+ *
+ * @param {object|null} local
+ * @param {object|null} remote
+ * @returns {object|null}
+ */
+export function mergeProgress(local, remote) {
+    const l = usableProgress(local);
+    const r = usableProgress(remote);
+    if (!l) return r ?? local ?? null;
+    if (!r) return l;
+
+    if (l.total !== r.total) return r.total > l.total ? r : l;
+
+    if (r.all_unlocked === true && l.all_unlocked !== true) return r;
+    if (l.all_unlocked === true && r.all_unlocked !== true) return l;
+
+    const lu = Number.isFinite(l.unlocked) ? l.unlocked : -1;
+    const ru = Number.isFinite(r.unlocked) ? r.unlocked : -1;
+    if (lu !== ru) return ru > lu ? r : l;
+
+    const lt = Number.isFinite(l.cache_time) ? l.cache_time : 0;
+    const rt = Number.isFinite(r.cache_time) ? r.cache_time : 0;
+    return rt > lt ? r : l;
+}
+
+function usableProgress(entry) {
+    return entry && typeof entry === 'object' && Number.isFinite(entry.total) && entry.total > 0 ? entry : null;
+}
+
+/**
  * 从 SteamClient.Apps.GetMyAchievementsForApp 的返回里算出完成时间。
  *
  * 依据用户决策 3：完成日期 = 该游戏**最后一个成就的解锁时间**。
@@ -164,6 +306,7 @@ export function buildCard({
         unrated: Number.isFinite(progress?.total) && progress.total >= 0 ? progress.total : null,
 
         playtimeMin: Number.isFinite(overview?.minutes_playtime_forever) ? overview.minutes_playtime_forever : null,
+        playtimeSource: Number.isFinite(overview?.minutes_playtime_forever) ? 'api' : 'none',
         lastPlayed: Number.isFinite(overview?.rt_last_time_played) ? overview.rt_last_time_played : null,
 
         catalogueIndex,
@@ -277,8 +420,9 @@ export function sortCards(cards, key) {
     }
 }
 
+const nameCollator = new Intl.Collator('zh-CN');
 function compareName(a, b) {
-    return a.name.localeCompare(b.name, 'zh-CN');
+    return nameCollator.compare(a.name, b.name);
 }
 
 export const FILTER_KEYS = ['all', 'base', 'dlc', 'dated', 'undated'];

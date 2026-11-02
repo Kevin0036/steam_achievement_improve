@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就收藏册 · 卡包预览</title>
+
+<!--
+  功能 B（成就卡包）的视觉预览页。
+  加载的是主题里**真实的** cardpack.css（book.css + card.css）与 SpaceTheme 的字体，
+  渲染与交互用的是**真实的** src/js/ac/book.js —— 和 Steam 里的卡包页面是同一份代码。
+
+  卡片数据来自 preview/fixtures.js（npm run preview:sync 从客户端最终快照同步）。
+
+  可选参数：
+    ?perPage=4            单页四张
+    ?binding=sequential   顺序入册（默认最新优先）
+    ?stats=0              隐藏扉页的收藏卡 / 金杯 / 银杯统计
+    ?owner=Player         替换昵称（公开素材用）
+    ?intro=1              演示新卡入册
+    ?resume=1             恢复上次翻到的位置
+    ?at=N                 直接摊开到第 N 张
+    ?years=1              开启年份特殊页（完成年份分组 + 徽章 / 横幅手账）
+    ?tree=1               年份页的背面改成「年度之树」（功能已收起，这里留着看备份；配合 ?years=1；
+                          页面底部会出现款数滑条，拖动即可改变这一年画进树里的款数，方便录 GIF）
+    ?target=20            年度之树的目标款数（配合 ?tree=1）
+    ?tabs=1               书口显示年份索引标签，点击跳到对应年份页
+    ?atYear=2025          跳到某一年的年份页（配合 ?years=1）
+    ?face=tree            配合 ?atYear 与 ?tree=1，翻到年度之树
+    ?fresh=1              忽略本地保存的年份槽位，用预览默认选择
+    ?empty=1              年份槽位全部留空（模拟主题里第一次开启）
+    ?onboard=1            显示第一次进入的新手引导
+    ?settings=1           打开阅读设置面板（书口索引 / 年度之树 / 目标滑块）
+    ?notice=1             显示 1.1.6 年度之树尝鲜提示
+    ?skipYear=2023        模拟这一年没有全成就游戏（检查断档年份的书口标签）
+    ?album=velvet         册子风格：dots / astral / velvet
+    ?readOnly=1           只读册（和借阅时一样，不能换徽章和封面）
+    ?face=months          配合 ?atYear，翻到月份足迹；?face=index 翻到本年目录
+-->
+
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/cardpack.css">
+
+<style>
+    html, body { margin: 0; height: 100%; background: rgb(17, 17, 17); }
+    /* 模拟 Steam 库的内容区：一个有固定高度的容器 */
+    #host { height: 100vh; }
+
+    /* 预览专用：年度之树的款数滑条（?tree=1），不属于主题样式 */
+    .ac-preview-tree-tool {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        z-index: 2147483000;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 9px 12px 9px 16px;
+        color: rgba(236, 228, 210, 0.78);
+        font: 12px/1.4 "Be Vietnam Pro", "Segoe UI", sans-serif;
+        background: rgba(18, 17, 15, 0.88);
+        border: 1px solid rgba(207, 174, 95, 0.28);
+        border-radius: 999px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(10px);
+        user-select: none;
+    }
+    .ac-preview-tree-tool label { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .ac-preview-tree-tool select,
+    .ac-preview-tree-tool button {
+        padding: 4px 10px;
+        color: inherit;
+        font: inherit;
+        white-space: nowrap;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        cursor: pointer;
+    }
+    .ac-preview-tree-tool input[type="range"] { width: 180px; accent-color: #cfae5f; }
+    .ac-preview-tree-tool output {
+        min-width: 64px;
+        color: #e6d3a3;
+        font-variant-numeric: tabular-nums;
+    }
+    .ac-preview-tree-tool[data-folded] { gap: 0; padding: 6px; }
+    .ac-preview-tree-tool[data-folded] label { display: none; }
+</style>
+</head>
+<body>
+<div id="host" class="ac-cardpack" data-ac="cardpack"></div>
+
+<script type="module">
+import { CARDS, OWNER } from './fixtures.js';
+import { createBook } from '/theme/src/js/ac/book.js';
+import { buildExportZip, openExportDialog } from '/theme/src/js/ac/export.js';
+import { showOnboarding, showTreeNotice } from '/theme/src/js/ac/onboarding.js';
+import { openReadingSettings } from '/theme/src/js/ac/readingpanel.js';
+import { setOptionProvider } from '/theme/src/js/ac/env.js';
+import { createTreePage } from '/theme/src/js/ac/treepage.js';
+
+const params = new URLSearchParams(location.search);
+const perPage = params.get('perPage') === '4' ? 4 : 1;
+// 装订方式：默认最新优先；?binding=sequential 预览「顺序入册」的左开本
+const binding = params.get('binding') === 'sequential' ? 'sequential' : 'newest';
+// 扉页统计：默认开启；?stats=0 预览关闭后的样子
+const showStats = params.get('stats') !== '0';
+// 年份特殊页：默认关闭；?years=1 预览按年份分册
+const yearPages = params.get('years') === '1';
+// 年度之树（功能已收起）：依赖 ?years=1
+const yearTree = yearPages && params.get('tree') === '1';
+// 年度之树的目标：每年要全成就的款数，默认 20
+const yearTargets = yearTree ? Math.max(1, Math.round(Number(params.get('target'))) || 20) : null;
+// 左右展开时跨页前后是月份足迹 / 本年目录；只有 ?tree=1 才回到保留的年度之树
+const fillPages = yearPages && !yearTree;
+// 书口年份索引：?tabs=1（依赖 ?years=1）
+const yearIndex = yearPages && params.get('tabs') === '1';
+// 预览里没有 Millennium 的主题设置，用 URL 参数假装这两项，
+// 好让阅读设置面板判断「年度之树」的前提条件是否满足
+setOptionProvider((name) => {
+    if (name === '年份特殊页') return yearPages ? '开启' : '关闭';
+    return undefined;
+});
+// fixtures 按完成时间倒序；顺序入册在预览里直接反过来模拟「旧的先入册」
+const base = binding === 'sequential' ? [...CARDS].reverse() : CARDS;
+// ?skipYear=2023 把这一年的游戏从册子里拿掉，模拟「这一年一款全成就都没有」的断档
+const skipYear = params.get('skipYear');
+const ALL =
+    skipYear == null
+        ? base
+        : base.filter(
+              (card) =>
+                  !Number.isFinite(card.completedAt) ||
+                  String(new Date(card.completedAt * 1000).getFullYear()) !== skipYear,
+          );
+// 截图/演示用：?owner=Player 可替换真实昵称，避免把账号名带进公开素材
+const owner = params.has('owner') ? { persona: params.get('owner'), avatar: '' } : OWNER;
+
+// 徽章图案：用 SteamCardExchange 抓下来的等级 hash 拼官方 CDN 地址，
+// 预览不依赖客户端 badgeStore；真实主题里由 badges.js 读客户端定义。
+try {
+    const res = await fetch('/.tmp/badge-fixtures.json');
+    if (res.ok) window.__AC_BADGE_FIXTURES__ = await res.json();
+} catch {
+    window.__AC_BADGE_FIXTURES__ = null;
+}
+
+// 预览默认槽位：每年挑三款有徽章数据的游戏，顺便演示 Lv.5 / FOIL / Lv.3 三种徽章
+const KEY_YEARS = `ac:preview:yearpages:${binding}`;
+const BADGE_FIXTURES = window.__AC_BADGE_FIXTURES__ ?? {};
+const LEVEL_ORDER = [5, 'foil', 3, 4, 2, 1];
+function badgeLevelCount(appid) {
+    const data = BADGE_FIXTURES[appid];
+    if (!data) return 0;
+    return Object.keys(data.levels ?? {}).length + (data.foil ? 1 : 0);
+}
+function pickLevel(appid, preferred) {
+    const data = BADGE_FIXTURES[appid];
+    if (!data) return preferred;
+    const has = (level) =>
+        level === 'foil' ? !!data.foil : !!data.levels?.[String(level)];
+    if (has(preferred)) return preferred;
+    return LEVEL_ORDER.find(has) ?? preferred;
+}
+function defaultSelections() {
+    const byYear = new Map();
+    for (const card of ALL) {
+        if (!Number.isFinite(card.completedAt)) continue;
+        const year = String(new Date(card.completedAt * 1000).getFullYear());
+        if (!byYear.has(year)) byYear.set(year, []);
+        byYear.get(year).push(card);
+    }
+    const selections = {};
+    for (const [year, games] of byYear) {
+        const picked = [...games].sort((a, b) => badgeLevelCount(b.appid) - badgeLevelCount(a.appid)).slice(0, 3);
+        selections[year] = {
+            badges: [0, 1, 2].map((i) =>
+                picked[i] ? { appid: picked[i].appid, level: pickLevel(picked[i].appid, [5, 'foil', 3][i]) } : null,
+            ),
+            banners: [0, 1, 2].map((i) => (picked[i] ? picked[i].appid : null)),
+        };
+    }
+    return selections;
+}
+let yearSelections = params.has('empty') ? {} : defaultSelections();
+try {
+    if (params.has('fresh')) localStorage.removeItem(KEY_YEARS);
+    else {
+        const saved = JSON.parse(localStorage.getItem(KEY_YEARS) || 'null');
+        if (saved && typeof saved === 'object') yearSelections = { ...yearSelections, ...saved };
+    }
+} catch {
+    /* 预览里存不了就算了 */
+}
+
+// 预览专用：?intro=1 演示「新全成就的游戏首次进入卡包时入册」——
+// 假装最近完成的 N 张（默认 1 张）是新收录：先不放进册子，稍后播入册动画。
+// 单页四张时一次最多能收满一页（4 张），单页一张时沿用主题里的 3 张上限。
+const introCount = Math.max(0, Math.min(perPage === 4 ? 4 : 3, Number(params.get('intro')) || 0));
+const fresh = CARDS.slice(0, introCount).map((c) => c.appid);
+const shown = ALL.filter((c) => !fresh.includes(c.appid));
+
+// 预览专用：?resume=1 模拟主题的「记住上次翻到哪一页」（正式页面的实现在 page.js / cache.js）
+const KEY_POSITION = `ac:preview:position:${binding}`;
+let initial = null;
+try {
+    if (params.has('resume')) initial = JSON.parse(localStorage.getItem(KEY_POSITION) || 'null');
+} catch {
+    initial = null;
+}
+
+const host = document.getElementById('host');
+// 册子风格：?album=velvet 等，款式见 src/css/ac/albumstyles.css；风格挑选页会就地切换这个属性
+if (params.get('album') && params.get('album') !== 'grid') host.dataset.album = params.get('album');
+const book = createBook(host, {
+    cards: shown,
+    owner,
+    perPage,
+    binding,
+    showStats,
+    yearPages,
+    yearTree,
+    yearTargets,
+    yearIndex,
+    yearSelections,
+    readOnly: params.get('readOnly') === '1',
+    onYearChange: (year, selection) => {
+        yearSelections[year] = selection;
+        try {
+            localStorage.setItem(KEY_YEARS, JSON.stringify(yearSelections));
+        } catch {
+            /* 预览里存不了就算了 */
+        }
+    },
+    initial,
+    onPage: (position) => {
+        try {
+            localStorage.setItem(KEY_POSITION, JSON.stringify(position));
+        } catch {
+            /* 预览里存不了就算了 */
+        }
+    },
+});
+if (fresh.length > 0) setTimeout(() => book.introduce(ALL, fresh), 700);
+
+// 预览专用：?onboard=1 预览新手引导（正式页面由 page.js 在第一次进入时自动弹出）
+let onboarding = null;
+function openOnboarding() {
+    onboarding?.destroy();
+    onboarding = showOnboarding(host, { yearPages }, { onClose: () => { onboarding = null; } });
+    return onboarding;
+}
+window.__onboard = openOnboarding;
+if (params.get('onboard') === '1') setTimeout(() => openOnboarding(), 900);
+
+// 预览专用：?settings=1 打开阅读设置面板；?notice=1 显示 1.1.6 年度之树尝鲜提示
+// （正式页面里两者都由 page.js 按本地状态自动触发，这里只是手动打开方便检查样式）
+let readingPanel = null;
+function openReading() {
+    readingPanel?.destroy();
+    readingPanel = openReadingSettings(host, {
+        onClose: () => { readingPanel = null; },
+        // 预览里没有 Steam 数据，给一行示例方便检查「日志反馈」的样式与复制
+        diagnostics: () =>
+            `成就收藏册诊断：库内 ${ALL.length + 24} 款 · mapCache ${ALL.length + 40} 条 · 全成就 ${ALL.length} · total=0 12 · 无缓存 4`,
+        // 扫描依赖 Steam 客户端接口，预览只检查设置行的样式
+        onExtraScan: () => {},
+    });
+    return readingPanel;
+}
+let treeNotice = null;
+function openTreeNotice() {
+    treeNotice?.destroy();
+    treeNotice = showTreeNotice(host, {
+        onOpenSettings: openReading,
+        onClose: () => { treeNotice = null; },
+    });
+    return treeNotice;
+}
+window.__reading = openReading;
+window.__notice = openTreeNotice;
+if (params.get('settings') === '1') setTimeout(() => openReading(), 700);
+if (params.get('notice') === '1') setTimeout(() => openTreeNotice(), 900);
+
+// 预览专用：?at=12 直接摊开到第 12 张（不做动画）
+const at = Number(params.get('at'));
+if (at > 0) book.goTo(at - 1);
+
+// 预览专用：?atYear=2025 先摊到那一年的第一张卡，再翻到年份手账的正面；?face=annual 再往后翻到背面
+// （年份页和年度最爱是同一叶的正反两面，最新优先要往回翻两次才到正面）
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/** 翻一页并等它翻完（book.turn 不返回 Promise，就看页码变没变） */
+async function turnAndWait(dir) {
+    const before = book.page;
+    book.turn(dir);
+    for (let i = 0; i < 40 && book.page === before; i += 1) await sleep(80);
+    await sleep(120);
+}
+async function showYear(year, face) {
+    // 每一年在册子里的第一页是最早完成的那几张：
+    // 最新优先的册子把这一年倒过来排，所以取列表里最后一个；顺序入册取第一个。
+    const inYear = [];
+    ALL.forEach((card, i) => {
+        if (!Number.isFinite(card.completedAt)) return;
+        if (String(new Date(card.completedAt * 1000).getFullYear()) === year) inYear.push(i);
+    });
+    const index = binding === 'sequential' ? inYear[0] : inYear.at(-1);
+    if (index == null) return;
+    book.goTo(index);
+    await sleep(60);
+    for (const dir of binding === 'sequential' ? [-1] : [-1, -1]) await turnAndWait(dir);
+    // 默认：年份页是这一叶的正面，往后翻一页是背面的年度最爱。
+    // 左右展开时两页已经在同一对开页上，不用再翻。
+    // 年度之树：顺序入册在年份页再往回一页（左侧）；最新优先在年份页往后一页（右页）。
+    if (yearTree && face === 'tree') await turnAndWait(binding === 'sequential' ? -1 : 1);
+    // 足迹在年份跨页之前，目录在之后
+    if (fillPages && face === 'months') await turnAndWait(-1);
+    if (fillPages && face === 'index') await turnAndWait(1);
+}
+
+const atYear = params.get('atYear');
+if (yearPages && atYear) {
+    const face = ['annual', 'tree', 'months', 'index'].includes(params.get('face')) ? params.get('face') : 'year';
+    setTimeout(() => showYear(atYear, face), 420);
+}
+
+// 预览专用：年度之树的款数滑条（?tree=1）——拖动即可改变这一年画进树里的款数，
+// 方便给不同形态的树录 GIF。只就地重画这一面树页，不重排整册、不写缓存；
+// 离开这一页再回来会按真实数据重建。
+const treeTool = yearTree ? mountTreeTool() : null;
+function mountTreeTool() {
+    const years = [
+        ...new Set(
+            ALL.filter((card) => Number.isFinite(card.completedAt)).map((card) =>
+                String(new Date(card.completedAt * 1000).getFullYear()),
+            ),
+        ),
+    ].sort((a, b) => Number(a) - Number(b));
+    if (years.length === 0) return null;
+
+    const cardsOf = (year) =>
+        ALL.filter(
+            (card) =>
+                Number.isFinite(card.completedAt) &&
+                String(new Date(card.completedAt * 1000).getFullYear()) === year,
+        );
+    const nodeAt = (year) => host.querySelector(`.ac-tree[data-year="${year}"]`);
+    const visibleAt = (year) => !!nodeAt(year)?.closest('.ac-leaf[data-visible]');
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ac-preview-tree-tool';
+    wrap.innerHTML = `
+        <label>年度
+            <select data-role="year">${years.map((year) => `<option value="${year}">${year}</option>`).join('')}</select>
+        </label>
+        <label>款数
+            <input data-role="range" type="range" min="0" max="0" step="1">
+            <output data-role="out"></output>
+        </label>
+        <button type="button" data-role="fold" title="收起滑条（录 GIF 时更干净）">收起</button>
+    `;
+    const select = wrap.querySelector('[data-role="year"]');
+    const range = wrap.querySelector('[data-role="range"]');
+    const out = wrap.querySelector('[data-role="out"]');
+    const fold = wrap.querySelector('[data-role="fold"]');
+
+    let current = years.includes(params.get('atYear')) ? params.get('atYear') : years.at(-1);
+
+    function sync() {
+        const total = cardsOf(current).length;
+        range.max = String(total);
+        range.value = String(total);
+        out.textContent = `${total} / ${total} 款`;
+    }
+
+    function paint() {
+        const total = cardsOf(current).length;
+        const count = Math.max(0, Math.min(total, Math.round(Number(range.value)) || 0));
+        out.textContent = `${count} / ${total} 款`;
+        const old = nodeAt(current);
+        if (!old) return false;
+        old.replaceWith(
+            createTreePage(document, {
+                yearKey: current,
+                year: current,
+                games: cardsOf(current).slice(0, count),
+                target: yearTargets ?? 12,
+                index: years.indexOf(current),
+            }),
+        );
+        return true;
+    }
+
+    async function reveal(year) {
+        await showYear(year, 'tree');
+        for (let i = 0; i < 40 && !nodeAt(year); i += 1) await sleep(80);
+    }
+
+    async function show(year) {
+        if (!years.includes(year)) return false;
+        current = year;
+        select.value = year;
+        sync();
+        if (!visibleAt(current)) await reveal(current);
+        return paint();
+    }
+
+    select.addEventListener('change', () => show(select.value));
+    range.addEventListener('input', paint);
+    fold.addEventListener('click', () => {
+        const folded = wrap.toggleAttribute('data-folded');
+        fold.textContent = folded ? '树滑条' : '收起';
+        fold.title = folded ? '展开年度之树滑条' : '收起滑条（录 GIF 时更干净）';
+    });
+
+    document.body.append(wrap);
+    select.value = current;
+    sync();
+    // ?atYear 在 420ms 之后才翻页，等它落位再对一次表
+    if (params.get('atYear')) setTimeout(() => visibleAt(current) && paint(), 1500);
+
+    return {
+        element: wrap,
+        years,
+        show,
+        /** 预览验收用：直接设成「某一年 N 款」，必要时先翻到那棵树 */
+        async apply(year, count) {
+            if (!years.includes(year)) return false;
+            current = year;
+            select.value = year;
+            const total = cardsOf(year).length;
+            range.max = String(total);
+            range.value = String(Math.max(0, Math.min(total, Math.round(Number(count)) || 0)));
+            if (!visibleAt(current)) await reveal(current);
+            return paint();
+        },
+    };
+}
+window.__treeSlider = treeTool;
+
+// 预览专用：模拟插件设置面板里的导出入口（弹窗挂到窗口顶层）
+let exportDialog = null;
+let exportHost = null;
+function openExport() {
+    if (exportDialog) return exportDialog;
+    exportHost = document.createElement('div');
+    exportHost.className = 'ac-export-slot ac-export-slot--overlay';
+    document.body.append(exportHost);
+    exportDialog = openExportDialog({
+        host: exportHost,
+        cards: book.cards,
+        owner,
+        yearSelections: book.yearSelections,
+        binding,
+        yearPages,
+        onClose: () => {
+            exportDialog = null;
+            exportHost?.remove();
+            exportHost = null;
+        },
+    });
+    return exportDialog;
+}
+
+function saveZip(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = name;
+    anchor.style.display = 'none';
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+window.__export = { buildExportZip, openExportDialog, open: openExport };
+window.__exportBuild = (options = {}) =>
+    buildExportZip({
+        doc: document,
+        cards: options.cards ?? book.cards,
+        owner: options.owner ?? owner,
+        yearSelections: options.yearSelections ?? book.yearSelections,
+        binding: options.binding ?? binding,
+        yearPages: options.yearPages ?? yearPages,
+        types: options.types ?? { cards: true, tickets: true, stamps: true },
+        onProgress: options.onProgress ?? null,
+    });
+window.__exportTest = async (options = {}) => {
+    const output = await window.__exportBuild(options);
+    if (!output.blob) {
+        return { ok: false, cancelled: output.cancelled, files: [], failed: output.failed };
+    }
+    const name = options.name ?? output.fileName;
+    if (options.download !== false) saveZip(output.blob, name);
+    return {
+        ok: true,
+        name,
+        size: output.blob.size,
+        files: output.files.map((file) => file.path),
+        failed: output.failed,
+    };
+};
+
+window.__book = book;
+window.__replayIntro = (n = 1) => {
+    const next = new URLSearchParams(location.search);
+    next.set('intro', String(n));
+    location.search = next.toString();
+};
+
+// 预览专用：?updateDemo=1 用模拟后端展示插件的「发现新版本」弹窗
+if (params.get('updateDemo') === '1') {
+    const style = document.createElement('style');
+    style.textContent = `
+        .ac-update { position: fixed; z-index: 2147483200; }
+        .ac-update__panel { width: min(560px, 100%); }
+        .ac-update__notes {
+            max-height: 240px;
+            margin: 14px 0 0;
+            padding: 10px 12px;
+            overflow: auto;
+            color: var(--ac-text-dim);
+            font-size: 12px;
+            line-height: 1.75;
+            white-space: pre-wrap;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .ac-update__status { margin: 12px 0 0; color: var(--ac-text-dim); font-size: 12px; line-height: 1.6; }
+        .ac-update__status:empty { display: none; }
+        .ac-update__status.is-ok { color: #8fe2a8; }
+        .ac-update__status.is-error { color: #ff9a9a; }
+        .ac-update .ac-export__foot { flex-wrap: wrap; }
+    `;
+    document.head.append(style);
+    await import('/theme/update-harness.js');
+    const { checkNow } = window.__updateHarness;
+    const asset = (name) =>
+        `https://github.com/Kevin0036/steam_achievement_improve/releases/download/v1.1.3/${name}`;
+    window.Millennium = {
+        callServerMethod: (plugin, method) => {
+            if (method === 'CheckUpdate') {
+                return Promise.resolve(
+                    JSON.stringify({
+                        success: true,
+                        current: '1.1.2',
+                        latest: '1.1.3',
+                        tag: 'v1.1.3',
+                        url: 'https://github.com/Kevin0036/steam_achievement_improve/releases/tag/v1.1.3',
+                        notes: [
+                            '· 修复成就卡片星芒在部分环境下位置失效的问题',
+                            '· 烫金层改为全册共用一张，卡片出血改用彩色边框',
+                            '· 进入卡包时检查插件更新，可直接下载安装',
+                        ].join('\n'),
+                        assets: {
+                            'AchievementCollection-plugin.js': { url: asset('AchievementCollection-plugin.js'), size: 293251 },
+                            'AchievementCollection-backend.lua': { url: asset('AchievementCollection-backend.lua'), size: 15104 },
+                            'AchievementCollection-showcase.js': { url: asset('AchievementCollection-showcase.js'), size: 7234 },
+                            'AchievementCollection-showcase.css': { url: asset('AchievementCollection-showcase.css'), size: 21088 },
+                        },
+                    }),
+                );
+            }
+            if (method === 'InstallUpdate') {
+                return new Promise((resolve) =>
+                    setTimeout(() => resolve(JSON.stringify({ success: true, version: '1.1.3' })), 900),
+                );
+            }
+            return Promise.resolve('{}');
+        },
+    };
+    localStorage.removeItem('ac:plugin:update:v1');
+    sessionStorage.removeItem('ac:plugin:update:session');
+    window.setTimeout(() => checkNow(document.querySelector('[data-ac="cardpack"]')), 600);
+}
+</script>
+</body>
+</html>

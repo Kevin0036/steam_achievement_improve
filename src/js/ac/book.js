@@ -24,7 +24,8 @@
  *
  * 交互：
  *   · 鼠标悬停在卡片上 → 3D 检视（跟随指针倾斜 + 反光），离开回正；
- *   · 单击左页卡片 → 向后翻一页；单击右页卡片 → 向前翻回一页；
+ *   · 单击书页任意位置 → 翻一页，和滚轮一样不分卡片页、年份页、目录页；
+ *     按钮类控件（换徽章、目录行）照常响应，不会顺带翻页；
  *   · 滚轮 → 按滚动距离翻页：一个事件最多折算一格，滚一格绝不会翻两页；
  *     快速滚动会连发很多事件，累计的距离排队翻多页；反向滚动立刻改向；
  *   · 点书签 / 向下拉书签 → 快速掠向离得最远的一端；
@@ -39,8 +40,11 @@
 
 import STR from './strings.js';
 import { artImage, createCardBack, createCardFront, formatSerial, formatSerialRange } from './cardview.js';
+import { applyCoverEdit, flushCoverEdits, getBack, getFront, resetCover, setBack, setCoverOverrides, setFront } from './coveredit.js';
 import { getTone, toneToCss } from './tone.js';
-import { createYearPage, normalizeSelection, openYearPicker, yearKeyOf } from './yearpages.js';
+import { createYearPage, normalizeSelection, openYearPicker, yearKeyOf, yearLabel } from './yearpages.js';
+import { createTreePage, treeTypeName } from './treepage.js';
+import { createYearIndex, createYearMonths } from './yearfill.js';
 
 const TURN_MS = 1000; // 与 book.css 里的 --ac-turn 保持一致
 const WHEEL_TURN_MS = 460; // 滚轮翻一页：比点击快，但不至于看不清
@@ -53,6 +57,18 @@ const KEEP_BEHIND = 2;
 const KEEP_AHEAD = 2;
 const TILT_X = 11; // 上下最大倾角（deg）
 const TILT_Y = 14; // 左右最大倾角（deg）
+
+/** 书口年份索引：一列最多放这么多个标签，再多就折叠成「…」；尺寸单位都是 cqh */
+const TAB_MAX = 12;
+const TAB_EDGE = 4;
+const TAB_PITCH_MAX = 12;
+const TAB_HEIGHT_MAX = 7.2;
+
+/** 封面取景：悬停后长按右键多久进入编辑器；按住期间指针允许的抖动 */
+const COVER_HOLD_MS = 560;
+const COVER_HOLD_SLOP = 8;
+/** 编辑器里每累计多少滚轮距离缩放一档（Windows 上一格通常是 100 / 120） */
+const COVER_ZOOM_STEP = 100;
 
 /** 单页一张时，一次最多给这么多张新卡播入册动画（最新的几张），再多的直接放进册子 */
 const MAX_INTRO = 3;
@@ -94,29 +110,42 @@ function depthLevel(count) {
  * @param {number} [options.perPage] 每页卡片数：1（默认）或 4
  * @param {'newest'|'sequential'} [options.binding] 装订方式，默认 sequential（顺序入册）
  * @param {boolean} [options.showStats] 扉页是否显示收藏卡 / 金杯 / 银杯统计，默认 true
- * @param {boolean} [options.yearPages] 按完成年份分组，并在每组前插入一张年份手账（正面徽章 / 背面年度最爱）
- * @param {boolean} [options.yearSpread] 年份页与年度最爱左右同时摊开，另一面留空页
+ * @param {boolean} [options.yearPages] 按完成年份分组，每组前插入四页：月份足迹、年份页、年度最爱、本年目录
+ * @param {boolean} [options.yearTree] 用年度之树代替月份足迹（默认关闭）；页面层已用 TREE_FEATURE 收起这一项
+ * @param {number|Record<string, number>} [options.yearTargets] 每年期望达成的全成就目标（数字 = 统一目标）
+ * @param {boolean} [options.yearIndex] 书口显示年份索引标签，点击跳到那一年的年份页
  * @param {Record<string, {badges: Array, banners: Array}>} [options.yearSelections] 年份页已选槽位
  * @param {(yearKey: string, selection: object) => void} [options.onYearChange] 用户改完某年的槽位
  * @param {{page?: number, appid?: number|null}} [options.initial] 上次看到的页（优先按 appid 锚定）
  * @param {(position: {page: number, appid: number|null}) => void} [options.onPage] 每次翻页停稳后回调
+ * @param {boolean} [options.readOnly] 只读模式：关闭封面编辑器与年份页选择器（借阅室）
+ * @param {Record<number, {front?: object, back?: object}>} [options.coverOverrides] 快照里的封面取景
  * @returns {{ destroy(): void, turn(dir: 1|-1): void, goTo(index: number): void,
- *             updateCard(appid: number, card: object): boolean,
+ *             updateCard(appid: number, card: object, options?: {deferYearRegroup?: boolean}): boolean,
  *             replaceCards(cards: Array, options?: {keepAppid?: number|null, atStart?: boolean}): void,
  *             introduce(cards: Array, appids: number[]): Promise<boolean>,
  *             get cards(): Array, get index(): number, get page(): number,
  *             get pageCount(): number, get yearSelections(): object,
  *             get position(): {page: number, appid: number|null} }}
  */
-export function createBook(container, { cards, owner = {}, perPage: requestedPerPage = 1, binding = 'sequential', showStats = true, yearPages = false, yearSpread = false, yearSelections = null, onYearChange = null, initial = null, onPage = null }) {
+export function createBook(container, { cards, owner = {}, perPage: requestedPerPage = 1, binding = 'sequential', showStats = true, yearPages = false, yearTree = false, yearTargets = null, yearIndex = false, yearSelections = null, onYearChange = null, initial = null, onPage = null, readOnly = false, coverOverrides = null }) {
     const doc = container.ownerDocument;
     const win = doc.defaultView;
     const perPage = Number(requestedPerPage) === 4 ? 4 : 1;
     const sequential = binding === 'sequential';
-    let list = cards;      // 卡片顺序会随完成日期的补全而重排
+    let list = cards.slice(); // Own the array: updateCard must not mutate the page's cached view.
     let n = list.length;
     let yearMode = !!yearPages;
-    const spreadYear = yearMode && !!yearSpread;
+    /** 年度之树是保留的旧路径；默认跨页前后是月份足迹和本年目录 */
+    const treeMode = yearMode && !!yearTree;
+    const fillMode = yearMode && !treeMode;
+    const tabsMode = yearMode && !!yearIndex;
+    /** 每年的目标款数：可以传一个数（所有年份统一）或按年份的对象 */
+    const targetFor = (key) => {
+        const raw = typeof yearTargets === 'number' ? yearTargets : (yearTargets?.[key] ?? yearTargets?.default);
+        const value = Math.round(Number(raw));
+        return Number.isFinite(value) && value > 0 ? Math.min(999, value) : 12;
+    };
     /** 年份键 → 3 个徽章槽 + 3 个横幅槽；没选过的年份按空槽处理 */
     const yearSel = {};
     for (const [key, value] of Object.entries(yearSelections ?? {})) {
@@ -127,17 +156,18 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     const reduceMotion = win.matchMedia?.('(prefers-reduced-motion: reduce)');
 
     /* 分页与分叶：每一年会在第一张卡前插入手账，所以「叶」不再等于「卡片页」。
-       年份徽章页与年度最爱横幅页默认是一叶的正反面（不会同时摊开）；
-       开启 yearSpread 后拆成两叶、左右相对，另一面各留一张空页。
+       年份页与年度最爱左右相对，各占一叶；这两叶的另一面是月份足迹和本年目录。
        sections 按阅读顺序（无年份的最前，然后年份升序）；
        pageEntries 是卡片页，承载编号与槽位；
-       leafPlan 是每一叶的两面（cards / year / annual / blank）。 */
+       leafPlan 是每一叶的两面（cards / year / annual / yearmonths / yearindex）。 */
     let sections = [];
     let pageEntries = [];
     let leafPlan = [];
     let leafTotal = 0;
     let pageByIndex = new Map();
     let spreadByIndex = new Map();
+    /** 有年份的章节（按年份升序）：树页的轮转次序、书口索引都用它 */
+    let yearEntries = [];
 
     /** 对开页总数 = 叶数；扉页 /「未完待续」不算 */
     const pageCount = () => leafTotal;
@@ -197,23 +227,27 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         for (const section of sections) {
             section.pages.forEach((page, pi) => {
                 if (section.known && pi === 0) {
-                    if (spreadYear) {
-                        // 年份页占左页、年度最爱占右页，各用一叶；另一面留空页
-                        if (sequential) {
-                            leafPlan.push(
-                                { front: { kind: 'blank' }, back: { kind: 'year', section } },
-                                { front: { kind: 'annual', section }, back: { kind: 'blank' } },
-                            );
-                        } else {
-                            leafPlan.push(
-                                { front: { kind: 'blank' }, back: { kind: 'annual', section } },
-                                { front: { kind: 'year', section }, back: { kind: 'blank' } },
-                            );
-                        }
-                    } else {
-                        // 正面年份徽章、背面年度最爱：翻过这一叶才会看到背面
+                    // 年份页占左页、年度最爱占右页，各用一叶
+                    if (fillMode) {
+                        // 足迹在跨页之前、目录在跨页之后：两种装订方向都让目录挨着这一年的第一张卡
                         leafPlan.push(
-                            { front: { kind: 'year', section }, back: { kind: 'annual', section } },
+                            sequential
+                                ? { front: { kind: 'yearmonths', section }, back: { kind: 'year', section } }
+                                : { front: { kind: 'yearmonths', section }, back: { kind: 'annual', section } },
+                            sequential
+                                ? { front: { kind: 'annual', section }, back: { kind: 'yearindex', section } }
+                                : { front: { kind: 'year', section }, back: { kind: 'yearindex', section } },
+                        );
+                    } else if (sequential) {
+                        // 以下是保留的年度之树路径（TREE_FEATURE），另一面留空页
+                        leafPlan.push(
+                            { front: { kind: 'tree', section }, back: { kind: 'year', section } },
+                            { front: { kind: 'annual', section }, back: { kind: 'blank' } },
+                        );
+                    } else {
+                        leafPlan.push(
+                            { front: { kind: 'blank' }, back: { kind: 'annual', section } },
+                            { front: { kind: 'year', section }, back: { kind: 'tree', section } },
                         );
                     }
                 }
@@ -235,6 +269,29 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                 }
             }
         });
+
+        // 每年的年份页落在哪一叶的哪一面：书口索引要跳到的对开页 = 叶号 +（背面才 +1）
+        const yearFaceAt = new Map();
+        leafPlan.forEach((spec, li) => {
+            for (const side of ['front', 'back']) {
+                const face = spec[side];
+                if (face.kind === 'year' && !yearFaceAt.has(face.section.key)) {
+                    yearFaceAt.set(face.section.key, { leaf: li, side });
+                }
+            }
+        });
+        yearEntries = sections
+            .filter((section) => section.known)
+            .map((section, order) => {
+                const face = yearFaceAt.get(section.key);
+                return {
+                    key: section.key,
+                    section,
+                    order,
+                    count: section.cards.length,
+                    spread: face ? face.leaf + (face.side === 'back' ? 1 : 0) : 0,
+                };
+            });
     }
 
     buildPagination();
@@ -260,7 +317,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
     const spreadOfIndex = (index) => spreadByIndex.get(index) ?? 0;
 
-    /** 当前对开页露出的年份 / 年度最爱手账面（左右可能同时有；没有就返回空数组） */
+    /** 当前对开页露出的年份 / 年度最爱 / 年度之树（左右可能同时有；没有就返回空数组） */
     function specialFacesAtSpread(spread) {
         const probes = sequential
             ? [
@@ -274,7 +331,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         const faces = [];
         for (const [li, side] of probes) {
             const spec = faceSpec(li, side);
-            if (spec?.kind === 'year' || spec?.kind === 'annual') faces.push(spec);
+            if (['year', 'annual', 'tree', 'yearmonths', 'yearindex'].includes(spec?.kind)) faces.push(spec);
         }
         return faces;
     }
@@ -294,6 +351,9 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     const leaves = new Map();
     const timers = new Set();
     const animations = new Set();
+    /** 封面取景编辑器（同一时间只有一个）；coverHold 是「右键按住」的计时器 */
+    let coverEditor = null;
+    let coverHold = null;
     /** 滚轮：累计的滚动距离，以及排队等着翻的页（+1 向前 / -1 向后） */
     let wheelAccum = 0;
     let wheelQueue = [];
@@ -301,6 +361,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     /** 书签正在被拉住 / 正在播放快速翻阅 */
     let pull = null;
     let riffleStage = null;
+    /** 书口年份索引上一帧的布局签名（没变就不重建按钮） */
+    let tabSignature = '';
 
     /** 还没入册的新卡（卡槽先空着，等入册动画） */
     let hidden = new Set();
@@ -314,6 +376,13 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
 
     const album = el(doc, 'div', 'ac-album', { role: 'region', 'aria-label': STR.book.label, tabindex: '-1' });
     const book = el(doc, 'div', 'ac-book', { 'data-per-page': String(perPage), 'data-binding': binding });
+    if (readOnly) {
+        book.classList.add('ac-book--readonly');
+        // 只读册子不读访客本机的取景记录：没有快照取景时也显式置空
+        setCoverOverrides(coverOverrides && typeof coverOverrides === 'object' ? coverOverrides : {});
+    } else if (coverOverrides) {
+        setCoverOverrides(coverOverrides);
+    }
     const ribbon = el(doc, 'div', 'ac-book__ribbon', {
         role: 'button',
         tabindex: '0',
@@ -323,6 +392,12 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     const board = el(doc, 'div', 'ac-book__board', { 'aria-hidden': 'true' });
     const pages = el(doc, 'div', 'ac-book__pages');
     const live = el(doc, 'div', 'ac-sr-only', { 'aria-live': 'polite' });
+    const tabStrips = tabsMode
+        ? {
+              left: el(doc, 'div', 'ac-book__tabs ac-book__tabs--left'),
+              right: el(doc, 'div', 'ac-book__tabs ac-book__tabs--right'),
+          }
+        : null;
 
     let titleStats = null;
     const titlePage = buildTitlePage();
@@ -330,6 +405,11 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     pages.append(titlePage, endPage);
     renderTitleStats();
     book.append(ribbon, board, pages);
+    if (tabStrips) {
+        tabStrips.left.addEventListener('click', onTabClick);
+        tabStrips.right.addEventListener('click', onTabClick);
+        book.append(tabStrips.left, tabStrips.right);
+    }
     album.append(book, live);
     container.append(album);
 
@@ -387,7 +467,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
 
         page.append(box);
         // 顺序入册从扉页开始翻，翻页提示放在这里
-        if (sequential && n > 0) page.append(el(doc, 'div', 'ac-page-hint', { text: STR.book.hint }));
+        if (sequential && n > 0) page.append(el(doc, 'div', 'ac-page-hint', { text: readOnly ? STR.book.hintReadOnly : STR.book.hint }));
         shade(page);
         return page;
     }
@@ -402,7 +482,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         box.append(el(doc, 'div', 'ac-end__desc', { text: STR.book.endDesc }));
         page.append(box);
         // 最新优先默认摊在最新一页，「未完待续」就在左手边，提示放这里第一眼能看到
-        if (!sequential && n > 0) page.append(el(doc, 'div', 'ac-page-hint', { text: STR.book.hint }));
+        if (!sequential && n > 0) page.append(el(doc, 'div', 'ac-page-hint', { text: readOnly ? STR.book.hintReadOnly : STR.book.hint }));
         shade(page);
         return page;
     }
@@ -443,6 +523,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             tabindex: '-1',
             'data-side': side,
             'data-index': String(i),
+            'data-appid': String(card.appid),
             'aria-label': faceUp ? STR.card.front(card.name) : STR.card.back(card.name),
         });
         const tilt = el(doc, 'div', 'ac-card__tilt');
@@ -506,7 +587,50 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                     yearKey: spec.section.key,
                     games: spec.section.cards.map((i) => list[i]),
                     selection: selectionFor(spec.section.key),
-                    onPick: (mode, slot) => openPicker(spec.section.key, spec.section, mode, slot),
+                    onPick: readOnly ? null : (mode, slot) => openPicker(spec.section.key, spec.section, mode, slot),
+                }),
+            );
+            shade(face);
+            return;
+        }
+        if (spec.kind === 'yearmonths') {
+            face.append(
+                createYearMonths(doc, {
+                    yearKey: spec.section.key,
+                    year: yearLabel(spec.section.key),
+                    games: spec.section.cards.map((i) => list[i]),
+                }),
+            );
+            shade(face);
+            return;
+        }
+        if (spec.kind === 'yearindex') {
+            face.append(
+                createYearIndex(doc, {
+                    yearKey: spec.section.key,
+                    year: yearLabel(spec.section.key),
+                    entries: spec.section.pages.flatMap((page) =>
+                        page.cards.flatMap((index, position) =>
+                            index == null
+                                ? []
+                                : [{ index, serial: formatSerial(page.serialFrom + position), game: list[index] }],
+                        ),
+                    ),
+                    onJump: jumpToCard,
+                }),
+            );
+            shade(face);
+            return;
+        }
+        if (spec.kind === 'tree') {
+            const entry = yearEntries.find((item) => item.key === spec.section.key);
+            face.append(
+                createTreePage(doc, {
+                    yearKey: spec.section.key,
+                    year: yearLabel(spec.section.key),
+                    games: spec.section.cards.map((i) => list[i]),
+                    target: targetFor(spec.section.key),
+                    index: entry?.order ?? 0,
                 }),
             );
             shade(face);
@@ -612,6 +736,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             }
         }
         syncYearFocus();
+        syncYearTabs();
 
         // 书口厚度：最新优先是左边越翻越薄、右边越翻越厚；顺序入册正好相反
         book.dataset.leftDepth = String(depthLevel(sequential ? k : total - k));
@@ -632,8 +757,135 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         }
     }
 
+    /* ── 书口年份索引 ─────────────────────────────────────────────────────── */
+
+    /** 当前摊开页属于哪一年（树页也算；扉页 / 未完待续这类没有年份的返回 null） */
+    function currentYearKey() {
+        const specials = specialFacesAtSpread(k);
+        if (specials.length > 0) return specials[0].section.key;
+        const index = firstCardAtSpread(k);
+        if (index >= 0) return pageByIndex.get(index)?.section.key ?? null;
+        return null;
+    }
+
+    /** 当前年份在 yearEntries 里的位置；在册子两端时给 -1 / length（标签全在已翻过的一侧） */
+    function currentYearOrder() {
+        const index = yearEntries.findIndex((entry) => entry.key === currentYearKey());
+        if (index >= 0) return index;
+        return k >= pageCount() ? yearEntries.length : -1;
+    }
+
+    /** 标签太多时只留下当前与首尾，其余折叠成「…」 */
+    function visibleYearTabs(cur) {
+        const total = yearEntries.length;
+        if (total <= TAB_MAX) return yearEntries.map((_, i) => ({ i }));
+        const anchor = Math.max(0, Math.min(total - 1, cur));
+        let keep = new Set([0, total - 1, anchor]);
+        const slots = (set) => {
+            const list = [...set].sort((a, b) => a - b);
+            let gaps = 0;
+            for (let i = 1; i < list.length; i += 1) if (list[i] - list[i - 1] > 1) gaps += 1;
+            return list.length + gaps;
+        };
+        for (let d = 1; d < total; d += 1) {
+            const next = new Set([...keep, anchor - d, anchor + d].filter((i) => i >= 0 && i < total));
+            if (slots(next) > TAB_MAX) break;
+            keep = next;
+        }
+        const list = [...keep].sort((a, b) => a - b);
+        const visible = [];
+        list.forEach((i, k) => {
+            if (k > 0 && i - list[k - 1] > 1) visible.push({ gap: [list[k - 1] + 1, i - 1] });
+            visible.push({ i });
+        });
+        return visible;
+    }
+
+    function onTabClick(event) {
+        const button = event.target.closest?.('.ac-book__tab');
+        if (!button) return;
+        jumpToYear(button.dataset.year);
+    }
+
+    /** 摊开到某一年的年份页（不播翻页动画，和书口标签的用法一致） */
+    function jumpToYear(key) {
+        if (!tabsMode || disposed || busy || introducing || coverEditor || riffleStage) return;
+        const entry = yearEntries.find((item) => item.key === key);
+        if (!entry) return;
+        resetWheel();
+        resetTilt();
+        cancelCoverHold();
+        k = clampLeaf(entry.spread);
+        layout();
+        announcePosition();
+        notifyPage();
+    }
+
+    /** 年份标签：当前年份金色，翻过的年份在已翻过的那一侧，没翻的在另一侧 */
+    function syncYearTabs() {
+        if (!tabStrips) return;
+        const cur = currentYearOrder();
+        const visible = visibleYearTabs(cur);
+        const signature = `${cur}|${visible
+            .map((entry) => (entry.gap ? `g${entry.gap[0]}-${entry.gap[1]}` : entry.i))
+            .join(',')}|${yearEntries.map((entry) => `${entry.key}:${entry.count}:${entry.spread}`).join(',')}`;
+        if (signature === tabSignature) return;
+        tabSignature = signature;
+
+        if (yearEntries.length < 2) {
+            tabStrips.left.replaceChildren();
+            tabStrips.right.replaceChildren();
+            return;
+        }
+
+        const pitch = Math.min(TAB_PITCH_MAX, (100 - TAB_EDGE * 2) / visible.length);
+        const height = Math.min(TAB_HEIGHT_MAX, pitch * 0.82);
+        // 年份少时整列在书口居中，别都挤在书头
+        const top = (100 - visible.length * pitch) / 2;
+        const focusYear = doc.activeElement?.closest?.('.ac-book__tab')?.dataset.year ?? null;
+        const left = doc.createDocumentFragment();
+        const right = doc.createDocumentFragment();
+
+        visible.forEach((entry, i) => {
+            const gap = !!entry.gap;
+            const from = gap ? entry.gap[0] : entry.i;
+            const to = gap ? entry.gap[1] : entry.i;
+            const mid = gap ? Math.round((from + to) / 2) : entry.i;
+            const item = yearEntries[mid];
+            const year = String(item.key);
+            const active = !gap && entry.i === cur;
+            const button = el(doc, 'button', `ac-book__tab${gap ? ' ac-book__tab--gap' : ''}`, {
+                type: 'button',
+                'data-year': year,
+                title: gap
+                    ? STR.book.yearTabGap(String(yearEntries[from].key), String(yearEntries[to].key), to - from + 1)
+                    : STR.book.yearTab(year, item.count) + (treeMode ? ` · ${treeTypeName(item.order)}` : ''),
+                'aria-label': gap ? STR.book.yearTabGapJump(year) : STR.book.yearTabJump(year),
+                'aria-current': active ? 'true' : null,
+            });
+            if (gap) button.append(el(doc, 'i', null, { 'aria-hidden': 'true' }));
+            else button.append(el(doc, 'span', null, { text: year }));
+            if (active) button.dataset.active = '';
+            button.style.top = `${(top + i * pitch).toFixed(2)}cqh`;
+            button.style.height = `${(gap ? height * 0.68 : height).toFixed(2)}cqh`;
+            // 顺序入册：翻过的旧年份在左；最新优先从书末往回读，翻过的新年份在左
+            const side = sequential ? (to < cur ? 'left' : 'right') : to > cur ? 'left' : 'right';
+            (side === 'left' ? left : right).append(button);
+        });
+
+        tabStrips.left.replaceChildren(left);
+        tabStrips.right.replaceChildren(right);
+        if (focusYear) {
+            const again =
+                book.querySelector(`.ac-book__tab[data-year="${focusYear}"]`) ??
+                book.querySelector('.ac-book__tab[data-active]');
+            again?.focus({ preventScroll: true });
+        }
+    }
+
     /** 可见窗口整个重建（换了卡片顺序 / 跳到别处时） */
     function rebuild() {
+        coverEditor?.close(true);
         for (const leaf of leaves.values()) leaf.remove();
         leaves.clear();
         layout();
@@ -700,7 +952,13 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                     ? `${STR.year.yearAria(specials[0].section.key)}，${STR.year.annualTitle}`
                     : specials[0].kind === 'year'
                       ? STR.year.yearAria(specials[0].section.key)
-                      : `${STR.year.annualTitle} · ${specials[0].section.key}`;
+                      : specials[0].kind === 'annual'
+                        ? `${STR.year.annualTitle} · ${specials[0].section.key}`
+                        : specials[0].kind === 'yearmonths'
+                          ? STR.yearFill.monthsAria(specials[0].section.key)
+                          : specials[0].kind === 'yearindex'
+                            ? STR.yearFill.indexAria(specials[0].section.key)
+                            : STR.tree.pageAria(specials[0].section.key);
             return null;
         }
         const index = firstCardAtSpread(k);
@@ -716,7 +974,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
 
     function turn(dir) {
-        if (busy || disposed || introducing) return;
+        if (busy || disposed || introducing || coverEditor) return;
         const focusAfter = album.contains(doc.activeElement);
         flip(dir).then((moved) => {
             if (moved) afterTurn(focusAfter);
@@ -736,6 +994,11 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
      */
     function onWheel(event) {
         if (disposed || introducing || event.ctrlKey) return;
+        if (coverEditor) {
+            coverEditor.wheel(event);
+            return;
+        }
+        cancelCoverHold();
         let delta = event.deltaY;
         if (!delta) return;
         if (event.deltaMode === 1) delta *= 16;
@@ -885,6 +1148,359 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         return STR.book.pageStatus(Math.min(k + 1, pageCount()), pageCount());
     };
 
+    /* ── 封面取景：悬停卡片长按右键，放大后在编辑器里缩放 / 拖动 ────────────
+       正面：滚轮 100%–120%，拖动换位置；背面：默认 / 拉伸两种显示方式二选一。
+       再次长按右键（或按完成 / Esc）保存并退出。 */
+
+    function cancelCoverHold() {
+        if (!coverHold) return;
+        win.clearTimeout(coverHold.timer);
+        coverHold.card.removeAttribute('data-cover-press');
+        win.removeEventListener('pointermove', onCoverHoldMove, true);
+        win.removeEventListener('pointerup', onCoverHoldEnd, true);
+        win.removeEventListener('pointercancel', onCoverHoldEnd, true);
+        coverHold = null;
+    }
+
+    function onCoverHoldMove(event) {
+        if (!coverHold || event.pointerId !== coverHold.pointerId) return;
+        if (Math.hypot(event.clientX - coverHold.x, event.clientY - coverHold.y) > COVER_HOLD_SLOP) cancelCoverHold();
+    }
+
+    function onCoverHoldEnd(event) {
+        if (!coverHold || event.pointerId !== coverHold.pointerId) return;
+        cancelCoverHold();
+    }
+
+    function startCoverHold(card, event) {
+        cancelCoverHold();
+        const hold = { card, x: event.clientX, y: event.clientY, pointerId: event.pointerId, timer: 0 };
+        coverHold = hold;
+        hold.timer = win.setTimeout(() => {
+            if (coverHold !== hold || disposed) return;
+            cancelCoverHold();
+            openCoverEditor(card);
+        }, COVER_HOLD_MS);
+        card.setAttribute('data-cover-press', '');
+        win.addEventListener('pointermove', onCoverHoldMove, true);
+        win.addEventListener('pointerup', onCoverHoldEnd, true);
+        win.addEventListener('pointercancel', onCoverHoldEnd, true);
+    }
+
+    function showCoverToast(text) {
+        const node = el(doc, 'div', 'ac-coveredit-toast', { role: 'status', text });
+        album.append(node);
+        later(() => node.remove(), 1900);
+    }
+
+    function openCoverEditor(sourceCard) {
+        if (readOnly || coverEditor || disposed) return;
+        const appid = Number(sourceCard.dataset.appid);
+        const card = list.find((c) => c.appid === appid);
+        if (!card) return;
+
+        resetTilt();
+        resetWheel();
+        const face = sourceCard.querySelector('.ac-cf') ? 'front' : 'back';
+
+        const root = el(doc, 'div', 'ac-coveredit', {
+            role: 'dialog',
+            tabindex: '-1',
+            'aria-modal': 'true',
+            'aria-label': face === 'front' ? STR.coverEdit.frontTitle(card.name) : STR.coverEdit.backTitle(card.name),
+        });
+        const backdrop = el(doc, 'div', 'ac-coveredit__backdrop', { 'aria-hidden': 'true' });
+        const panel = el(doc, 'div', 'ac-coveredit__panel');
+
+        const head = el(doc, 'div', 'ac-coveredit__head');
+        head.append(
+            el(doc, 'div', 'ac-coveredit__eyebrow', {
+                text: face === 'front' ? STR.coverEdit.frontEyebrow : STR.coverEdit.backEyebrow,
+            }),
+            el(doc, 'div', 'ac-coveredit__name', { text: card.name }),
+        );
+        const readout = el(doc, 'div', 'ac-coveredit__value');
+        head.append(readout);
+
+        const stage = el(doc, 'div', 'ac-coveredit__stage', { 'data-face': face });
+        const box = el(doc, 'div', 'ac-card');
+        box.dataset.appid = String(appid);
+        const tilt = el(doc, 'div', 'ac-card__tilt');
+        tilt.append(face === 'front' ? createCardFront(doc, card, { owner }) : createCardBack(doc, card));
+        box.append(el(doc, 'div', 'ac-card__shadow', { 'aria-hidden': 'true' }), tilt);
+        stage.append(box);
+
+        const artframe = box.querySelector('.ac-cf__artframe');
+        if (artframe) artframe.append(el(doc, 'div', 'ac-coveredit__guides', { 'aria-hidden': 'true' }));
+        const artImageNode = box.querySelector('.ac-cf__art');
+
+        // 原图取景条（只有正面）：整张 library_hero 铺出来，蓝框标出卡片上真正露出的范围
+        let source = null;
+        let sourceImg = null;
+        let sourceCrop = null;
+        let sourceMeta = null;
+        if (face === 'front') {
+            source = el(doc, 'figure', 'ac-coveredit__source', { 'aria-label': STR.coverEdit.sourceLabel });
+            const view = el(doc, 'div', 'ac-coveredit__source-view');
+            sourceImg = el(doc, 'img', null, { alt: '', draggable: 'false', decoding: 'async' });
+            sourceCrop = el(doc, 'div', 'ac-coveredit__source-crop', { 'aria-hidden': 'true' });
+            view.append(sourceImg, sourceCrop);
+            sourceMeta = el(doc, 'figcaption', 'ac-coveredit__source-meta');
+            source.append(view, sourceMeta);
+            source.hidden = true;
+        }
+
+        const hud = el(doc, 'div', 'ac-coveredit__hud');
+        // 背面没有缩放，只切换显示方式：默认铺满卡片（上下各裁一点），拉伸横向铺满
+        const modeButtons = [];
+        if (face === 'back') {
+            const modes = el(doc, 'div', 'ac-coveredit__modes', {
+                role: 'group',
+                'aria-label': STR.coverEdit.backModeLabel,
+            });
+            for (const [mode, label] of [
+                ['fit', STR.coverEdit.modeFit],
+                ['stretch', STR.coverEdit.modeStretch],
+            ]) {
+                const button = el(doc, 'button', 'ac-coveredit__mode', { type: 'button', text: label });
+                button.addEventListener('click', () => {
+                    edit = setBack(appid, mode);
+                    applyCoverEdit(box, appid);
+                    sync();
+                });
+                modes.append(button);
+                modeButtons.push([mode, button]);
+            }
+            hud.append(modes);
+        }
+        hud.append(
+            el(doc, 'p', 'ac-coveredit__hint', {
+                text: face === 'front' ? STR.coverEdit.frontHint : STR.coverEdit.backHint,
+            }),
+        );
+        const actions = el(doc, 'div', 'ac-coveredit__actions');
+        const resetButton = el(doc, 'button', 'ac-coveredit__btn', { type: 'button', text: STR.coverEdit.reset });
+        const doneButton = el(doc, 'button', 'ac-coveredit__btn ac-coveredit__btn--primary', {
+            type: 'button',
+            text: STR.coverEdit.done,
+        });
+        actions.append(resetButton, doneButton);
+        hud.append(actions, el(doc, 'div', 'ac-coveredit__foot', { text: STR.coverEdit.saveHint }));
+
+        panel.append(head, stage, hud);
+        root.append(backdrop, panel);
+        if (source) root.append(source);
+        album.append(root);
+        root.focus?.({ preventScroll: true });
+
+        let edit = face === 'front' ? getFront(appid) : getBack(appid);
+
+        /** 按当前缩放 / 位移算出取景框在原图上占的比例，画到原图条上 */
+        const updateSource = () => {
+            if (!source) return;
+            const nw = artImageNode?.naturalWidth ?? 0;
+            const nh = artImageNode?.naturalHeight ?? 0;
+            // 竖版兜底封面不画这条：它本来就是完整的商品图，没有横向取景可言
+            if (!artframe || !nw || !nh || nw / nh < 1.2) {
+                source.hidden = true;
+                return;
+            }
+            source.hidden = false;
+            const url = artImageNode.currentSrc || artImageNode.src;
+            if (url && sourceImg.getAttribute('src') !== url) sourceImg.src = url;
+
+            const fw = artframe.clientWidth;
+            const fh = artframe.clientHeight;
+            if (!fw || !fh) return;
+            const ratio = nw / nh;
+            // 与 card.css 一致：图片显示高度 = max(框高, 框宽/比例) × 缩放
+            const shownH = Math.max(fh, fw / ratio) * edit.s;
+            const shownW = shownH * ratio;
+            const visibleW = Math.min(1, fw / shownW);
+            const visibleH = Math.min(1, fh / shownH);
+            const cx = 0.5 - edit.x / 100;
+            const cy = 0.5 - edit.y / 100;
+            const left = Math.min(1 - visibleW, Math.max(0, cx - visibleW / 2));
+            const top = Math.min(1 - visibleH, Math.max(0, cy - visibleH / 2));
+            sourceCrop.style.left = `${left * 100}%`;
+            sourceCrop.style.top = `${top * 100}%`;
+            sourceCrop.style.width = `${visibleW * 100}%`;
+            sourceCrop.style.height = `${visibleH * 100}%`;
+            sourceMeta.textContent = STR.coverEdit.sourceMeta(nw, nh, Math.round(visibleW * 100));
+        };
+
+        const sync = () => {
+            if (face === 'front') {
+                readout.textContent = `${Math.round(edit.s * 100)}%`;
+                updateSource();
+                return;
+            }
+            readout.textContent = edit.mode === 'stretch' ? STR.coverEdit.modeStretch : STR.coverEdit.modeFit;
+            for (const [mode, button] of modeButtons) {
+                button.setAttribute('aria-pressed', String(edit.mode === mode));
+            }
+        };
+        sync();
+        artImageNode?.addEventListener('load', updateSource);
+
+        let drag = null;
+        let zoomAccum = 0;
+
+        const onWheelEdit = (event) => {
+            if (face !== 'front') return;
+            event.preventDefault();
+            event.stopPropagation();
+            let delta = event.deltaY;
+            if (!delta) return;
+            if (event.deltaMode === 1) delta *= 16;
+            else if (event.deltaMode === 2) delta *= album.clientHeight || 600;
+            zoomAccum += delta;
+            let moved = false;
+            while (Math.abs(zoomAccum) >= COVER_ZOOM_STEP) {
+                const dir = Math.sign(zoomAccum);
+                zoomAccum -= dir * COVER_ZOOM_STEP;
+                // 向上滚（delta < 0）放大
+                const next = Math.round((edit.s - dir * 0.02) * 100) / 100;
+                edit = setFront(appid, { s: next });
+                moved = true;
+            }
+            if (!moved) return;
+            applyCoverEdit(box, appid);
+            sync();
+        };
+
+        const onDown = (event) => {
+            if (event.button !== 0 || face !== 'front' || !event.target.closest?.('.ac-card')) return;
+            event.preventDefault();
+            drag = { id: event.pointerId, x: event.clientX, y: event.clientY, baseX: edit.x, baseY: edit.y };
+            stage.setAttribute('data-dragging', '');
+            try {
+                stage.setPointerCapture?.(event.pointerId);
+            } catch {
+                /* 指针已释放时捕获会失败；拖动仍然跟着 pointermove 走 */
+            }
+        };
+
+        const onMove = (event) => {
+            if (!drag || event.pointerId !== drag.id) return;
+            const rect = (artframe ?? box).getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            // 按原图比例和当前缩放算出图片的显示尺寸：位移百分比相对图片自身，
+            // 直接从 100% 起拖也能 1:1 跟手，不用等高度过渡结束
+            const nw = artImageNode?.naturalWidth ?? 0;
+            const nh = artImageNode?.naturalHeight ?? 0;
+            const ratio = nw > 0 && nh > 0 ? nw / nh : 3.1;
+            const shownH = Math.max(rect.height, rect.width / ratio) * edit.s;
+            const shownW = shownH * ratio;
+            const dx = ((event.clientX - drag.x) / shownW) * 100;
+            const dy = ((event.clientY - drag.y) / shownH) * 100;
+            // 两个方向都按实际余量收口：100% 时竖向没有余量，
+            // 竖版兜底封面（比例更窄）在 100% 时横向也没有余量
+            const maxX = Math.max(0, ((shownW - rect.width) / (2 * shownW)) * 100);
+            const maxY = Math.max(0, ((shownH - rect.height) / (2 * shownH)) * 100);
+            const x = Math.min(maxX, Math.max(-maxX, drag.baseX + dx));
+            const y = Math.min(maxY, Math.max(-maxY, drag.baseY + dy));
+            edit = setFront(appid, {
+                x: Math.round(x * 100) / 100,
+                y: Math.round(y * 100) / 100,
+            });
+            applyCoverEdit(box, appid);
+            sync();
+        };
+
+        const onUp = (event) => {
+            if (!drag || event.pointerId !== drag.id) return;
+            drag = null;
+            stage.removeAttribute('data-dragging');
+            try {
+                stage.releasePointerCapture?.(event.pointerId);
+            } catch {
+                /* 指针可能已经被系统释放 */
+            }
+        };
+
+        // 再次长按右键：保存退出
+        let closeHold = null;
+        const cancelCloseHold = () => {
+            if (!closeHold) return;
+            win.clearTimeout(closeHold);
+            closeHold = null;
+            root.removeAttribute('data-holding');
+            win.removeEventListener('pointerup', onCloseUp, true);
+            win.removeEventListener('pointercancel', onCloseUp, true);
+            win.removeEventListener('pointermove', onCloseMove, true);
+        };
+        const onCloseUp = () => cancelCloseHold();
+        const onCloseMove = (event) => {
+            if (!closeHold) return;
+            if (event.buttons & 2) return;
+            cancelCloseHold();
+        };
+        const onRightDown = (event) => {
+            if (event.button !== 2) return;
+            event.preventDefault();
+            cancelCloseHold();
+            root.setAttribute('data-holding', '');
+            closeHold = win.setTimeout(() => {
+                closeHold = null;
+                root.removeAttribute('data-holding');
+                closeEditor(true);
+            }, COVER_HOLD_MS);
+            win.addEventListener('pointerup', onCloseUp, true);
+            win.addEventListener('pointercancel', onCloseUp, true);
+            win.addEventListener('pointermove', onCloseMove, true);
+        };
+
+        const onKeyDown = (event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            closeEditor(true);
+        };
+
+        function closeEditor(save) {
+            if (closed) return;
+            closed = true;
+            cancelCloseHold();
+            doc.removeEventListener('keydown', onKeyDown, true);
+            stage.removeEventListener('pointerdown', onDown);
+            stage.removeEventListener('pointermove', onMove);
+            stage.removeEventListener('pointerup', onUp);
+            stage.removeEventListener('pointercancel', onUp);
+            root.removeEventListener('wheel', onWheelEdit);
+            root.remove();
+            coverEditor = null;
+            if (!save) {
+                flushCoverEdits();
+                return;
+            }
+            flushCoverEdits();
+            for (const node of book.querySelectorAll(`.ac-card[data-appid="${appid}"]`)) applyCoverEdit(node, appid);
+            showCoverToast(face === 'front' ? STR.coverEdit.savedFront : STR.coverEdit.savedBack);
+            if (sourceCard.isConnected) sourceCard.focus?.({ preventScroll: true });
+        }
+
+        let closed = false;
+        coverEditor = { root, wheel: onWheelEdit, close: closeEditor };
+
+        root.addEventListener('wheel', onWheelEdit, { passive: false });
+        root.addEventListener('pointerdown', onRightDown);
+        stage.addEventListener('pointerdown', onDown);
+        stage.addEventListener('pointermove', onMove);
+        stage.addEventListener('pointerup', onUp);
+        stage.addEventListener('pointercancel', onUp);
+        doc.addEventListener('keydown', onKeyDown, true);
+        resetButton.addEventListener('click', () => {
+            edit = resetCover(appid, face);
+            applyCoverEdit(box, appid);
+            sync();
+        });
+        doneButton.addEventListener('click', () => closeEditor(true));
+        root.addEventListener('click', (event) => {
+            if (event.target === root || event.target === backdrop) closeEditor(true);
+        });
+    }
+
     /* ── 悬停检视 ─────────────────────────────────────────────────────── */
 
     let hovered = null;
@@ -919,7 +1535,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
 
     function onPointerMove(event) {
-        if (busy || introducing || event.pointerType === 'touch') return;
+        if (busy || introducing || coverEditor || event.pointerType === 'touch') return;
         const card = event.target.closest?.('.ac-card');
         if (card !== hovered) {
             resetTilt();
@@ -940,12 +1556,47 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
 
     function activate(card) {
-        if (!card || card.tabIndex !== 0) return;
+        if (coverEditor || !card || card.tabIndex !== 0) return;
         turn(card.dataset.side === 'front' ? 1 : -1);
     }
 
+    /** 本年目录点一行：直接摊开到那张卡 */
+    function jumpToCard(index) {
+        if (busy || disposed || introducing) return;
+        resetTilt();
+        k = clampLeaf(spreadOfIndex(index));
+        layout();
+        notifyPage();
+    }
+
     function onClick(event) {
-        activate(event.target.closest?.('.ac-card'));
+        if (coverEditor) return;
+        const { target } = event;
+        const card = target.closest?.('.ac-card');
+        if (card) {
+            activate(card);
+            return;
+        }
+        // 只读册的邮票和票根在 CSS 里关了指针事件，点击会直接落到页面上
+        if (target.closest?.('button, a, input, select, textarea, [role="button"]')) return;
+        const page = target.closest?.('.ac-page');
+        if (!page) return;
+        // 顺序入册从左往右读，最新优先相反；方向和点卡片一致
+        turn(page.classList.contains('ac-page--right') === sequential ? 1 : -1);
+    }
+
+    function onPointerDown(event) {
+        if (readOnly || disposed || busy || introducing || coverEditor || riffleStage) return;
+        if (event.button !== 2 || event.pointerType === 'touch') return;
+        const card = event.target.closest?.('.ac-card');
+        if (!card || card.tabIndex !== 0) return;
+        event.preventDefault();
+        startCoverHold(card, event);
+    }
+
+    /** 卡片上的右键菜单一律吞掉：右键长按是取景入口，短按也不该弹 Steam 的菜单 */
+    function onContextMenu(event) {
+        if (coverEditor || event.target.closest?.('.ac-card')) event.preventDefault();
     }
 
     function onKeyDown(event) {
@@ -1021,7 +1672,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
 
     async function riffleToFarEnd() {
-        if (disposed || introducing || busy || riffleStage) return;
+        if (disposed || introducing || busy || riffleStage || coverEditor) return;
         const target = riffleTarget();
         const focusAfter = album.contains(doc.activeElement);
         resetTilt();
@@ -1105,7 +1756,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
 
     function onRibbonPointerDown(event) {
-        if (disposed || introducing || busy || event.button > 0) return;
+        if (disposed || introducing || busy || coverEditor || event.button > 0) return;
         event.preventDefault();
         pull = { id: event.pointerId, y: event.clientY, dy: 0 };
         try {
@@ -1113,6 +1764,10 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         } catch {
             /* 没有活动的指针时捕获会失败，不影响下拉 */
         }
+        // 客户端里 setPointerCapture 不一定生效；挂到窗口上，指针移出细窄的书签也能继续拉
+        win.addEventListener('pointermove', onRibbonPointerMove);
+        win.addEventListener('pointerup', onRibbonUp);
+        win.addEventListener('pointercancel', onRibbonCancel);
         ribbon.setAttribute('data-pulling', '');
     }
 
@@ -1128,12 +1783,16 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         pull = null;
         ribbon.removeAttribute('data-pulling');
         ribbon.style.removeProperty('transform');
+        win.removeEventListener('pointermove', onRibbonPointerMove);
+        win.removeEventListener('pointerup', onRibbonUp);
+        win.removeEventListener('pointercancel', onRibbonCancel);
         try {
             ribbon.releasePointerCapture?.(event.pointerId);
         } catch {
             /* 指针可能已经被系统释放 */
         }
-        if (!cancelled && dy >= 16) riffleToFarEnd();
+        // 点一下（几乎没位移）也算：拖拽在客户端里可能只收到一两个 move
+        if (!cancelled && (dy >= 16 || dy < 4)) riffleToFarEnd();
     }
 
     function onRibbonUp(event) {
@@ -1152,6 +1811,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
 
     pages.addEventListener('pointermove', onPointerMove);
     pages.addEventListener('pointerleave', onPointerLeave);
+    pages.addEventListener('pointerdown', onPointerDown);
+    pages.addEventListener('contextmenu', onContextMenu);
     pages.addEventListener('click', onClick);
     pages.addEventListener('keydown', onKeyDown);
     album.addEventListener('wheel', onWheel, { passive: false });
@@ -1389,7 +2050,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
 
     async function runIntro(newCards, appids) {
         const ids = new Set(appids);
-        list = newCards;
+        list = newCards.slice();
         n = list.length;
         buildPagination();
         renderTitleStats();
@@ -1514,13 +2175,13 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
          * 就地换掉一张卡（完成日期是逐张补上来的，没必要整册重排）。
          * 找不到这张卡就什么都不做。
          */
-        updateCard(appid, card) {
+        updateCard(appid, card, { deferYearRegroup = false } = {}) {
             if (disposed) return false;
             const i = list.findIndex((c) => c.appid === appid);
             if (i < 0) return false;
             const beforeYear = yearMode ? yearKeyOf(list[i]) : null;
             list[i] = card;
-            const regrouped = yearMode && yearKeyOf(card) !== beforeYear;
+            const regrouped = yearMode && !deferYearRegroup && yearKeyOf(card) !== beforeYear;
             if (regrouped) {
                 // 完成日期补上后这张卡换了年份：分组和分叶都要重排
                 buildPagination();
@@ -1553,11 +2214,11 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             if (disposed) return;
             if (introducing) {
                 // 入册动画还在播：播完再重排，并且停在刚入册的那张上
-                deferredCards = newCards;
+                deferredCards = newCards.slice();
                 return;
             }
             resetTilt();
-            list = newCards;
+            list = newCards.slice();
             n = list.length;
             buildPagination();
             if (atStart) {
@@ -1574,6 +2235,9 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         },
         destroy() {
             disposed = true;
+            if (readOnly || coverOverrides) setCoverOverrides(null);
+            cancelCoverHold();
+            coverEditor?.close(false);
             finishIntro?.(false);
             for (const anim of animations) anim.cancel();
             animations.clear();
@@ -1582,14 +2246,21 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             if (frame) win.cancelAnimationFrame(frame);
             pages.removeEventListener('pointermove', onPointerMove);
             pages.removeEventListener('pointerleave', onPointerLeave);
+            pages.removeEventListener('pointerdown', onPointerDown);
+            pages.removeEventListener('contextmenu', onContextMenu);
             pages.removeEventListener('click', onClick);
             pages.removeEventListener('keydown', onKeyDown);
             album.removeEventListener('wheel', onWheel);
+            tabStrips?.left.removeEventListener('click', onTabClick);
+            tabStrips?.right.removeEventListener('click', onTabClick);
             ribbon.removeEventListener('pointerdown', onRibbonPointerDown);
             ribbon.removeEventListener('pointermove', onRibbonPointerMove);
             ribbon.removeEventListener('pointerup', onRibbonUp);
             ribbon.removeEventListener('pointercancel', onRibbonCancel);
             ribbon.removeEventListener('keydown', onRibbonKeyDown);
+            win.removeEventListener('pointermove', onRibbonPointerMove);
+            win.removeEventListener('pointerup', onRibbonUp);
+            win.removeEventListener('pointercancel', onRibbonCancel);
             pull = null;
             resetWheel();
             riffleStage = null;

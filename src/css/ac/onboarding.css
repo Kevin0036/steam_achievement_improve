@@ -1,0 +1,342 @@
+/* ============================================================================
+ * 成就收藏册 · 第一次进入的引导
+ * ----------------------------------------------------------------------------
+ * 盖住整本册子的深色面板：一页只讲一件事，用「上一页 / 下一页」与圆点翻页。
+ * 尺寸用 px / clamp —— 宿主可能是整页，也可能是插件的小模态窗口。
+ * ==========================================================================*/
+
+.ac-onboarding {
+    position: absolute;
+    inset: 0;
+    z-index: 620;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    box-sizing: border-box;
+    color: var(--ac-text);
+    font-family: var(--ac-font);
+    -webkit-user-select: none;
+    user-select: none;
+    animation: ac-onboarding-fade 220ms ease-out both;
+}
+
+.ac-onboarding__backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(64% 70% at 50% 42%, rgba(8, 9, 12, 0.76), rgba(8, 9, 12, 0.93));
+    backdrop-filter: blur(8px);
+}
+
+.ac-onboarding__panel {
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    width: min(580px, 100%);
+    max-height: 100%;
+    padding: clamp(20px, 3.8vh, 34px) clamp(20px, 4.2vw, 40px) clamp(18px, 3.4vh, 28px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 18px;
+    background:
+        radial-gradient(90% 70% at 50% 0%, rgba(255, 255, 255, 0.055), transparent 62%),
+        linear-gradient(180deg, #202229 0%, #17181d 58%, #131418 100%);
+    box-shadow:
+        0 30px 80px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    animation: ac-onboarding-rise 340ms var(--ac-ease-out) both;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.ac-onboarding__panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.ac-onboarding__panel::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.ac-onboarding__head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.ac-onboarding__badge {
+    width: 38px;
+    aspect-ratio: 100 / 118;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
+}
+
+.ac-onboarding__eyebrow {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.34em;
+    color: rgba(255, 255, 255, 0.36);
+}
+
+.ac-onboarding__slide {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: clamp(150px, 24vh, 200px);
+    padding: clamp(8px, 2vh, 16px) 0 0;
+}
+
+.ac-onboarding__slide.is-enter {
+    animation: ac-onboarding-slide 260ms var(--ac-ease-out) both;
+}
+
+.ac-onboarding__title {
+    margin: 0;
+    padding-left: 0.24em;
+    font-size: clamp(22px, 3.2vh, 30px);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: 0.24em;
+    background: linear-gradient(180deg, #f6f3ec 0%, #d9d4c8 55%, #a9a497 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+
+.ac-onboarding__desc {
+    margin: 12px auto 0;
+    max-width: 30em;
+    font-size: 13px;
+    line-height: 1.85;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.ac-onboarding__dots {
+    display: flex;
+    justify-content: center;
+    gap: 7px;
+    margin-top: auto;
+    padding-top: 18px;
+}
+
+.ac-onboarding__dot {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font: 600 10px/1 var(--ac-font);
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.38);
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 50%;
+    background: transparent;
+    transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.ac-onboarding__dot:hover,
+.ac-onboarding__dot:focus-visible {
+    color: rgba(255, 255, 255, 0.78);
+    border-color: rgba(255, 255, 255, 0.28);
+    outline: none;
+}
+
+.ac-onboarding__dot.is-active {
+    color: #1c1b17;
+    border-color: rgba(232, 200, 116, 0.9);
+    background: linear-gradient(180deg, #f0d78e, #cfae5f);
+}
+
+.ac-onboarding__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.ac-onboarding__prev,
+.ac-onboarding__next {
+    height: 38px;
+    padding: 0 22px;
+    font: 600 12.5px/1 var(--ac-font);
+    letter-spacing: 0.12em;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color 140ms ease, border-color 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.ac-onboarding__prev {
+    color: rgba(255, 255, 255, 0.56);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: transparent;
+}
+
+.ac-onboarding__prev:hover:not(:disabled),
+.ac-onboarding__prev:focus-visible:not(:disabled) {
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.32);
+    outline: none;
+}
+
+.ac-onboarding__prev:disabled {
+    opacity: 0.28;
+    cursor: default;
+}
+
+.ac-onboarding__next {
+    min-width: 132px;
+    color: #eaf6ff;
+    border: 1px solid rgba(102, 192, 244, 0.55);
+    background: rgba(42, 71, 94, 0.9);
+}
+
+.ac-onboarding__next:hover,
+.ac-onboarding__next:focus-visible {
+    color: #ffffff;
+    border-color: #66c0f4;
+    background: rgba(58, 92, 120, 0.95);
+    outline: none;
+}
+
+.ac-onboarding__next.is-finish {
+    color: #221f17;
+    border-color: rgba(232, 200, 116, 0.9);
+    background: linear-gradient(180deg, #f0d78e, #cfae5f);
+}
+
+.ac-onboarding__next.is-finish:hover,
+.ac-onboarding__next.is-finish:focus-visible {
+    color: #17140d;
+    border-color: #ffe6a0;
+    background: linear-gradient(180deg, #ffe9ad, #dcbb6d);
+}
+
+.ac-onboarding__close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font: 400 18px/1 var(--ac-font);
+    color: rgba(255, 255, 255, 0.42);
+    cursor: pointer;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    transition: color 140ms ease, background 140ms ease;
+}
+
+.ac-onboarding__close:hover,
+.ac-onboarding__close:focus-visible {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+    outline: none;
+}
+
+@keyframes ac-onboarding-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes ac-onboarding-rise {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ac-onboarding-slide {
+    from { opacity: 0; transform: translateY(9px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 560px) {
+    .ac-onboarding {
+        padding: 14px;
+    }
+
+    .ac-onboarding__panel {
+        padding-inline: 20px;
+    }
+
+    .ac-onboarding__foot {
+        gap: 10px;
+    }
+
+    .ac-onboarding__prev,
+    .ac-onboarding__next {
+        flex: 1;
+        min-width: 0;
+        padding-inline: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-onboarding,
+    .ac-onboarding__panel,
+    .ac-onboarding__slide.is-enter {
+        animation-duration: 1ms;
+    }
+}
+
+/* ── 1.1.6 年度之树尝鲜提示（单页，没有圆点） ─────────────────────────── */
+
+.ac-onboarding--notice .ac-onboarding__panel {
+    width: min(460px, 100%);
+}
+
+.ac-onboarding--notice .ac-onboarding__slide {
+    min-height: 0;
+    padding-top: clamp(6px, 1.6vh, 12px);
+}
+
+.ac-onboarding__points {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 30em;
+    margin: 18px auto 0;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.ac-onboarding__points li {
+    position: relative;
+    padding-left: 16px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.ac-onboarding__points li::before {
+    content: "";
+    position: absolute;
+    top: 0.62em;
+    left: 2px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(243, 211, 138, 0.72);
+}
+
+.ac-onboarding--notice .ac-onboarding__foot {
+    justify-content: center;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.ac-onboarding--notice .ac-onboarding__foot .ac-onboarding__next {
+    min-width: 132px;
+}
+
+@media (max-width: 560px) {
+    .ac-onboarding--notice .ac-onboarding__foot {
+        flex-wrap: wrap;
+    }
+}

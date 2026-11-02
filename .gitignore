@@ -1,2 +1,10 @@
 .idea
 metadata.json
+node_modules/
+plugin/dist/
+plugin/.millennium/
+plugin/plugin.css
+plugin/showcase.css
+plugin/showcase.js
+dev/.tmp/
+dev/vendor/

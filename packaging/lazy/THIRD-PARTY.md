@@ -10,10 +10,12 @@
 
 懒人包仅将该官方发布包原样封装并解压到 Steam 目录，未修改其中的二进制文件。Millennium 的更新由上游维护，本仓库不提供修改版。
 
-## SpaceTheme
+## 成就收藏册插件
 
-主题基于 SpaceTheme（MIT）修改，原项目：https://github.com/SpaceTheme/Steam
+- 项目：https://github.com/Kevin0036/steam_achievement_improve
+- 许可证：MIT，见 `LICENSE`
 
-## 成就收藏册
+插件的界面与卡册样式源自成就收藏册主题，主题基于 SpaceTheme（MIT）修改：
+https://github.com/SpaceTheme/Steam
 
-主题新增部分：https://github.com/Kevin0036/steam_achievement_improve
+懒人包只安装插件，不安装成就收藏册主题。

@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "kind": "achievement-album",
+  "owner": {
+    "name": "阿凯",
+    "avatar": "https://avatars.steamstatic.com/abc123_full.jpg",
+    "friendCode": "39734272"
+  },
+  "album": {
+    "perPage": 1,
+    "binding": "sequential",
+    "showStats": true,
+    "yearPages": true,
+    "yearSpread": false
+  },
+  "cards": [
+    {
+      "appid": 413150,
+      "name": "Stardew Valley",
+      "completedAt": 1761955200,
+      "playtimeMin": 5820,
+      "total": 49,
+      "rare": 12,
+      "common": 37,
+      "unrated": 0,
+      "art": {
+        "hero": [
+          "https://shared.steamstatic.com/store_item_assets/steam/apps/413150/library_hero.jpg?t=1700000000"
+        ],
+        "capsule": [
+          "https://shared.steamstatic.com/store_item_assets/steam/apps/413150/library_600x900.jpg?t=1700000000"
+        ],
+        "header": [
+          "https://shared.steamstatic.com/store_item_assets/steam/apps/413150/header.jpg?t=1700000000"
+        ],
+        "logo": [
+          "https://shared.steamstatic.com/store_item_assets/steam/apps/413150/logo.png?t=1700000000"
+        ]
+      },
+      "cover": {
+        "front": { "s": 1.12, "x": -4.5, "y": 0 },
+        "back": { "mode": "stretch" }
+      }
+    },
+    {
+      "appid": 730,
+      "name": "Counter-Strike 2",
+      "completedAt": null,
+      "playtimeMin": null,
+      "total": 1,
+      "rare": null,
+      "common": null,
+      "unrated": 1,
+      "art": {
+        "hero": [
+          "https://shared.steamstatic.com/store_item_assets/steam/apps/730/library_hero.jpg?t=1700000000"
+        ],
+        "capsule": [],
+        "header": [],
+        "logo": []
+      }
+    },
+    {
+      "appid": 570,
+      "name": "Dota 2",
+      "completedAt": 1748736000,
+      "playtimeMin": 1200,
+      "total": 120,
+      "rare": 8,
+      "common": 100,
+      "unrated": 12,
+      "art": {
+        "hero": [
+          "https://shared.steamstatic.com/store_item_assets/steam/apps/570/library_hero.jpg?t=1700000000"
+        ],
+        "capsule": [],
+        "header": [],
+        "logo": []
+      }
+    }
+  ],
+  "years": {
+    "2025": {
+      "badges": [
+        { "appid": 413150, "level": 5 },
+        { "appid": 730, "level": "foil" },
+        null
+      ],
+      "banners": [413150, 570, null]
+    }
+  }
+}
