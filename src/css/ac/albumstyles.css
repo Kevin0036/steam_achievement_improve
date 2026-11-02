@@ -9,7 +9,7 @@
  *   1. 映射层：把书皮、内页、页边、扉页、年份页用到的颜色都接到 --album-* 令牌上。
  *      book.css / yearpages.css 里的文字写死了半透明白，浅色纸上会直接看不见，
  *      所以这里按选择器逐个接管，而不是只换一张背景图。
- *   2. 款式层：每款只给一组令牌，外加这款自己的卡位做法（.ac-slot::before / ::after）。
+ *   2. 款式层：每款只给一组令牌。卡片外面的边框图案在 albumframes.css。
  *
  * 纹理都是内联 SVG 噪点，平铺一小块，翻页时不额外重绘。
  * ==========================================================================*/
@@ -22,7 +22,6 @@
     --album-ink-faint: rgba(255, 255, 255, 0.32);
     --album-rule: rgba(255, 255, 255, 0.2);
     --album-frame: rgba(255, 255, 255, 0.07);
-    --album-frame-inner: rgba(255, 255, 255, 0.04);
     --album-cell: rgba(255, 255, 255, 0.04);
     --album-gutter: 0, 0, 0;
     --album-gutter-strength: 0.55;
@@ -97,13 +96,6 @@
 .ac-cardpack[data-album] .ac-book[data-left-depth="4"] .ac-page--base.ac-page--left { box-shadow: -2px 0 0 -1px var(--album-edge-a), -4px 0 0 -2px var(--album-edge-b), -6px 0 0 -3px var(--album-edge-a), -8px 0 0 -4px var(--album-edge-b); }
 
 /* 卡位 */
-.ac-cardpack[data-album] .ac-slot::before {
-    border-color: var(--album-frame);
-    box-shadow: none;
-    outline: 1px solid var(--album-frame-inner);
-    outline-offset: -0.55cqh;
-}
-
 .ac-cardpack[data-album] .ac-slot::after {
     background: var(--album-recess);
     box-shadow: var(--album-recess-shadow);
@@ -224,7 +216,7 @@
 
 /* ── 2. 款式层 ─────────────────────────────────────────────────────────── */
 
-/* 墨点手账：暖黑纸 + 点阵，卡位只留四角裁切线 */
+/* 墨点手账：暖黑纸 + 点阵，边框是手绘墨线和纸胶带 */
 .ac-cardpack[data-album="dots"] {
     --album-board:
         var(--ac-grain),
@@ -246,25 +238,7 @@
     --album-foil: linear-gradient(180deg, #f8ecd0 0%, #dcc08a 55%, #a88a55 100%);
 }
 
-.ac-cardpack[data-album="dots"] .ac-slot::before {
-    --mark: var(--album-frame);
-    border: 0;
-    outline: 0;
-    border-radius: 0;
-    box-shadow: none;
-    background:
-        linear-gradient(var(--mark), var(--mark)) left top / 2.6cqh 1px,
-        linear-gradient(var(--mark), var(--mark)) left top / 1px 2.6cqh,
-        linear-gradient(var(--mark), var(--mark)) right top / 2.6cqh 1px,
-        linear-gradient(var(--mark), var(--mark)) right top / 1px 2.6cqh,
-        linear-gradient(var(--mark), var(--mark)) left bottom / 2.6cqh 1px,
-        linear-gradient(var(--mark), var(--mark)) left bottom / 1px 2.6cqh,
-        linear-gradient(var(--mark), var(--mark)) right bottom / 2.6cqh 1px,
-        linear-gradient(var(--mark), var(--mark)) right bottom / 1px 2.6cqh;
-    background-repeat: no-repeat;
-}
-
-/* 星图：深蓝底上印一张淡金星图，卡位是一圈金线 */
+/* 星图：深蓝底上印一张淡金星图，边框是刻度环和月相 */
 .ac-cardpack[data-album="astral"] {
     --album-board:
         var(--ac-grain),
@@ -282,13 +256,12 @@
     --album-edge-a: #1f2846;
     --album-edge-b: #0b0f20;
     --album-frame: rgba(214, 183, 122, 0.34);
-    --album-frame-inner: rgba(214, 183, 122, 0.14);
     --album-accent: rgba(224, 192, 120, 0.82);
     --album-foil: linear-gradient(180deg, #fbeecb 0%, #e0c078 55%, #a98846 100%);
     --album-recess: rgba(4, 7, 18, 0.5);
 }
 
-/* 丝绒展柜：胡桃木外框 + 祖母绿绒面，卡片嵌在黄铜卡框里 */
+/* 丝绒展柜：胡桃木外框 + 祖母绿绒面，卡片嵌在黄铜展盘里 */
 .ac-cardpack[data-album="velvet"] {
     --album-board:
         repeating-linear-gradient(91deg, rgba(0, 0, 0, 0.16) 0 0.4cqh, transparent 0.4cqh 1.5cqh, rgba(255, 216, 170, 0.035) 1.5cqh 2cqh, transparent 2cqh 3.1cqh),
@@ -310,15 +283,7 @@
     --album-accent: rgba(224, 192, 120, 0.86);
     --album-foil: linear-gradient(180deg, #fbeecb 0%, #d9bb74 55%, #9c7d3e 100%);
     --album-recess: rgba(2, 16, 12, 0.5);
-    --album-recess-shadow:
-        inset 0 0.4cqh 1cqh rgba(0, 0, 0, 0.75),
-        0 0 0 0.24cqh #b4935a,
-        0 0 0 0.34cqh #6e5428,
-        0 0.6cqh 1.6cqh rgba(0, 0, 0, 0.45);
-}
-
-.ac-cardpack[data-album="velvet"] .ac-slot::before {
-    display: none;
+    --album-recess-shadow: inset 0 0.3cqh 0.8cqh rgba(0, 0, 0, 0.7);
 }
 
 /* ── 阅读设置里的款式选择 ──────────────────────────────────────────────── */

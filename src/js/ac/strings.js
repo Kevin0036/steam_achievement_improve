@@ -92,7 +92,7 @@ export const STR = {
         tabsLabel: '书口年份索引',
         tabsDesc: '书口露出一列年份标签，点一下直接翻到那一年的年份页。',
         albumLabel: '册子风格',
-        albumDesc: '换一本册子的纸张、书皮和卡位，立即生效。',
+        albumDesc: '换一本册子的纸张、书皮和边框，立即生效。',
         treeLabel: '年度之树',
         treeTag: '实验',
         treeDesc: '年份页的背面画一棵随全成就款数生长的树；满树之后超出的款数记作「盈枝」。',

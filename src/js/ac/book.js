@@ -638,6 +638,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         }
 
         const page = spec.page;
+        face.classList.add('ac-page--cards');
         for (let s = 0; s < perPage; s += 1) {
             const slot = el(doc, 'div', 'ac-slot', { 'data-slot': String(s) });
             const index = page.cards[s];

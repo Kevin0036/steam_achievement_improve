@@ -4,7 +4,7 @@
  * 一本摊开的黑卡纸集邮册（stockbook）：
  *   · 书皮：深色皮面 + 细颗粒 + 缝线，颜色取 SpaceTheme 的中性灰阶；
  *   · 内页：黑卡纸 + 极淡的方格印刷线 + 书脊处的弯折阴影；
- *   · 每页一个下凹的卡槽，外面一圈印刷细框，底部是编号；
+ *   · 每页一个下凹的卡槽，外面一圈整页边框，底部是编号；
  *   · 书口厚度随翻到第几页变化（左边越翻越薄，右边越翻越厚）；
  *   · 一条 SpaceTheme 强调色的丝带书签从书底露出来。
  *
@@ -204,7 +204,7 @@
 .ac-page--right .ac-page__folio { right: 8%; }
 .ac-page--left .ac-page__folio { left: 8%; }
 
-/* ── 卡槽：下凹的卡位 + 一圈印刷细框 ────────────────────────────────────── */
+/* ── 卡槽：下凹的卡位 + 一圈整页边框 ────────────────────────────────────── */
 
 .ac-slot {
     position: absolute;
@@ -215,15 +215,22 @@
     transform: translate(-50%, -50%);
 }
 
-/* 印刷细框（双线） */
-.ac-slot::before {
+/* 整页边框：单卡和四卡共用同一张图（四张卡整组和单卡的大小几乎一样）。
+   四张卡之间只有一条窄缝，每张卡各画一圈框会互相压住，所以框画在纸张层上，排在卡片外面。
+   图案在 albumframes.css，由 tools/make-album-frames.mjs 生成。 */
+.ac-page--cards .ac-page__paper::before,
+.ac-page--end .ac-page__paper::before {
     content: "";
     position: absolute;
-    inset: -3.2cqh;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 0.6cqh;
-    box-shadow: inset 0 0 0 0.55cqh rgba(0, 0, 0, 0), inset 0 0 0 calc(0.55cqh + 1px) rgba(255, 255, 255, 0.035);
-    pointer-events: none;
+    top: calc(46.5% - 41cqh);
+    left: calc(50% - 30.5cqh);
+    width: 61cqh;
+    height: 82cqh;
+    background: var(--ac-frame) center / 100% 100% no-repeat;
+}
+
+.ac-book[data-per-page="4"] .ac-page--cards .ac-page__paper::before {
+    top: calc(48.5% - 41cqh);
 }
 
 /* 下凹的卡位 */
@@ -246,28 +253,14 @@
     height: 36cqh;
 }
 
-.ac-book[data-per-page="4"] .ac-slot[data-slot="0"] { top: 28.5%; left: 32%; }
-.ac-book[data-per-page="4"] .ac-slot[data-slot="1"] { top: 28.5%; left: 68%; }
-.ac-book[data-per-page="4"] .ac-slot[data-slot="2"] { top: 68.5%; left: 32%; }
-.ac-book[data-per-page="4"] .ac-slot[data-slot="3"] { top: 68.5%; left: 68%; }
-
-/* 卡槽缩到 36cqh 后，印刷框和凹槽按同一比例收紧 */
-.ac-book[data-per-page="4"] .ac-slot::before {
-    inset: -1.25cqh;
-    border-radius: 0.35cqh;
-    box-shadow:
-        inset 0 0 0 0.22cqh rgba(0, 0, 0, 0),
-        inset 0 0 0 calc(0.22cqh + 1px) rgba(255, 255, 255, 0.035);
-}
+.ac-book[data-per-page="4"] .ac-slot[data-slot="0"] { top: 28.5%; left: 31.4%; }
+.ac-book[data-per-page="4"] .ac-slot[data-slot="1"] { top: 28.5%; left: 68.6%; }
+.ac-book[data-per-page="4"] .ac-slot[data-slot="2"] { top: 68.5%; left: 31.4%; }
+.ac-book[data-per-page="4"] .ac-slot[data-slot="3"] { top: 68.5%; left: 68.6%; }
 
 .ac-book[data-per-page="4"] .ac-slot::after {
     inset: -0.45cqh;
     border-radius: 1.9cqh;
-}
-
-/* 最后一页没放满时，空卡槽只保留印刷框和凹槽 */
-.ac-slot--empty::before {
-    opacity: 0.55;
 }
 
 /* 四宫格里检视卡片：整个卡槽提到最上层，倾斜出来的边缘不会被相邻卡片盖住 */

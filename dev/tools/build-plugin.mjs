@@ -69,6 +69,7 @@ function buildCss() {
         'borrow.css',
         'roomsound.css',
         'yearfill.css',
+        'albumframes.css',
         'albumstyles.css',
         'cardpack.css',
     ];

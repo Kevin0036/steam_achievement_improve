@@ -55,7 +55,7 @@
 
 ### 册子风格
 
-四本册子，纸张、书皮、书签和卡位各不相同。在设置里切换，立即生效。
+四本册子，纸张、书皮、书签和边框各不相同。在设置里切换，立即生效。
 
 <table>
   <tr>
@@ -63,16 +63,16 @@
     <td width="50%"><img src="docs/images/album-dots.webp" alt="墨点手账"></td>
   </tr>
   <tr>
-    <td align="center"><b>方格黑卡</b><br>黑卡纸上印着极淡的方格</td>
-    <td align="center"><b>墨点手账</b><br>暖黑纸配点阵，卡位只留四角裁切线</td>
+    <td align="center"><b>方格黑卡</b><br>黑卡纸配极淡的方格和印刷边框</td>
+    <td align="center"><b>墨点手账</b><br>暖黑纸配点阵，手绘墨线和纸胶带</td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/album-astral.webp" alt="星图"></td>
     <td width="50%"><img src="docs/images/album-velvet.webp" alt="丝绒展柜"></td>
   </tr>
   <tr>
-    <td align="center"><b>星图</b><br>深蓝底上印一张淡金星图</td>
-    <td align="center"><b>丝绒展柜</b><br>祖母绿绒面、胡桃木外框、黄铜卡框</td>
+    <td align="center"><b>星图</b><br>深蓝星图，刻度环和月相</td>
+    <td align="center"><b>丝绒展柜</b><br>祖母绿绒面、胡桃木外框、黄铜展盘</td>
   </tr>
 </table>
 

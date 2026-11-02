@@ -39,6 +39,7 @@ npm run preview:sync                          # 从本机 Steam 同步预览数�
 node tools/build-plugin.mjs --install         # 构建并安装到本机 Steam
 node tools/build-plugin.mjs --zip             # 生成插件版和发布资产
 node tools/build-lazy.mjs                     # 生成懒人包
+node tools/make-album-frames.mjs              # 重新生成卡片边框 src/css/ac/albumframes.css
 node tools/build-viewer.mjs --root --out <kevin0036.github.io 目录>   # 构建网页版
 node tools/sync-repo.mjs <仓库克隆目录>        # 把本机源码同步到仓库克隆
 ```

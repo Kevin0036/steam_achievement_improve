@@ -280,7 +280,7 @@ function buildPanelComponent(React) {
                 row(
                     React,
                     '册子风格',
-                    '换一本册子的纸张、书皮和卡位，立即生效。借阅给朋友时仍显示原版。',
+                    '换一本册子的纸张、书皮和边框，立即生效。借阅给朋友时仍显示原版。',
                     select(
                         React,
                         options[OPTIONS.album],

@@ -54,7 +54,7 @@ test('款式表、设置默认值和 CSS 对得上；没选中的三款已移除
 
 test('构建列表包含新样式', () => {
     const build = readFileSync(new URL('./build-plugin.mjs', import.meta.url), 'utf8');
-    for (const file of ['roomsound.css', 'yearfill.css', 'albumstyles.css']) assert.ok(build.includes(`'${file}'`), file);
+    for (const file of ['roomsound.css', 'yearfill.css', 'albumframes.css', 'albumstyles.css']) assert.ok(build.includes(`'${file}'`), file);
 });
 
 test('四款册子的扉页都没有实线方框', async () => {
@@ -179,6 +179,115 @@ test('分享快照仍带 yearSpread：线上服务器的校验要求这个字段
     assert.match(share, /yearSpread: yearPages,/);
     const server = readFileSync(new URL('../share-server/snapshot.js', import.meta.url), 'utf8');
     assert.match(server, /typeof raw\.yearSpread !== 'boolean'/);
+});
+
+/* ── 四张卡的边框装饰 ─────────────────────────────────────────────────── */
+
+async function readFrame(page, album) {
+    await page.evaluate((id) => {
+        const host = document.getElementById('host');
+        if (id === 'grid') delete host.dataset.album;
+        else host.dataset.album = id;
+    }, album);
+    return page.evaluate(() => {
+        const face = document.querySelector('.ac-leaf[data-visible] .ac-slot').closest('.ac-leaf__face');
+        const paper = face.querySelector('.ac-page__paper');
+        const style = getComputedStyle(paper, '::before');
+        const base = paper.getBoundingClientRect();
+        const frame = {
+            left: base.left + parseFloat(style.left),
+            top: base.top + parseFloat(style.top),
+            right: base.left + parseFloat(style.left) + parseFloat(style.width),
+            bottom: base.top + parseFloat(style.top) + parseFloat(style.height),
+        };
+        const nodes = [...face.querySelectorAll('.ac-slot')];
+        const slots = nodes.map((slot) => slot.getBoundingClientRect());
+        return {
+            image: style.backgroundImage,
+            frame,
+            page: { left: base.left, top: base.top, right: base.right, bottom: base.bottom },
+            cards: {
+                left: Math.min(...slots.map((s) => s.left)),
+                top: Math.min(...slots.map((s) => s.top)),
+                right: Math.max(...slots.map((s) => s.right)),
+                bottom: Math.max(...slots.map((s) => s.bottom)),
+            },
+            // 卡位不再单独画框，整页边框是唯一的装饰
+            slotFrame: getComputedStyle(nodes[0], '::before').content,
+            folioTop: face.querySelector('.ac-page__folio')?.getBoundingClientRect().top,
+            // 翻过去的页面是镜像的，卡位左右顺序会反过来，所以按实际位置算缝
+            gapX: slots.length < 4 ? null : Math.max(slots[0].left, slots[1].left) - Math.min(slots[0].right, slots[1].right),
+            gapY: slots.length < 4 ? null : Math.max(slots[0].top, slots[2].top) - Math.min(slots[0].bottom, slots[2].bottom),
+        };
+    });
+}
+
+function assertFrame(result, label) {
+    assert.match(result.image, /^url\("data:image\/svg/, label);
+    assert.equal(result.slotFrame, 'none', `${label} 卡位不再单独画框`);
+    for (const side of ['left', 'top']) assert.ok(result.frame[side] < result.cards[side] - 10, `${label} 框要包住卡片`);
+    for (const side of ['right', 'bottom']) assert.ok(result.frame[side] > result.cards[side] + 10, `${label} 框要包住卡片`);
+    assert.ok(result.frame.left > result.page.left && result.frame.right < result.page.right, `${label} 框超出了页面`);
+    assert.ok(result.frame.top > result.page.top && result.frame.bottom < result.page.bottom, `${label} 框超出了页面`);
+    assert.ok(result.frame.bottom <= result.folioTop, `${label} 框碰到了页码`);
+}
+
+test('四张卡共用整页边框：框住整组卡片、留在页面内、不碰页码，四款各不相同', async () => {
+    const { page, errors } = await open('binding=sequential&perPage=4&fresh=1&at=9', '.ac-slot[data-slot="3"]');
+    const frames = new Set();
+    for (const album of ['grid', 'dots', 'astral', 'velvet']) {
+        const result = await readFrame(page, album);
+        assertFrame(result, `四卡 ${album}`);
+        frames.add(result.image);
+        assert.ok(result.gapX > 5 && Math.abs(result.gapX - result.gapY) < result.gapY, `${album} 横竖间距差太多：${result.gapX} / ${result.gapY}`);
+    }
+    assert.equal(frames.size, 4);
+    assert.deepEqual(errors, []);
+    await page.close();
+});
+
+test('单卡用同一张边框：单卡和四卡的装饰是统一的', async () => {
+    const four = await open('binding=sequential&perPage=4&fresh=1&at=9', '.ac-slot[data-slot="3"]');
+    const one = await open('binding=sequential&fresh=1&at=5', '.ac-slot');
+    for (const album of ['grid', 'dots', 'astral', 'velvet']) {
+        const single = await readFrame(one.page, album);
+        assertFrame(single, `单卡 ${album}`);
+        assert.equal(single.image, (await readFrame(four.page, album)).image, `${album} 两种版式用同一张图`);
+    }
+    assert.deepEqual([...one.errors, ...four.errors], []);
+    await one.page.close();
+    await four.page.close();
+});
+
+test('丝绒：边框换成黄铜展盘后，卡片不再各带一圈黄铜', async () => {
+    for (const query of ['binding=sequential&fresh=1&at=5&album=velvet', 'binding=sequential&perPage=4&fresh=1&at=9&album=velvet']) {
+        const { page } = await open(query, '.ac-slot');
+        const shadow = await page.evaluate(() =>
+            getComputedStyle(document.querySelector('.ac-leaf[data-visible] .ac-slot'), '::after').boxShadow);
+        assert.ok(!shadow.includes('180, 147, 90'), shadow);
+        await page.close();
+    }
+});
+
+test('整页边框不出现在年份页、月份足迹、目录和扉页', async () => {
+    const { page, errors } = await open(`binding=sequential&years=1&perPage=4&fresh=1&atYear=2026`, '.ac-leaf[data-visible] .ac-year');
+    await page.waitForTimeout(1500);
+    const leaked = await page.evaluate(() =>
+        [...document.querySelectorAll('.ac-page:not(.ac-page--cards):not(.ac-page--end) .ac-page__paper')]
+            .filter((paper) => getComputedStyle(paper, '::before').backgroundImage !== 'none').length);
+    assert.equal(leaked, 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+});
+
+test('丝绒的四张卡：每张卡不再单独带黄铜圈', async () => {
+    const { page, errors } = await open('binding=sequential&perPage=4&fresh=1&at=9&album=velvet', '.ac-slot[data-slot="3"]');
+    const shadow = await page.evaluate(() =>
+        getComputedStyle(document.querySelector('.ac-leaf[data-visible] .ac-slot[data-slot="0"]'), '::after').boxShadow);
+    assert.ok(!shadow.includes('180, 147, 90'), shadow);
+    await page.evaluate(() => { document.getElementById('host').dataset.album = ''; delete document.getElementById('host').dataset.album; });
+    assert.deepEqual(errors, []);
+    await page.close();
 });
 
 test('风格挑选页只有四款', async () => {
