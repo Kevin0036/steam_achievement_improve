@@ -49,6 +49,11 @@ export const STR = {
         // 手动补完成日期 / 时长
         manualDatesButton: '补日期 / 时长',
         manualDatesTitle: '手动补完成日期与时长',
+        // 工具条上的新版本提醒（插件版）
+        updateButton: (version) => `新版本 v${version}`,
+        updateTitle: (version) => `v${version} 已发布，点击查看更新内容`,
+        updateRestart: '重启 Steam 完成更新',
+        updateRestartTitle: (version) => `v${version} 已安装，重启 Steam 后生效`,
         manualDatesDesc:
             '有些游戏（比如已经不在库里的家庭共享游戏）Steam 取不到完成日期或游玩时长。' +
             '可以在这里自己填，只保存在本地。',
@@ -91,6 +96,8 @@ export const STR = {
         desc: '这里的改动会立即生效，并保存在本机。其它设置仍在 Millennium 的主题设置里。',
         tabsLabel: '书口年份索引',
         tabsDesc: '书口露出一列年份标签，点一下直接翻到那一年的年份页。',
+        introSoundLabel: '入册音效',
+        introSoundDesc: '新卡落进卡槽时的轻声提示。',
         albumLabel: '册子风格',
         albumDesc: '换一本册子的纸张、书皮和边框，立即生效。',
         treeLabel: '年度之树',
@@ -167,6 +174,21 @@ export const STR = {
         desc: '按印刷规格导出收藏册里的实体收藏品：300 DPI，四周留 3 mm 出血，可直接送印后裁剪。',
         cards: '成就卡片',
         cardsDesc: (n) => `${n} 张 · 每张正面与反面，全部共用一张烫金层`,
+        cardsDescPicked: (n, total) =>
+            n === total
+                ? `全部 ${total} 张 · 每张正面与反面，共用一张烫金层`
+                : n === 0
+                  ? `还没有选卡片 · 点「选择」挑要导出的卡`
+                  : `已选 ${n} / ${total} 张 · 每张正面与反面，共用一张烫金层`,
+        pickCards: '选择',
+        pickTitle: '选择要导出的卡片',
+        pickSearch: '搜索游戏名',
+        pickAll: '全选',
+        pickNone: '全不选',
+        pickDone: '完成',
+        pickCount: (n, total) => `已选 ${n} / ${total} 张`,
+        pickEmpty: '没有找到这款游戏',
+        pickYearUnknown: '未知年份',
         tickets: '年度最爱票根',
         ticketsDesc: (n) => `${n} 张 · 按「年度最爱」已选的横幅`,
         stamps: '年份页徽章邮票',
@@ -261,6 +283,22 @@ export const STR = {
     },
 
     /* ── 年度之树（treepage.js） ────────────────────────────────────────── */
+    /* ── 成就小屋（pethouse.js；只有装了桌宠插件才替换「未完待续」） ───────── */
+    house: {
+        title: '成就小屋',
+        signSub: (name) => `${name}的家`,
+        nextSlot: '下一款完美通关的游戏，会挂在这里',
+        cup: {
+            platinum: (n) => `白金奖杯 · 完美通关 ${n} 款`,
+            gold: (n) => (n == null ? '金杯 · 统计中' : `金杯 · 稀有成就 ${n} 个`),
+            silver: (n) => (n == null ? '银杯 · 统计中' : `银杯 · 普通成就 ${n} 个`),
+        },
+        petLabel: (name) => `${name}，点一下和它打招呼`,
+        pageAria: '成就小屋',
+        greet: ['今天也来摸鱼吗？', '收藏册我刚擦过一遍～', '下一张邮票挂哪儿好呢'],
+        cheer: (name) => `《${name}》的邮票挂上墙啦！`,
+    },
+
     yearFill: {
         monthsKicker: 'FOOTPRINTS OF THE YEAR',
         monthsTitle: '月份足迹',
@@ -274,7 +312,14 @@ export const STR = {
         indexTitle: '本年目录',
         indexSub: (count) => `这一年收进册子的 ${count} 款 · 点一行直接翻到那一页`,
         jump: (name) => `翻到 ${name}`,
-        more: (count) => `还有 ${count} 款`,
+        sheet: (n, total, from, to) => `${n} / ${total} 张 · 第 ${from}–${to} 款`,
+        monthOpen: (month, count) => `${month} 月 · ${count} 款，点开看全部`,
+        monthClose: '收起这个月',
+        monthAria: (year, month) => `${year} 年 ${month} 月`,
+        monthSummary: (year, count, hours, rare) =>
+            [`${year} · ${count} 款`, hours ? `共 ${hours}` : null, rare > 0 ? `稀有成就 ${rare} 项` : null].filter(Boolean).join(' · '),
+        sheetPrev: '目录上一张',
+        sheetNext: '目录下一张',
         monthsAria: (year) => `${year} 年月份足迹`,
         indexAria: (year) => `${year} 年目录`,
     },
@@ -316,40 +361,25 @@ export const STR = {
 
     /* ── 新手引导（onboarding.js） ──────────────────────────────────────── */
     onboarding: {
-        eyebrow: '第一次翻开这本册子',
-        close: '关闭引导',
+        label: '新手引导',
+        skip: '跳过引导',
         prev: '上一步',
-        next: '下一页',
+        next: '下一步',
         start: '开始收藏',
-        stepsLabel: '引导步骤',
-        step: (n, title) => `第 ${n} 步：${title}`,
-        slides: [
-            {
-                title: '一册收齐',
-                desc: '每一款拿到全成就的游戏，都会在这里装订成一张收藏卡。下面用几步带你认识它。',
-            },
-            {
-                title: '翻页与书签',
-                desc: '滚动滚轮翻页，也可以点击左右两页的任意位置；向下拉动书签，直接翻到册子另一端。',
-            },
-            {
-                title: '封面微调',
-                desc: '在卡片上长按鼠标右键进入取景：拖动正面换画面，滚轮微调，再长按右键保存。背面还能切换「默认 / 拉伸」。',
-            },
-            {
-                title: '年份手账',
-                descOn: '每一年的开头都有四页：月份足迹、年份手账、年度最爱和本年目录，目录点一下就能跳到那张卡。',
-                descOff: '在设置里打开「年份特殊页」，每年开头就会多四页：月份足迹、年份手账、年度最爱和本年目录。',
-            },
-            {
-                title: '补日期与时长',
-                desc: '取不到完成日期或游玩时长的游戏，用右上角的「补日期 / 时长」手动填写，只保存在本地。',
-            },
-            {
-                title: '导出印刷素材',
-                desc: '在设置的「印刷素材」里可以导出 300 DPI 的卡片、票根和邮票，直接送去印刷。',
-            },
-        ],
+        count: (n, total) => `${n} / ${total}`,
+        tryHint: '动手试一下，也可以直接下一步',
+        tryDone: '就是这样',
+        steps: {
+            card: { title: '收藏卡', desc: '每款全成就的游戏，都会收成一张卡。' },
+            turn: { title: '翻页', desc: '滚动滚轮，或者点一下这一页。' },
+            ribbon: { title: '书签', desc: '往下拉书签，直接翻到册子的另一端。' },
+            cover: { title: '封面取景', desc: '在卡片上长按右键，调整封面露出的部分。' },
+            tabs: { title: '年份索引', desc: '点书口的年份标签，跳到那一年。' },
+            months: { title: '月份足迹', desc: '每年开头记着每个月打满了哪些游戏。点一个月，展开看当月全部。' },
+            date: { title: '补日期与时长', desc: '读不到日期或时长的游戏，在这里补上。' },
+            settings: { title: '设置', desc: '册子风格、年份特殊页、入册音效和印刷素材都在这里。' },
+            borrow: { title: '借阅室', desc: '把册子寄给朋友，也能翻看朋友的册子。' },
+        },
     },
 
     /* ── 年份特殊页（yearpages.js） ─────────────────────────────────────── */

@@ -259,11 +259,17 @@ local function version_parts(value)
     return parts
 end
 
---- 规范化成 x.y.z；位数不对的一律拒绝
+--- 规范化成 x.y.z，内测后缀保留：它决定装完之后还能不能收到同号的正式版。
+--- 位数不对的一律拒绝；这个值会写进 plugin.json，后缀只放行字母数字、点和连字符。
 local function release_version(value)
     local parts = version_parts(value)
     if not parts or #parts ~= 3 then return nil end
-    return table.concat(parts, ".")
+    local text = table.concat(parts, ".")
+    local dash = value:find("-", 1, true)
+    if not dash then return text end
+    local suffix = value:sub(dash)
+    if suffix:find("[^%w%.%-]") then return nil end
+    return text .. suffix
 end
 
 local function tag_matches_version(tag, version)
@@ -279,6 +285,10 @@ local function tag_matches_version(tag, version)
     return true
 end
 
+local function is_prerelease(value)
+    return type(value) == "string" and value:find("-", 1, true) ~= nil
+end
+
 local function version_newer(candidate, current)
     local a = version_parts(candidate)
     local b = version_parts(current)
@@ -288,7 +298,8 @@ local function version_newer(candidate, current)
         local right = b[i] or 0
         if left ~= right then return left > right end
     end
-    return false
+    -- 数字相同时正式版比内测版新，和前端的 isNewerVersion 保持一致
+    return is_prerelease(current) and not is_prerelease(candidate)
 end
 
 local function http_get(url, accept)
@@ -318,16 +329,6 @@ local function replace_file(path, data)
     local ok_write, write_err = write_file(path, data)
     os.remove(temp)
     return ok_write, write_err
-end
-
---- 用已经落盘的临时文件替换目标，失败时尽量保住旧文件
-local function replace_with_file(path, temp)
-    os.remove(path)
-    if os.rename(temp, path) then return true end
-    local data = read_file(temp)
-    os.remove(temp)
-    if not data then return false, "无法读取下载文件" end
-    return write_file(path, data)
 end
 
 --- 只改 plugin.json 里的 version 值，保留原有字段与排版（不经过 json.encode）。
@@ -371,6 +372,15 @@ local function download_asset(url, path, expected)
         return false, string.format("下载大小不一致（%d/%d）", actual, expected)
     end
     return true, actual
+end
+
+--- 网络断一下很常见，四个文件里只要一个超时就得整次重来，所以当场多试一次
+local function download_with_retry(url, path, expected)
+    local ok, info = download_asset(url, path, expected)
+    if ok then return ok, info end
+    log_info("下载失败，重试一次：" .. tostring(info))
+    os.remove(path)
+    return download_asset(url, path, expected)
 end
 
 --- 只取 tag_name 写日志；纯字符串操作，遇到代理页/限流页也不会抛错。
@@ -452,7 +462,7 @@ function InstallUpdate(payload)
 
         local temp = root .. "/" .. relative .. ".update"
         log_info("正在下载 " .. name)
-        local ok, info = download_asset(url, temp, tonumber(asset.size) or 0)
+        local ok, info = download_with_retry(url, temp, tonumber(asset.size) or 0)
         if not ok then
             os.remove(temp)
             cleanup()
@@ -468,17 +478,42 @@ function InstallUpdate(payload)
         return { success = false, error = "无法读取 plugin.json" }
     end
 
+    -- 旧文件先改名留底，全部换完才删。中途失败就全部换回去：
+    -- 半新半旧的插件可能连卡包都打不开，那样连自动更新都用不了了。
+    local swapped = {}
+    local function roll_back()
+        for i = #swapped, 1, -1 do
+            local item = swapped[i]
+            os.remove(item.target)
+            if item.backup then os.rename(item.backup, item.target) end
+        end
+        cleanup()
+    end
+
     for _, item in ipairs(downloads) do
-        local wrote, write_err = replace_with_file(root .. "/" .. item.relative, item.temp)
-        if not wrote then
-            cleanup()
-            return { success = false, error = "写入失败：" .. item.relative .. "（" .. tostring(write_err) .. "）" }
+        local target = root .. "/" .. item.relative
+        local backup = target .. ".previous"
+        local has_old = file_size(target) ~= nil
+        os.remove(backup)
+        if has_old and not os.rename(target, backup) then
+            roll_back()
+            return { success = false, error = "写入失败：" .. item.relative .. "（旧文件被占用）" }
+        end
+        swapped[#swapped + 1] = { target = target, backup = has_old and backup or nil }
+        if not os.rename(item.temp, target) then
+            roll_back()
+            return { success = false, error = "写入失败：" .. item.relative }
         end
     end
 
     local wrote, write_err = write_manifest_version(manifest_path, version)
     if not wrote then
+        roll_back()
         return { success = false, error = "写入 plugin.json 失败：" .. tostring(write_err) }
+    end
+
+    for _, item in ipairs(swapped) do
+        if item.backup then os.remove(item.backup) end
     end
 
     log_info("插件已更新到 v" .. version .. "，重启 Steam 后生效")

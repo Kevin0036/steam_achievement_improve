@@ -27,8 +27,8 @@ export const ALBUM_DEFAULT = 'grid';
 export const ALBUM_STYLES = Object.freeze([
     { id: 'grid', name: '方格黑卡' },
     { id: 'dots', name: '墨点手账' },
-    { id: 'astral', name: '星图' },
-    { id: 'velvet', name: '丝绒展柜' },
+    { id: 'astral', name: '月相星图' },
+    { id: 'velvet', name: '绿绒牌桌' },
 ]);
 
 const normalizeAlbum = (value) => (ALBUM_STYLES.some((item) => item.id === value) ? value : ALBUM_DEFAULT);
@@ -65,7 +65,8 @@ export function readReading() {
     const tree = asBool(saved.tree) ?? asBool(getThemeOption('年度之树', '关闭')) ?? false;
     const target = normalizeTarget(saved.target ?? getThemeOption('年度目标款数', TARGET_DEFAULT));
     const album = normalizeAlbum(saved.album ?? getThemeOption('册子风格', ALBUM_DEFAULT));
-    return { tabs, tree, target, album };
+    const introSound = asBool(saved.introSound) ?? asBool(getThemeOption('入册音效', '开启')) ?? true;
+    return { tabs, tree, target, album, introSound };
 }
 
 /** 只写用户明确改的项；写完通知 page.js 重建册子 */
@@ -76,6 +77,7 @@ export function writeReading(patch) {
         tree: asBool(patch.tree) ?? current.tree,
         target: patch.target === undefined ? current.target : normalizeTarget(patch.target, current.target),
         album: patch.album === undefined ? current.album : normalizeAlbum(patch.album),
+        introSound: asBool(patch.introSound) ?? current.introSound,
     };
     try {
         localStorage.setItem(KEY, JSON.stringify(next));

@@ -19,7 +19,7 @@
  * 排版后再裁切，保证和屏幕上看到的比例完全一致。
  */
 
-import { BIG_SPARKS, createCardBack, createCardFront } from './cardview.js';
+import { BIG_SPARKS, createCardBack, createCardFront, formatCardDate } from './cardview.js';
 import { createBadgeStamp, createTicketStub, isYearKey, normalizeSelection, yearKeyOf } from './yearpages.js';
 import { getTone, toneToCss } from './tone.js';
 import { loadBadge } from './badges.js';
@@ -1298,12 +1298,17 @@ export async function buildExportZip({
     binding = 'sequential',
     yearPages = false,
     types = { cards: true, tickets: true, stamps: true },
+    cardIds = null,
     onProgress = null,
     cancelToken = null,
 }) {
     const win = doc.defaultView;
     const list = Array.isArray(cards) ? cards.filter(Boolean) : [];
-    const ordered = orderForBook(list, { binding, yearPages });
+    // 编号按整本册子算：只挑几张导出时，No.044 也还是册子里的 No.044
+    const picked = cardIds ? new Set(cardIds) : null;
+    const ordered = orderForBook(list, { binding, yearPages })
+        .map((card, i) => ({ card, serial: i + 1 }))
+        .filter(({ card }) => !picked || picked.has(card.appid));
     const assets = planAssets(list, yearSelections);
     const chosen = {
         cards: types.cards !== false && ordered.length > 0,
@@ -1328,7 +1333,7 @@ export async function buildExportZip({
 
     const tones = new Map();
     if (chosen.cards) {
-        await pool(ordered, 3, async (card) => {
+        await pool(ordered, 3, async ({ card }) => {
             if (cancelled()) return;
             await prepareCard(doc, card);
             const tone = await getTone(doc, card.appid, card.art?.hero ?? [], 1.25);
@@ -1360,19 +1365,18 @@ export async function buildExportZip({
 
     try {
         if (chosen.cards) {
-            report: for (let i = 0; i < ordered.length; i += 1) {
+            report: for (const { card, serial } of ordered) {
                 if (cancelled()) break report;
-                const card = ordered[i];
                 try {
-                    await renderCard(ctx, card, i + 1, tones.get(card.appid));
+                    await renderCard(ctx, card, serial, tones.get(card.appid));
                 } catch (err) {
-                    failed.push(`No.${pad3(i + 1)} ${card.name ?? card.appid}`);
+                    failed.push(`No.${pad3(serial)} ${card.name ?? card.appid}`);
                 }
                 await sleep(win, 0);
             }
             if (!cancelled()) {
                 try {
-                    await renderFoil(ctx, ordered[0]);
+                    await renderFoil(ctx, ordered[0].card);
                 } catch {
                     failed.push(STR.export.foil);
                 }
@@ -1458,6 +1462,9 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
     const doc = host.ownerDocument;
     const win = doc.defaultView;
     const { cardCount, ticketCount, stampCount } = countExportables(cards, yearSelections);
+    // 卡片选择：按册子顺序列出，默认全选（和以前一键导出全册一样）
+    const bookOrder = orderForBook(Array.isArray(cards) ? cards.filter(Boolean) : [], { binding, yearPages });
+    const picked = new Set(bookOrder.map((card) => card.appid));
     const overlay = el(doc, 'div', 'ac-export', {
         role: 'dialog',
         'aria-modal': 'true',
@@ -1501,6 +1508,8 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
             empty: STR.export.emptyStamps,
         },
     ];
+    const counts = {};
+    const descs = {};
     for (const row of rows) {
         const option = el(doc, 'label', `ac-export__option${row.count > 0 ? '' : ' is-empty'}`);
         const input = el(doc, 'input', 'ac-export__check', {
@@ -1510,14 +1519,161 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
         input.checked = row.count > 0;
         input.disabled = row.count === 0;
         const copy = el(doc, 'span', 'ac-export__copy');
-        copy.append(
-            el(doc, 'b', null, { text: row.label }),
-            el(doc, 'span', null, { text: row.count > 0 ? row.desc : row.empty }),
-        );
-        option.append(input, copy, el(doc, 'span', 'ac-export__count', { text: String(row.count) }));
+        descs[row.type] = el(doc, 'span', null, { text: row.count > 0 ? row.desc : row.empty });
+        copy.append(el(doc, 'b', null, { text: row.label }), descs[row.type]);
+        counts[row.type] = el(doc, 'span', 'ac-export__count', { text: String(row.count) });
+        option.append(input, copy);
+        if (row.type === 'cards' && row.count > 0) {
+            const pick = el(doc, 'button', 'ac-export__pick', { type: 'button', text: STR.export.pickCards });
+            pick.addEventListener('click', (event) => {
+                // 按钮在 label 里：别让这一下顺带把勾选框也点掉
+                event.preventDefault();
+                openPicker();
+            });
+            option.append(pick);
+        }
+        option.append(counts[row.type]);
         options.append(option);
         checks[row.type] = input;
     }
+
+    /* 卡片选择：盖在选项上的第二屏，「完成」回到选项 */
+    const picker = el(doc, 'div', 'ac-export__picker');
+    picker.hidden = true;
+    const pickerBar = el(doc, 'div', 'ac-export__pickbar');
+    const search = el(doc, 'input', 'ac-export__search', {
+        type: 'search',
+        placeholder: STR.export.pickSearch,
+        'aria-label': STR.export.pickSearch,
+    });
+    const allButton = el(doc, 'button', 'ac-export__mini', { type: 'button', text: STR.export.pickAll });
+    const noneButton = el(doc, 'button', 'ac-export__mini', { type: 'button', text: STR.export.pickNone });
+    pickerBar.append(search, allButton, noneButton);
+
+    const yearKeys = [...new Set(bookOrder.map((card) => yearKeyOf(card)))];
+    const chips = el(doc, 'div', 'ac-export__years');
+    const chipByYear = new Map();
+    if (yearKeys.length > 1) {
+        for (const key of yearKeys) {
+            const chip = el(doc, 'button', 'ac-export__year', {
+                type: 'button',
+                text: key === 'unknown' ? STR.export.pickYearUnknown : key,
+            });
+            chip.addEventListener('click', () => {
+                const ids = bookOrder.filter((card) => yearKeyOf(card) === key).map((card) => card.appid);
+                const all = ids.every((id) => picked.has(id));
+                for (const id of ids) all ? picked.delete(id) : picked.add(id);
+                syncPicks();
+            });
+            chipByYear.set(key, chip);
+            chips.append(chip);
+        }
+    }
+
+    const pickList = el(doc, 'div', 'ac-export__picklist', { role: 'group', 'aria-label': STR.export.pickTitle });
+    const pickRows = bookOrder.map((card, i) => {
+        const row = el(doc, 'label', 'ac-export__pickrow');
+        const box = el(doc, 'input', 'ac-export__check', { type: 'checkbox' });
+        box.addEventListener('change', () => {
+            if (box.checked) picked.add(card.appid);
+            else picked.delete(card.appid);
+            syncPicks();
+        });
+        const thumb = el(doc, 'img', 'ac-export__thumb', { alt: '', loading: 'lazy', decoding: 'async' });
+        const capsule = card.art?.capsule?.[0] ?? card.art?.header?.[0] ?? null;
+        if (capsule) {
+            thumb.src = capsule;
+            thumb.addEventListener('error', () => { thumb.style.visibility = 'hidden'; }, { once: true });
+        } else {
+            thumb.style.visibility = 'hidden';
+        }
+        row.append(
+            box,
+            thumb,
+            el(doc, 'span', 'ac-export__serial', { text: `No.${pad3(i + 1)}` }),
+            el(doc, 'span', 'ac-export__name', { text: card.name ?? String(card.appid) }),
+            el(doc, 'span', 'ac-export__date', { text: formatCardDate(card.completedAt) ?? '' }),
+        );
+        pickList.append(row);
+        return { card, row, box, haystack: String(card.name ?? '').toLowerCase() };
+    });
+    const pickEmpty = el(doc, 'p', 'ac-export__pickempty', { text: STR.export.pickEmpty });
+    pickEmpty.hidden = true;
+    pickList.append(pickEmpty);
+
+    const pickFoot = el(doc, 'div', 'ac-export__pickfoot');
+    const pickSummary = el(doc, 'span', 'ac-export__picksum');
+    const doneButton = el(doc, 'button', 'ac-export__btn ac-export__btn--primary', { type: 'button', text: STR.export.pickDone });
+    pickFoot.append(pickSummary, doneButton);
+    picker.append(
+        el(doc, 'h3', 'ac-export__picktitle', { text: STR.export.pickTitle }),
+        pickerBar,
+        ...(yearKeys.length > 1 ? [chips] : []),
+        pickList,
+        pickFoot,
+    );
+
+    function syncPicks() {
+        const n = picked.size;
+        for (const { card, box } of pickRows) box.checked = picked.has(card.appid);
+        for (const [key, chip] of chipByYear) {
+            const ids = bookOrder.filter((card) => yearKeyOf(card) === key);
+            const on = ids.filter((card) => picked.has(card.appid)).length;
+            chip.dataset.state = on === 0 ? 'none' : on === ids.length ? 'all' : 'some';
+            chip.setAttribute('aria-pressed', on === ids.length ? 'true' : 'false');
+        }
+        pickSummary.textContent = STR.export.pickCount(n, cardCount);
+        if (cardCount > 0) {
+            descs.cards.textContent = STR.export.cardsDescPicked(n, cardCount);
+            counts.cards.textContent = String(n);
+        }
+        refreshTotal();
+    }
+
+    function filterPicks() {
+        const query = search.value.trim().toLowerCase();
+        let shown = 0;
+        for (const { row, haystack } of pickRows) {
+            const hit = !query || haystack.includes(query);
+            row.hidden = !hit;
+            if (hit) shown += 1;
+        }
+        pickEmpty.hidden = shown > 0;
+    }
+
+    function openPicker() {
+        if (running) return;
+        picker.hidden = false;
+        options.hidden = true;
+        note.hidden = true;
+        totalLine.hidden = true;
+        footer.hidden = true;
+        search.focus?.({ preventScroll: true });
+    }
+
+    function closePicker() {
+        picker.hidden = true;
+        options.hidden = false;
+        note.hidden = false;
+        totalLine.hidden = false;
+        footer.hidden = false;
+        // 一张都没挑就别勾着「成就卡片」，免得看起来要导出却什么也不出
+        if (picked.size === 0) checks.cards.checked = false;
+        else if (!checks.cards.disabled) checks.cards.checked = true;
+        refreshTotal();
+        actionButton.focus?.({ preventScroll: true });
+    }
+
+    search.addEventListener('input', filterPicks);
+    allButton.addEventListener('click', () => {
+        for (const { card, row } of pickRows) if (!row.hidden) picked.add(card.appid);
+        syncPicks();
+    });
+    noneButton.addEventListener('click', () => {
+        for (const { card, row } of pickRows) if (!row.hidden) picked.delete(card.appid);
+        syncPicks();
+    });
+    doneButton.addEventListener('click', closePicker);
     const note = el(doc, 'p', 'ac-export__note', { text: STR.export.note });
     const totalLine = el(doc, 'p', 'ac-export__total');
     const progressBox = el(doc, 'div', 'ac-export__progress');
@@ -1532,7 +1688,7 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
     const cancelButton = el(doc, 'button', 'ac-export__btn', { type: 'button' });
     const actionButton = el(doc, 'button', 'ac-export__btn ac-export__btn--primary', { type: 'button' });
     footer.append(cancelButton, actionButton);
-    panel.append(header, options, note, totalLine, progressBox, footer);
+    panel.append(header, options, picker, note, totalLine, progressBox, footer);
     overlay.append(backdrop, panel);
     host.append(overlay);
 
@@ -1549,7 +1705,8 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
     });
     const selectedFiles = () => {
         const types = selectedTypes();
-        return (types.cards ? cardCount * 2 + 1 : 0) + (types.tickets ? ticketCount : 0) + (types.stamps ? stampCount : 0);
+        const cardFiles = picked.size > 0 ? picked.size * 2 + 1 : 0;
+        return (types.cards ? cardFiles : 0) + (types.tickets ? ticketCount : 0) + (types.stamps ? stampCount : 0);
     };
     const refreshTotal = () => {
         const count = selectedFiles();
@@ -1617,6 +1774,7 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
                 binding,
                 yearPages,
                 types,
+                cardIds: [...picked],
                 cancelToken,
                 onProgress: ({ done, total, label }) => {
                     barFill.style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
@@ -1661,7 +1819,9 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
         if (event.key !== 'Escape' || event.defaultPrevented) return;
         event.preventDefault();
         event.stopPropagation();
-        close();
+        // 选卡那一屏开着时 Esc 只回到选项
+        if (!picker.hidden) closePicker();
+        else close();
     };
 
     cancelButton.addEventListener('click', () => {
@@ -1684,6 +1844,7 @@ export function openExportDialog({ host, cards, owner = {}, yearSelections = {},
 
     win.addEventListener('keydown', onKeyDown, true);
     resetFooter();
+    if (cardCount > 0) syncPicks();
     actionButton.focus?.({ preventScroll: true });
 
     return { close };

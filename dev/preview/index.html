@@ -7,49 +7,106 @@
 <style>
     html, body { margin: 0; height: 100%; background: rgb(10, 10, 10); color: #ebedf0; font-size: 13px; }
     .wrap { display: flex; flex-direction: column; height: 100vh; }
-    .bar { display: flex; align-items: center; gap: 4px; padding: 8px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); background: rgb(17, 17, 17); }
-    .bar button { flex: none; white-space: nowrap; padding: 6px 14px; font: inherit; color: #a3a8b0; cursor: pointer; border: 0; border-radius: 8px; background: transparent; }
-    .bar button:hover { color: #ebedf0; background: rgba(255, 255, 255, 0.05); }
-    .bar button[aria-selected="true"] { color: #fff; background: rgba(102, 108, 255, 0.22); }
-    .bar .note { margin-left: auto; font-size: 11.5px; color: #6c7179; }
-    iframe { flex: 1; width: 100%; border: 0; background: rgb(17, 17, 17); }
+    /* 顶栏只占一行：入口按类别收进下拉菜单，说明文字超长就截断（悬停看全文） */
+    .bar { display: flex; flex: none; align-items: center; gap: 8px; height: 44px; padding: 0 12px; box-sizing: border-box; border-bottom: 1px solid rgba(255, 255, 255, 0.07); background: rgb(17, 17, 17); }
+    .bar select,
+    .bar button { flex: none; height: 30px; padding: 0 10px; font: inherit; color: #a3a8b0; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; background: rgb(24, 24, 27); }
+    .bar select:hover,
+    .bar button:hover { color: #ebedf0; border-color: rgba(255, 255, 255, 0.18); }
+    .bar select.is-current { color: #fff; border-color: rgba(102, 108, 255, 0.55); background: rgba(102, 108, 255, 0.22); }
+    .bar select:focus-visible,
+    .bar button:focus-visible { outline: 2px solid rgba(102, 108, 255, 0.8); outline-offset: 1px; }
+    .bar option { color: #ebedf0; background: rgb(24, 24, 27); }
+    .bar .reload { width: 30px; padding: 0; font-size: 15px; }
+    .bar .note { flex: 1; min-width: 0; overflow: hidden; margin-left: 6px; font-size: 11.5px; color: #6c7179; white-space: nowrap; text-overflow: ellipsis; }
+    iframe { flex: 1; width: 100%; min-height: 0; border: 0; background: rgb(17, 17, 17); }
 </style>
 </head>
 <body>
 <div class="wrap">
-    <div class="bar" role="tablist">
-        <button role="tab" data-src="./cardpack.html" aria-selected="true">成就卡包</button>
-        <button role="tab" data-src="./album-styles.html">册子风格</button>
-        <button role="tab" data-src="./cardpack.html?perPage=4">单页四张</button>
-        <button role="tab" data-src="./showcase.html">完满主义者展柜</button>
-        <button role="tab" data-src="./art.html">徽章与素材</button>
-        <button role="tab" data-src="./cardpack.html?intro=1">演示：新卡入册</button>
-        <button role="tab" data-src="./cardpack.html?perPage=4&intro=1">演示：四张版式入册</button>
-        <button role="tab" data-src="./borrow.html">借阅室</button>
-        <button role="tab" data-src="./borrow.html?mode=out">借阅室 · 寄信</button>
-        <span class="note" data-for="./cardpack.html">倒序：最近完成的在第一页 · 悬停卡片 = 3D 检视 · 单击右页 = 向后翻 · 单击左页 = 翻回 · <span data-card-count></span> 张来自客户端全成就快照</span>
-        <span class="note" data-for="./album-styles.html" hidden>四款册子 · 换款不用重新加载 · 左右方向键切换</span>
-        <span class="note" data-for="./borrow.html" hidden>点一下页面后音乐淡入 · 拆封蜡有音效 · 翻开册子音乐变丰满 · 左下角可关声音</span>
-        <span class="note" data-for="./borrow.html?mode=out" hidden>寄信演示：拖动印章盖在登记卡上 → 封蜡 → 生成借阅链接（目前为演示数据）</span>
-        <span class="note" data-for="./cardpack.html?perPage=4" hidden>2×2 四张一页 · 卡片按原样式等比缩小 · 翻页与检视同单页一张</span>
-        <span class="note" data-for="./cardpack.html?intro=1" hidden>假装最近完成的那一款是新全成就的：首次进入卡包时入册（再点一次这个标签可以重播）</span>
-        <span class="note" data-for="./cardpack.html?perPage=4&intro=1" hidden>四张版式下只有最新的一款是新全成就：它单独落进第一页左上角的卡槽（再点一次这个标签可以重播）</span>
-        <span class="note" data-for="./showcase.html" hidden>悬停格子查看抬升 · 封面为本机真实全成就游戏</span>
-        <span class="note" data-for="./art.html" hidden>展柜与卡片共用同一枚徽章</span>
+    <div class="bar">
+        <span id="menus"></span>
+        <button type="button" class="reload" title="重新载入当前预览（入册动画、引导都会重播）" aria-label="重新载入当前预览">↻</button>
+        <span class="note"></span>
     </div>
-    <iframe src="./cardpack.html" title="预览"></iframe>
+    <iframe title="预览"></iframe>
 </div>
 <script type="module">
 import { CARDS } from './fixtures.js';
-document.querySelector('[data-card-count]').textContent = CARDS.length;
+
+const YEAR = './cardpack.html?binding=sequential&owner=Player&years=1&fresh=1&atYear=2025';
+/** 每个预览入口：所属下拉菜单、名字、地址、顶栏的一句说明 */
+const GROUPS = [
+    ['收藏册', [
+        ['cardpack', '成就卡包', './cardpack.html', `倒序：最近完成的在第一页 · 悬停卡片 = 3D 检视 · 单击右页 = 向后翻 · 单击左页 = 翻回 · ${CARDS.length} 张来自客户端全成就快照`],
+        ['four', '单页四张', './cardpack.html?perPage=4', '2×2 四张一页 · 卡片按原样式等比缩小 · 翻页与检视同单页一张'],
+        ['albums', '册子风格', './album-styles.html', '四款册子 · 换款不用重新加载 · 左右方向键切换'],
+    ]],
+    ['年份页', [
+        ['months', '月份足迹', `${YEAR}&face=months`, '你的 2025 年 · 有游戏的月份点一下放大看全部，点一款翻到那张卡，× 或 Esc 收回'],
+        ['index', '本年目录', `${YEAR}&face=index`, '你的 2025 年 · 点一行翻到那张卡'],
+        ['months-100', '月份足迹 · 一年百款', `${YEAR}&face=months&stress=100`, '模拟 2025 年多打 100 款（复制现有的卡）· 每月 8～17 款，点开后一张 12 款、多的分张'],
+        ['index-100', '本年目录 · 一年百款', `${YEAR}&face=index&stress=100`, '模拟 2025 年多打 100 款 · 底部 ‹ › 在页内翻张，滚轮仍然翻书'],
+    ]],
+    ['动画', [
+        ['intro-tiers', '入册动画（三档）', './intro-tiers.html', '三档入册动画和音效：按这款游戏的游玩时长区分'],
+        ['intro', '新卡入册', './cardpack.html?intro=1', '假装最近完成的那一款是新全成就的：首次进入卡包时入册（↻ 重播）'],
+        ['intro-four', '四张版式入册', './cardpack.html?perPage=4&intro=1', '四张版式下只有最新的一款是新全成就：它单独落进第一页左上角的卡槽（↻ 重播）'],
+    ]],
+    ['引导与提醒', [
+        ['guide', '新手引导', './cardpack.html?binding=sequential&owner=Player&onboard=1', '聚光灯引导：翻页、书签和封面取景三步可以直接动手 · ↻ 重新开始'],
+        ['update', '更新提醒', './cardpack.html?binding=sequential&owner=Player&updateDemo=1', '用模拟数据演示 v1.2.1 发现 v1.2.2 · 关掉弹窗后右上角的提醒还在'],
+    ]],
+    ['其他', [
+        ['pet', '成就小屋（桌宠）', './cardpack.html?pet=1', '假装装了桌宠插件：最后一页「未完待续」换成成就小屋 · 点大肥鱼打招呼 · 没装桌宠时这一页保持原样'],
+        ['showcase', '完满主义者展柜', './showcase.html', '悬停格子查看抬升 · 封面为本机真实全成就游戏'],
+        ['art', '徽章与素材', './art.html', '展柜与卡片共用同一枚徽章'],
+        ['borrow', '借阅室', './borrow.html', '点一下页面后音乐淡入 · 拆封蜡有音效 · 翻开册子音乐变丰满 · 左下角可关声音'],
+        ['borrow-out', '借阅室 · 寄信', './borrow.html?mode=out', '寄信演示：拖动印章盖在登记卡上 → 封蜡 → 生成借阅链接（目前为演示数据）'],
+    ]],
+];
+
 const frame = document.querySelector('iframe');
-for (const tab of document.querySelectorAll('[role="tab"]')) {
-    tab.addEventListener('click', () => {
-        for (const t of document.querySelectorAll('[role="tab"]')) t.setAttribute('aria-selected', String(t === tab));
-        for (const n of document.querySelectorAll('.note')) n.hidden = n.dataset.for !== tab.dataset.src;
-        frame.src = tab.dataset.src;
-    });
+const note = document.querySelector('.note');
+const menus = document.getElementById('menus');
+const pages = new Map();
+const selects = [];
+
+for (const [group, entries] of GROUPS) {
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', group);
+    const head = new Option(group, '');
+    head.disabled = true;
+    select.append(head);
+    for (const [key, label, src, text] of entries) {
+        select.append(new Option(label, key));
+        pages.set(key, { label, src, text, select });
+    }
+    select.addEventListener('change', () => show(select.value));
+    selects.push(select);
+    menus.append(select, ' ');
 }
+
+/** 当前预览记在地址栏的 # 后面，刷新还停在同一页 */
+function show(key) {
+    const entry = pages.has(key) ? key : 'cardpack';
+    const page = pages.get(entry);
+    for (const select of selects) {
+        const current = select === page.select;
+        select.classList.toggle('is-current', current);
+        select.value = current ? entry : '';
+    }
+    note.textContent = page.text;
+    note.title = page.text;
+    frame.src = page.src;
+    history.replaceState(null, '', `#${entry}`);
+}
+
+document.querySelector('.reload').addEventListener('click', () => {
+    frame.contentWindow?.location.reload();
+});
+
+show(location.hash.slice(1) || 'cardpack');
 </script>
 </body>
 </html>

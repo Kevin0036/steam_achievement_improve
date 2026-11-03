@@ -166,34 +166,50 @@ ${phases.map(([dx, lit, waning]) => moon(CX + dx, 19, dx === 0 ? 8 : 6.4, lit, w
 </svg>`;
 }
 
-/* ── 丝绒展柜：黄铜展盘 ───────────────────────────────────────────────── */
+/* ── 绿绒牌桌：筹码和花色 ─────────────────────────────────────────────── */
 
-function bracket(x, y, sx, sy) {
-    const a = 58;
-    const b = 15;
-    const path = `M${x} ${y}h${a * sx}v${b * sy}h${(b - a) * sx}v${(a - b) * sy}h${-b * sx}Z`;
-    const rivet = (rx, ry) => `<circle cx='${rx}' cy='${ry}' r='3.4' fill='url(#r)' stroke='#4a3a1a' stroke-width='.7'/>`;
-    return `<path d='${path}' fill='url(#b)' stroke='#5d4a22' stroke-width='.9'/>${rivet(x + 8 * sx, y + 8 * sy)}${rivet(x + (a - 8) * sx, y + 7.5 * sy)}${rivet(x + 7.5 * sx, y + (a - 8) * sy)}`;
+const circlePath = (x, y, r) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
+
+/** 单位花色：中心在原点，上下各占 1。不用字符，免得跟着系统字体变样 */
+const SUITS = {
+    spade: 'M0-.95C.2-.62 1-.18 1 .3C1 .68.64.82.4.82C.24.82.12.74.06.62C.1.8.2.92.38 1H-.38C-.2.92-.1.8-.06.62C-.12.74-.24.82-.4.82C-.64.82-1 .68-1 .3C-1-.18-.2-.62 0-.95Z',
+    heart: 'M0 .95C-.2.62-1 .15-1-.35C-1-.75-.62-.95-.35-.95C-.18-.95-.05-.85 0-.7C.05-.85.18-.95.35-.95C.62-.95 1-.75 1-.35C1 .15.2.62 0 .95Z',
+    diamond: 'M0-1L.72 0L0 1L-.72 0Z',
+    club: `${circlePath(0, -0.48, 0.44)}${circlePath(-0.5, 0.24, 0.44)}${circlePath(0.5, 0.24, 0.44)}M-.11 0C-.09.6-.2.85-.38 1H.38C.2.85.09.6.11 0Z`,
+};
+
+const suit = (name, x, y, r, fill) => `<path transform='translate(${x} ${y}) scale(${r})' d='${SUITS[name]}' fill='${fill}'/>`;
+
+/** 一枚筹码：边缘一圈间隔的色块，中间是花色 */
+function chip(x, y, r, base, name) {
+    const cream = '#efe3c4';
+    const spot = round((2 * Math.PI * r * 0.84) / 16);
+    return `<circle cx='${x}' cy='${y + 2}' r='${r}' fill='#000' fill-opacity='.38'/>
+<circle cx='${x}' cy='${y}' r='${r}' fill='${base}' stroke='#000' stroke-opacity='.4' stroke-width='.8'/>
+<circle cx='${x}' cy='${y}' r='${round(r * 0.84)}' fill='none' stroke='${cream}' stroke-width='${round(r * 0.3)}' stroke-dasharray='${spot} ${spot}'/>
+<circle cx='${x}' cy='${y}' r='${round(r * 0.6)}' fill='${base}' stroke='${cream}' stroke-width='1.1'/>
+${suit(name, x, y, round(r * 0.36), cream)}`;
 }
 
 function velvetFrame() {
-    const m = 5;
-    const plate = 244;
-    const px = CX - plate / 2;
-    const py = H - 33;
+    // 筹码的圆心压在外框的四个转角上，半径比外框到边缘的距离略小，不会被裁掉
+    const EDGE = 17;
+    const CHIP = 15;
+    const cream = '#e8dbb6';
+    const red = '#cf4a40';
+    const black = '#1b1b1e';
+    const crimson = '#a32a26';
+    const row = [['spade', -45, cream], ['heart', -15, red], ['club', 15, cream], ['diamond', 45, red]];
     return `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${W} ${H}' preserveAspectRatio='none'>
-<defs>
-<linearGradient id='b' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#f1dca6'/><stop offset='.32' stop-color='#c5a163'/><stop offset='.6' stop-color='#8d7038'/><stop offset='1' stop-color='#d9bb74'/></linearGradient>
-<radialGradient id='t' cx='.42' cy='.36' r='.8'><stop offset='0' stop-color='#0d3a30'/><stop offset='1' stop-color='#061e19'/></radialGradient>
-<radialGradient id='r' cx='.35' cy='.3' r='.8'><stop offset='0' stop-color='#fff1c8'/><stop offset='.55' stop-color='#b4935a'/><stop offset='1' stop-color='#5d4a22'/></radialGradient>
-</defs>
-<rect x='${m}' y='${m}' width='${W - 2 * m}' height='${H - 2 * m}' rx='13' fill='url(#t)' stroke='url(#b)' stroke-width='5'/>
-<rect x='${m + 7}' y='${m + 7}' width='${W - 2 * m - 14}' height='${H - 2 * m - 14}' rx='8' fill='none' stroke='#000' stroke-opacity='.45' stroke-width='3'/>
-<rect x='${m + 10}' y='${m + 10}' width='${W - 2 * m - 20}' height='${H - 2 * m - 20}' rx='6' fill='none' stroke='#c5a163' stroke-opacity='.45' stroke-width='.9'/>
-${bracket(3, 3, 1, 1)}${bracket(W - 3, 3, -1, 1)}${bracket(3, H - 3, 1, -1)}${bracket(W - 3, H - 3, -1, -1)}
-<rect x='${px}' y='${py}' width='${plate}' height='24' rx='3' fill='url(#b)' stroke='#5d4a22' stroke-width='.9'/>
-<rect x='${px + 4}' y='${py + 4}' width='${plate - 8}' height='16' rx='1.5' fill='none' stroke='#5d4a22' stroke-opacity='.55' stroke-width='.7'/>
-<text x='${CX}' y='${py + 16}' text-anchor='middle' font-family='Georgia,serif' font-size='10' font-weight='700' letter-spacing='2.2' fill='#3b2d12'>ACHIEVEMENT COLLECTION</text>
+<defs><mask id='m'><rect width='${W}' height='${H}' fill='#fff'/><rect x='${CX - 76}' width='152' height='36' fill='#000'/><rect x='${CX - 84}' y='${H - 36}' width='168' height='36' fill='#000'/></mask></defs>
+<g fill='none' stroke='${cream}' mask='url(#m)'>
+<rect x='${EDGE}' y='${EDGE}' width='${W - 2 * EDGE}' height='${H - 2 * EDGE}' stroke-opacity='.62' stroke-width='1.6'/>
+<rect x='${EDGE + 8}' y='${EDGE + 8}' width='${W - 2 * EDGE - 16}' height='${H - 2 * EDGE - 16}' stroke-opacity='.34' stroke-width='1.6' stroke-linecap='round' stroke-dasharray='0 7'/>
+</g>
+${row.map(([name, dx, fill]) => suit(name, CX + dx, EDGE, 9, fill)).join('')}
+<text x='${CX}' y='${H - EDGE + 5.5}' text-anchor='middle' font-family='Georgia,serif' font-size='16' font-weight='700' letter-spacing='6' fill='${cream}'>ALL IN</text>
+${suit('diamond', CX - 60, H - EDGE, 6, red)}${suit('diamond', CX + 60, H - EDGE, 6, red)}
+${chip(EDGE, EDGE, CHIP, black, 'spade')}${chip(W - EDGE, EDGE, CHIP, crimson, 'heart')}${chip(EDGE, H - EDGE, CHIP, crimson, 'diamond')}${chip(W - EDGE, H - EDGE, CHIP, black, 'club')}
 </svg>`;
 }
 

@@ -51,10 +51,12 @@ node tools/sync-repo.mjs <仓库克隆目录>        # 把本机源码同步到�
 浏览器测试用本机 Edge，需要 Playwright：把 `AC_PLAYWRIGHT_MODULE` 指向 Playwright 所在目录。
 
 ```powershell
-node --test tools/test-album-styles.mjs tools/test-room-sound.mjs tools/test-page-performance.mjs
+node --test tools/test-album-styles.mjs tools/test-book-motion.mjs tools/test-room-sound.mjs tools/test-page-performance.mjs tools/test-onboarding.mjs tools/test-update.mjs tools/test-polish.mjs
 ```
 
 `test-preview.mjs` 会核对预览数据和本机 Steam 进度，需要先运行 `npm run preview:sync`。
+
+`test-update.mjs` 里后端那几项用真实的 Lua 解释器跑 `main.lua`：在仓库外 `npm i wasmoon`，把 `AC_WASMOON_MODULE` 指向装好的目录。没设置时这几项会跳过。
 
 ## 不在仓库里的文件
 
@@ -66,5 +68,5 @@ node --test tools/test-album-styles.mjs tools/test-room-sound.mjs tools/test-pag
 
 1. 改 `plugin/plugin.json` 的版本号。
 2. `node tools/build-plugin.mjs --zip`，再 `node tools/build-lazy.mjs`。
-3. `plugin/dist/release/` 里的文件和 `plugin/dist/` 下的插件 zip 一起上传到 GitHub Release。自动更新依赖 `AchievementCollection-plugin.js`、`-backend.lua`、`-showcase.js`、`-showcase.css` 这几个文件名，不要改。
+3. `plugin/dist/release/` 里的文件和 `plugin/dist/` 下的插件 zip 一起上传到 GitHub Release。自动更新依赖 `AchievementCollection-plugin.js`、`-backend.lua`、`-showcase.js`、`-showcase.css` 这几个文件名，不要改。Release 正文要有一节「## vX.Y.Z 更新内容」，更新弹窗只显示这一节。
 4. 借阅室有改动时重新构建并部署网页版。客户端的背景音乐放在分享服务器上，部署方式见 `share-server/Caddyfile`。

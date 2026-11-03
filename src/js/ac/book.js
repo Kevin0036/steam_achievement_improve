@@ -27,7 +27,7 @@
  *   · 单击书页任意位置 → 翻一页，和滚轮一样不分卡片页、年份页、目录页；
  *     按钮类控件（换徽章、目录行）照常响应，不会顺带翻页；
  *   · 滚轮 → 按滚动距离翻页：一个事件最多折算一格，滚一格绝不会翻两页；
- *     快速滚动会连发很多事件，累计的距离排队翻多页；反向滚动立刻改向；
+ *     几页可以同时在空中，页码当场更新，所以既跟手又看得到翻页的过程；
  *   · 点书签 / 向下拉书签 → 快速掠向离得最远的一端；
  *   · 键盘：卡片可聚焦，Enter / 空格 等同于单击。不绑定方向键。
  *
@@ -41,18 +41,32 @@
 import STR from './strings.js';
 import { artImage, createCardBack, createCardFront, formatSerial, formatSerialRange } from './cardview.js';
 import { applyCoverEdit, flushCoverEdits, getBack, getFront, resetCover, setBack, setCoverOverrides, setFront } from './coveredit.js';
-import { getTone, toneToCss } from './tone.js';
+import { getTone, peekTone, toneToCss } from './tone.js';
 import { createYearPage, normalizeSelection, openYearPicker, yearKeyOf, yearLabel } from './yearpages.js';
 import { createTreePage, treeTypeName } from './treepage.js';
 import { createYearIndex, createYearMonths } from './yearfill.js';
+import { FIRE, HEAVY_LAND_AT, introTierOf, LIGHTNING, nextFastAct, playFireIntro, playHeavyIntro, playLightningIntro } from './introfx.js';
+import { createIntroSound } from './introsound.js';
+import { createPetHouse } from './pethouse.js';
 
 const TURN_MS = 1000; // 与 book.css 里的 --ac-turn 保持一致
-const WHEEL_TURN_MS = 460; // 滚轮翻一页：比点击快，但不至于看不清
+const WHEEL_FLIGHT_MS = 540; // 滚轮翻页时每一页在空中飞多久：不挡操作，所以可以慢一点、看得清
+const WHEEL_LAUNCH_GAP_MS = 90; // 连续滚动时两页的起飞间隔，决定快滚时书页掠过的密度
+const WHEEL_CROSS_AT = 0.23; // 飞行曲线走到这个比例时书页正好立在书脊上（90°）
 const WHEEL_STEP = 100; // 累计多少滚轮距离翻一页（Windows 上一格通常是 100 / 120）
-const WHEEL_MAX_QUEUE = 6; // 一次连续滚动最多排队翻这么多页，再多就等这一轮翻完
-const RIFFLE_LEAVES = 7; // 书签快速翻阅时真正掠过的叶数（远跳时中间页会快进，首末叶始终对得上）
-const RIFFLE_TURN_MS = 480; // 每一叶掠过的时间
-const RIFFLE_STAGGER_MS = 62; // 相邻两叶的起翻间隔
+const WHEEL_MAX_QUEUE = 1; // 正在翻的那页之外最多再欠一页：停手后书最多再翻一页就停
+const RIFFLE_LEAVES = 16; // 书签快速翻阅时真正掠过的叶数：远跳时从全书均匀取样，末尾几叶连续
+const RIFFLE_LEAVES_DENSE = 10; // 四卡一叶 8 张卡，同样的叶数负担是单卡的 4 倍，实测 10 叶才稳在 55 帧
+const RIFFLE_TAIL = 3; // 最后这几叶必须是连续的，落定时才接得上终点
+const RIFFLE_TURN_MS = 560; // 起步和收尾时每一叶掠过的时间
+const RIFFLE_FAST_TURN_MS = 400; // 中段最快的那几叶：飞得快，空中同时叠着的整页就少，显卡压力主要在这里
+const RIFFLE_STAGGER_MS = 44; // 中段相邻两叶的起翻间隔，两头会慢下来
+const RIFFLE_STAGGER_DENSE_MS = 70; // 四卡叶数少，间隔拉开，总时长和单卡差不多
+const RIFFLE_WAIT_MS = 260; // 起翻前最多等图这么久，再久拉书签就有延迟感了
+const RIFFLE_FULL_TAIL = 3; // 末尾这么多叶保留完整效果：减速收尾看得清，落定后也要和真实页面一模一样
+const RIFFLE_FAST_PEAK = 0.6; // 速度到了这个程度的叶算「高速段」，再去掉投影
+const RIFFLE_EAGER = 3; // 先建好这么多叶就起翻，其余的边翻边建，否则四卡时主线程要卡半秒多
+const RIFFLE_CROSS_AT = 0.38; // 同 WHEEL_CROSS_AT，书签翻阅用的曲线不同
 const KEEP_BEHIND = 2;
 const KEEP_AHEAD = 2;
 const TILT_X = 11; // 上下最大倾角（deg）
@@ -76,6 +90,7 @@ const MAX_INTRO = 3;
 const SLOT_HEIGHT_CQH = 74;
 /** 入册动画的时间轴（ms）：浮现 → 翻面 → 停顿 → 落槽 */
 const INTRO = { appear: 520, flipAt: 560, flip: 900, hold: 380, fly: 780 };
+const STANDARD_LAND_AT = INTRO.flipAt + INTRO.flip + INTRO.hold + INTRO.fly * 0.84;
 
 /** 卡片插画在卡面上露出部分的宽高比，供取色时裁出同一块区域 */
 const ART_VISIBLE_RATIO = 1.25;
@@ -111,6 +126,8 @@ function depthLevel(count) {
  * @param {'newest'|'sequential'} [options.binding] 装订方式，默认 sequential（顺序入册）
  * @param {boolean} [options.showStats] 扉页是否显示收藏卡 / 金杯 / 银杯统计，默认 true
  * @param {boolean} [options.yearPages] 按完成年份分组，每组前插入四页：月份足迹、年份页、年度最爱、本年目录
+ * @param {() => boolean} [options.introSound] 入册时是否播音效；每次入册时才读，改设置不用重建册子
+ * @param {() => ?string} [options.introFastStyle] 指定快速通关的演出（'lightning' 或 'fire'），预览用；不传时两种轮流
  * @param {boolean} [options.yearTree] 用年度之树代替月份足迹（默认关闭）；页面层已用 TREE_FEATURE 收起这一项
  * @param {number|Record<string, number>} [options.yearTargets] 每年期望达成的全成就目标（数字 = 统一目标）
  * @param {boolean} [options.yearIndex] 书口显示年份索引标签，点击跳到那一年的年份页
@@ -120,6 +137,8 @@ function depthLevel(count) {
  * @param {(position: {page: number, appid: number|null}) => void} [options.onPage] 每次翻页停稳后回调
  * @param {boolean} [options.readOnly] 只读模式：关闭封面编辑器与年份页选择器（借阅室）
  * @param {Record<number, {front?: object, back?: object}>} [options.coverOverrides] 快照里的封面取景
+ * @param {?{name?: string, sprites: Record<string, string>, credit?: string, lines?: string[]}} [options.petHouse]
+ *        装了桌宠插件时传入：「未完待续」换成成就小屋（pethouse.js）；不传保持原样
  * @returns {{ destroy(): void, turn(dir: 1|-1): void, goTo(index: number): void,
  *             updateCard(appid: number, card: object, options?: {deferYearRegroup?: boolean}): boolean,
  *             replaceCards(cards: Array, options?: {keepAppid?: number|null, atStart?: boolean}): void,
@@ -128,7 +147,7 @@ function depthLevel(count) {
  *             get pageCount(): number, get yearSelections(): object,
  *             get position(): {page: number, appid: number|null} }}
  */
-export function createBook(container, { cards, owner = {}, perPage: requestedPerPage = 1, binding = 'sequential', showStats = true, yearPages = false, yearTree = false, yearTargets = null, yearIndex = false, yearSelections = null, onYearChange = null, initial = null, onPage = null, readOnly = false, coverOverrides = null }) {
+export function createBook(container, { cards, owner = {}, perPage: requestedPerPage = 1, binding = 'sequential', showStats = true, yearPages = false, yearTree = false, yearTargets = null, yearIndex = false, yearSelections = null, introSound = null, introFastStyle = null, onYearChange = null, initial = null, onPage = null, readOnly = false, coverOverrides = null, petHouse = null }) {
     const doc = container.ownerDocument;
     const win = doc.defaultView;
     const perPage = Number(requestedPerPage) === 4 ? 4 : 1;
@@ -280,6 +299,11 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                 }
             }
         });
+        // 月份足迹都在某一叶的正面：两种装订方向下，正面露出来的对开页号都等于叶号
+        const monthsLeafOf = new Map();
+        leafPlan.forEach((spec, li) => {
+            if (spec.front.kind === 'yearmonths') monthsLeafOf.set(spec.front.section.key, li);
+        });
         yearEntries = sections
             .filter((section) => section.known)
             .map((section, order) => {
@@ -290,6 +314,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                     order,
                     count: section.cards.length,
                     spread: face ? face.leaf + (face.side === 'back' ? 1 : 0) : 0,
+                    months: monthsLeafOf.get(section.key) ?? null,
                 };
             });
     }
@@ -358,6 +383,11 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     let wheelAccum = 0;
     let wheelQueue = [];
     let wheelPumping = false;
+    /** 这一轮滚轮翻页的状态，见 launchLeaf；flying 是此刻在空中的叶 */
+    let flight = null;
+    const flying = new Set();
+    /** 入册音效：第一次入册时才创建 */
+    let introAudio = null;
     /** 书签正在被拉住 / 正在播放快速翻阅 */
     let pull = null;
     let riffleStage = null;
@@ -400,6 +430,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         : null;
 
     let titleStats = null;
+    let house = null; // 成就小屋：只有传了 petHouse 才有
     const titlePage = buildTitlePage();
     const endPage = buildEndPage();
     pages.append(titlePage, endPage);
@@ -476,6 +507,13 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     function buildEndPage() {
         const page = el(doc, 'div', `ac-page ac-page--${sequential ? 'right' : 'left'} ac-page--base ac-page--end`);
         paper(page);
+        if (petHouse?.sprites) {
+            house = createPetHouse(doc, { cards: list, pet: petHouse });
+            page.classList.add('ac-page--house');
+            page.append(house.node);
+            shade(page);
+            return page;
+        }
         const box = el(doc, 'div', 'ac-end');
         box.append(el(doc, 'div', 'ac-end__mark', { 'aria-hidden': 'true' }));
         box.append(el(doc, 'div', 'ac-end__title', { text: STR.book.endTitle }));
@@ -515,7 +553,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
      * 最新优先：front 落在左页（封面）、back 落在右页（完整卡面）；
      * 顺序入册正好相反。年份页拆分叶时两面可以是不同的 view。
      */
-    function buildCard(i, side, view) {
+    function buildCard(i, side, view, lite = false) {
         const card = list[i];
         const faceUp = view === 'full';
         const node = el(doc, 'div', 'ac-card', {
@@ -527,8 +565,9 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             'aria-label': faceUp ? STR.card.front(card.name) : STR.card.back(card.name),
         });
         const tilt = el(doc, 'div', 'ac-card__tilt');
-        tilt.append(faceUp ? createCardFront(doc, card, { owner }) : createCardBack(doc, card));
-        node.append(el(doc, 'div', 'ac-card__shadow', { 'aria-hidden': 'true' }), tilt);
+        tilt.append(faceUp ? createCardFront(doc, card, { owner, lite }) : createCardBack(doc, card, { lite }));
+        if (!lite) node.append(el(doc, 'div', 'ac-card__shadow', { 'aria-hidden': 'true' }));
+        node.append(tilt);
         return node;
     }
 
@@ -573,7 +612,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         });
     }
 
-    function fillFace(face, spec, side) {
+    function fillFace(face, spec, side, lite = false) {
         paper(face);
         if (spec.kind === 'blank') {
             face.classList.add('ac-page--blank');
@@ -599,6 +638,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                     yearKey: spec.section.key,
                     year: yearLabel(spec.section.key),
                     games: spec.section.cards.map((i) => list[i]),
+                    indices: spec.section.cards,
+                    onJump: jumpToCard,
                 }),
             );
             shade(face);
@@ -644,7 +685,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             const index = page.cards[s];
             if (index != null) {
                 slot.dataset.index = String(index);
-                slot.append(buildCard(index, side, spec.view));
+                slot.append(buildCard(index, side, spec.view, lite));
                 // 待入册的卡单独藏起来（一页里其余已入册的卡照常显示）
                 if (hidden.has(list[index].appid)) slot.setAttribute('data-incoming', '');
             } else {
@@ -661,10 +702,10 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     const pageSideOf = (side) =>
         sequential ? (side === 'front' ? 'right' : 'left') : side === 'front' ? 'left' : 'right';
 
-    function buildFace(leafIndex, side) {
+    function buildFace(leafIndex, side, lite = false) {
         const spec = faceSpec(leafIndex, side);
         const face = el(doc, 'div', `ac-leaf__face ac-leaf__face--${side} ac-page ac-page--${pageSideOf(side)}`);
-        fillFace(face, spec, side);
+        fillFace(face, spec, side, lite);
         return face;
     }
 
@@ -682,15 +723,22 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         });
     }
 
-    function buildLeaf(leafIndex) {
+    /** lite：一闪而过的页，卡上不带星星和高光，底色只取缓存里现成的，不为它现场采样 */
+    function buildLeaf(leafIndex, { lite = false } = {}) {
         const leaf = el(doc, 'div', 'ac-leaf', { 'data-index': String(leafIndex) });
-        leaf.append(buildFace(leafIndex, 'front'), buildFace(leafIndex, 'back'));
+        leaf.append(buildFace(leafIndex, 'front', lite), buildFace(leafIndex, 'back', lite));
 
         // 卡面底色：每张卡各取各的（异步，取到之前用默认底色）
         // 封面和完整卡面同在一叶的两面，两面都取一次
         for (const face of leaf.querySelectorAll('.ac-leaf__face')) {
             for (const slot of face.querySelectorAll('.ac-slot[data-index]')) {
-                applyTone(slot, list[Number(slot.dataset.index)]);
+                const card = list[Number(slot.dataset.index)];
+                if (!lite) {
+                    applyTone(slot, card);
+                    continue;
+                }
+                const tone = peekTone(card.appid);
+                if (tone) slot.querySelector('.ac-cf')?.style.setProperty('--ac-tone', toneToCss(tone));
             }
         }
         return leaf;
@@ -705,7 +753,9 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         const hi = Math.min(total - 1, k + KEEP_AHEAD);
 
         for (const [i, leaf] of leaves) {
-            if (i < lo || i > hi) {
+            // 空中的叶等落定才回收；落点那一摞的顶叶也要留着，不然新页落下之前会露出空洞
+            const held = flying.has(leaf) || i === flight?.rest;
+            if ((i < lo || i > hi) && !held) {
                 leaf.remove();
                 leaves.delete(i);
             }
@@ -722,7 +772,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             const turned = i < k;
             leaf.toggleAttribute('data-turned', turned);
             // 左边一摞：第 k 叶在最上；右边一摞：第 k-1 叶在最上
-            leaf.style.zIndex = String(turned ? 100 - (k - 1 - i) : 100 - (i - k));
+            if (!flying.has(leaf)) leaf.style.zIndex = String(turned ? 100 - (k - 1 - i) : 100 - (i - k));
             const visible = i === k || i === k - 1;
             leaf.toggleAttribute('data-visible', visible);
             // 正面在第 k 叶、背面在第 k-1 叶露出来；年份页的盖章动画按这个触发
@@ -887,6 +937,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     /** 可见窗口整个重建（换了卡片顺序 / 跳到别处时） */
     function rebuild() {
         coverEditor?.close(true);
+        cancelFlight();
         for (const leaf of leaves.values()) leaf.remove();
         leaves.clear();
         layout();
@@ -935,8 +986,14 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         return { page, appid: index >= 0 ? list[index].appid : null };
     }
 
+    /** 小屋摊开时桌宠才动，翻走就暂停视频 */
+    function syncHouse() {
+        house?.setActive(!riffleStage && Math.min(k, pageCount()) >= pageCount());
+    }
+
     function notifyPage() {
         if (disposed) return;
+        syncHouse();
         try {
             onPage?.(currentPosition());
         } catch {
@@ -990,8 +1047,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     /**
      * 滚轮翻页按距离算，但**每个事件最多折算一格**：
      * 鼠标滚一格（delta 100 / 120）只会翻一页，不会因为加速度或惯性一下翻两页；
-     * 快速滚动会连发很多事件，累计的距离会排队翻多页。
-     * 队列逐页串行播放，反向滚动直接清掉还没翻的页并改向。
+     * 欠账最多一页：滚得比书页起飞还快时，多出来的距离直接作废，不攒着慢慢还，
+     * 否则手已经停了书还在翻。反向滚动清掉还没翻的页，空中的页加速落下后立刻改向。
      */
     function onWheel(event) {
         if (disposed || introducing || event.ctrlKey) return;
@@ -1036,25 +1093,132 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                     return;
                 }
                 // 点击翻页 / 书签正在动：等它停稳再接着翻，别打断当前动画
-                if (busy) {
+                if (busy && !flight) {
                     await wait(40);
                     continue;
                 }
-                const dir = wheelQueue.shift();
-                const moved = await flip(dir, WHEEL_TURN_MS);
-                if (disposed) return;
-                if (!moved) {
+                // 反向：让空中的页赶紧落下，两个方向的页不能穿插着飞
+                if (flight && flight.dir !== wheelQueue[0]) {
+                    for (const anim of flight.anims) anim.playbackRate = 3;
+                    await flight.done;
+                    continue;
+                }
+                if (!launchLeaf(wheelQueue.shift())) {
                     // 已经到书的两端：剩下的排队页作废，下一格可以立刻往回翻
                     resetWheel();
                     return;
                 }
-                notifyPage();
-                resetTilt();
-                announcePosition();
+                await wait(WHEEL_LAUNCH_GAP_MS);
             }
         } finally {
             wheelPumping = false;
         }
+    }
+
+    /**
+     * 一页飞起时的明暗：翻起的那一面渐暗，落下的那一面渐亮（和点击翻页同一个效果）。
+     * 只留 backwards：叶子落定后还要继续用，阴影不能粘在上面。
+     */
+    function lightLeaf(leaf, dir, options) {
+        const front = leaf.querySelector('.ac-leaf__face--front > .ac-page__shade');
+        const back = leaf.querySelector('.ac-leaf__face--back > .ac-page__shade');
+        const [rising, falling] = dir > 0 ? [front, back] : [back, front];
+        const timing = { ...options, fill: 'backwards' };
+        if (rising) play(rising, [{ opacity: 0 }, { opacity: 0.2, offset: 0.4 }, { opacity: 0.9 }], timing);
+        if (falling) play(falling, [{ opacity: 0.9 }, { opacity: 0.35, offset: 0.55 }, { opacity: 0 }], timing);
+    }
+
+    function endFlight(run) {
+        if (flight !== run) return;
+        flight = null;
+        delete book.dataset.riffle;
+        busy = false;
+        run.finish();
+    }
+
+    /** 飞到一半要整册重排（日期补全、换卡）：直接停下，页码已经是对的 */
+    function cancelFlight() {
+        if (!flight) return;
+        const run = flight;
+        for (const anim of run.anims) anim.cancel();
+        for (const leaf of flying) leaf.classList.remove('is-flying');
+        flying.clear();
+        endFlight(run);
+        notifyPage();
+    }
+
+    /**
+     * 滚轮翻页：书页就地掀起来飞，页码当场更新，下一格滚轮不用等上一页落地，
+     * 所以几页可以同时在空中，既跟手又看得到翻页的过程。
+     * 飞的就是书里那一叶，不用另建 DOM，所以不会有图还没解码的空白帧；
+     * 空中的叶由 layout 放过（不回收、不改叠放次序），落定后再交还给它。
+     * 没有可翻的叶时返回 false。
+     */
+    function launchLeaf(dir) {
+        const index = dir > 0 ? k : k - 1;
+        const leaf = leaves.get(index);
+        if (!leaf) return false;
+        resetTilt();
+
+        if (reduceMotion?.matches) {
+            k += dir;
+            layout();
+            notifyPage();
+            announcePosition();
+            return true;
+        }
+
+        if (!flight) {
+            let finish;
+            const done = new Promise((resolve) => { finish = resolve; });
+            flight = { dir, order: 0, rest: dir > 0 ? k - 1 : k, anims: new Set(), done, finish };
+            busy = true;
+            book.dataset.riffle = '';
+        }
+        const run = flight;
+        const order = run.order;
+        run.order += 1;
+
+        flying.add(leaf);
+        leaf.classList.add('is-flying');
+        // 书脊这一侧先起飞的压在上面，过了书脊反过来：后翻过去的压住先翻过去的
+        leaf.style.zIndex = String(100000 - order);
+        later(() => {
+            if (flying.has(leaf)) leaf.style.zIndex = String(50000 + order);
+        }, WHEEL_FLIGHT_MS * WHEEL_CROSS_AT);
+        k += dir;
+        layout();
+
+        // 左开本绕左侧书脊翻，用负角才是先朝读者掀起来
+        const turned = sequential ? -180 : 180;
+        // 起步就有速度：滚轮一动书页马上离开桌面，这是跟手感的来源
+        const timing = { duration: WHEEL_FLIGHT_MS, easing: 'cubic-bezier(.2,.25,.2,1)' };
+        lightLeaf(leaf, dir, timing);
+        const anim = leaf.animate(
+            dir > 0
+                ? [{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${turned}deg)` }]
+                : [{ transform: `rotateY(${turned}deg)` }, { transform: 'rotateY(0deg)' }],
+            { ...timing, fill: 'both' },
+        );
+        animations.add(anim);
+        run.anims.add(anim);
+        anim.finished
+            .catch(() => {})
+            .then(() => {
+                animations.delete(anim);
+                run.anims.delete(anim);
+                if (disposed || flight !== run) return;
+                flying.delete(leaf);
+                leaf.classList.remove('is-flying');
+                anim.cancel(); // 交回给 CSS：layout 已经按页码设好 data-turned
+                run.rest = index;
+                if (run.anims.size === 0) endFlight(run);
+                layout();
+                if (flight) return;
+                notifyPage();
+                announcePosition();
+            });
+        return true;
     }
 
     /** 翻一页的动画本体，翻完 resolve(true)；没有可翻的叶时 resolve(false) */
@@ -1626,18 +1790,51 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
 
     /**
-     * 掠过的那一叠叶。距离近就逐叶翻；距离远时保留出发的第一叶和终点前的最后几叶，
-     * 中间快进——第一叶盖住起点、最后一叶翻过去正好是终点，所以看不出跳页。
+     * 掠过的那一叠叶。距离近就逐叶翻；距离远时第一叶盖住起点，中间从全书均匀取样，
+     * 一路看得到沿途的卡，最后几叶连续，翻过去正好是终点，所以看不出跳页。
      */
     function rifflePages(from, target) {
+        const forward = target > from;
+        const step = forward ? 1 : -1;
+        const first = forward ? from : from - 1;
+        const last = forward ? target - 1 : target;
         const distance = Math.abs(target - from);
-        const count = Math.min(RIFFLE_LEAVES, distance);
-        if (target > from) {
-            if (distance <= count) return pageRange(from, target - 1, 1);
-            return [from, ...pageRange(target - (count - 1), target - 1, 1)];
+        const count = perPage > 1 ? RIFFLE_LEAVES_DENSE : RIFFLE_LEAVES;
+        if (distance <= count) return pageRange(first, last, step);
+        const tailStart = last - step * (RIFFLE_TAIL - 1);
+        const between = count - RIFFLE_TAIL - 1;
+        const middle = [];
+        for (let i = 1; i <= between; i += 1) {
+            middle.push(Math.round(first + ((tailStart - first) * i) / (between + 1)));
         }
-        if (distance <= count) return pageRange(from - 1, target, -1);
-        return [from - 1, ...pageRange(target + (count - 2), target, -1)];
+        return [first, ...middle, ...pageRange(tailStart, last, step)];
+    }
+
+    /** 第 i 叶处在多快的位置：两头是 0（起步、收尾），正中间是 1 */
+    function rifflePeak(i, count) {
+        const edge = Math.abs((2 * i) / Math.max(count - 1, 1) - 1);
+        return 1 - edge * edge;
+    }
+
+    /**
+     * 每一叶的起翻时刻和掠过时长：起步和收尾慢、中段快，像手指拨过一叠书页。
+     * 中段的叶飞得更快，但落地顺序不能乱：后起翻的叶不能先落下、从前一叶身上穿过去。
+     */
+    function riffleTiming(count) {
+        const delays = [0];
+        for (let i = 1; i < count; i += 1) {
+            const edge = Math.abs((2 * (i - 0.5)) / Math.max(count - 1, 1) - 1);
+            delays.push(delays[i - 1] + (perPage > 1 ? RIFFLE_STAGGER_DENSE_MS : RIFFLE_STAGGER_MS) * (1 + 1.5 * edge * edge));
+        }
+        const durations = [];
+        let landing = 0;
+        for (let i = 0; i < count; i += 1) {
+            const wanted = RIFFLE_TURN_MS - (RIFFLE_TURN_MS - RIFFLE_FAST_TURN_MS) * rifflePeak(i, count);
+            const duration = Math.max(wanted, landing - delays[i]);
+            durations.push(duration);
+            landing = delays[i] + duration;
+        }
+        return { delays, durations };
     }
 
     /**
@@ -1659,17 +1856,29 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         cover.classList.add('ac-riffle__cover');
         stage.append(cover);
 
-        const leavesOut = rifflePages(from, target).map((page, i) => {
-            const leaf = buildLeaf(page);
-            leaf.classList.add('ac-riffle__leaf');
-            leaf.style.zIndex = String(400 - i);
-            // 只露第一叶；后面每一叶在上一叶起翻时再露出来，避免同角度下背面互相盖错
-            if (i > 0) leaf.style.visibility = 'hidden';
-            if (!forward) leaf.setAttribute('data-turned', '');
-            stage.append(leaf);
-            return leaf;
-        });
-        return { stage, forward, leavesOut };
+        const plan = rifflePages(from, target);
+        const leavesOut = plan.slice(0, RIFFLE_EAGER).map((page, i) => riffleLeaf(page, i, forward, plan.length));
+        stage.append(...leavesOut);
+        return { stage, cover, forward, leavesOut, plan };
+    }
+
+    /**
+     * 中段的叶只闪过几十毫秒，却是卡顿的主要来源：每张卡的 3D 倾斜、投影、光泽都会单独
+     * 生成图层，四卡时一次翻阅超过一千层，星星又占了一张卡一半以上的节点。
+     * 这些叶标成 lite：封面和文字照常，去掉星星高光，样式上压成一张平面图。
+     * 第一叶和最后几叶保持完整，起落时才和真实页面严丝合缝。
+     */
+    function riffleLeaf(page, i, forward, total) {
+        const lite = i > 0 && i < total - RIFFLE_FULL_TAIL;
+        const leaf = buildLeaf(page, { lite });
+        leaf.classList.add('ac-riffle__leaf');
+        leaf.classList.toggle('ac-riffle__leaf--lite', lite);
+        leaf.classList.toggle('ac-riffle__leaf--fast', lite && rifflePeak(i, total) >= RIFFLE_FAST_PEAK);
+        leaf.style.zIndex = String(400 - i);
+        // 只露第一叶；后面每一叶在上一叶起翻时再露出来，避免同角度下背面互相盖错
+        if (i > 0) leaf.style.visibility = 'hidden';
+        if (!forward) leaf.setAttribute('data-turned', '');
+        return leaf;
     }
 
     async function riffleToFarEnd() {
@@ -1699,49 +1908,68 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         busy = true;
         resetWheel();
         book.dataset.riffle = '';
-        const { stage, forward, leavesOut } = buildRiffleStage(from, target);
+        const { stage, cover, forward, leavesOut, plan } = buildRiffleStage(from, target);
         riffleStage = stage;
+        // 图到位之前先藏着：新建的页还是空白的，直接盖上去书会闪一下
+        stage.style.visibility = 'hidden';
         book.append(stage);
 
         try {
-            // 先等这一叠叶上的图加载出来，否则翻起来还是空白纸
-            await imagesReady(stage, 450);
+            // 只等一开始就露面的两页，后面的边翻边到，否则拉一下书签要愣半秒
+            await Promise.all([cover, leavesOut[0]].map((node) => imagesReady(node, RIFFLE_WAIT_MS)));
             if (disposed) return;
+            stage.style.removeProperty('visibility');
 
             // 终点先摊在下面；上面这一叠仍然盖着起点，所以此刻换页看不出来
             k = target;
             layout();
-            // 上一叶起翻的同一刻露出下一叶：新页从翻起的纸边下接上来
-            leavesOut.forEach((leaf, i) => {
-                if (i > 0) later(() => { leaf.style.visibility = 'visible'; }, (i - 1) * RIFFLE_STAGGER_MS);
-            });
-
-            await Promise.all(
-                leavesOut.map((leaf, i) => {
-                    // 左开本绕左侧书脊翻，用负角才是先朝读者掀起来
-                    const turned = sequential ? -180 : 180;
-                    const anim = leaf.animate(
-                        forward
-                            ? [{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${turned}deg)` }]
-                            : [{ transform: `rotateY(${turned}deg)` }, { transform: 'rotateY(0deg)' }],
-                        {
-                            duration: RIFFLE_TURN_MS,
-                            delay: i * RIFFLE_STAGGER_MS,
-                            easing: 'cubic-bezier(.42,.05,.28,1)',
-                            fill: 'both',
-                        },
-                    );
-                    animations.add(anim);
-                    return anim.finished
+            const { delays, durations } = riffleTiming(plan.length);
+            const startedAt = win.performance.now();
+            const landed = [];
+            /** 已经落下的叶：被后落下的那一叶整张盖住，就不必每一帧再参与合成 */
+            const settled = [];
+            const launch = (leaf, i) => {
+                const elapsed = win.performance.now() - startedAt;
+                // 上一叶起翻的同一刻露出下一叶：新页从翻起的纸边下接上来
+                if (i > 0) later(() => { leaf.style.visibility = 'visible'; }, Math.max(0, delays[i - 1] - elapsed));
+                // 左开本绕左侧书脊翻，用负角才是先朝读者掀起来
+                const turned = sequential ? -180 : 180;
+                const delay = Math.max(0, delays[i] - elapsed);
+                const timing = { duration: durations[i], delay, easing: 'cubic-bezier(.42,.05,.28,1)' };
+                lightLeaf(leaf, forward ? 1 : -1, timing);
+                later(() => { leaf.style.zIndex = String(300 + i); }, delay + durations[i] * RIFFLE_CROSS_AT);
+                const anim = leaf.animate(
+                    forward
+                        ? [{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${turned}deg)` }]
+                        : [{ transform: `rotateY(${turned}deg)` }, { transform: 'rotateY(0deg)' }],
+                    { ...timing, fill: 'both' },
+                );
+                animations.add(anim);
+                landed.push(
+                    anim.finished
                         .catch(() => {})
                         .then(() => {
                             animations.delete(anim);
                             // 后落下的叶压在前一叶上面：最后一叶落定后正好是终点那一页，
                             // 撤掉整层时不会再有「终点内容突然跳出来」的一帧。
-                            if (!disposed) leaf.style.zIndex = String(200 + i);
-                        });
-                }),
-            );
+                            if (disposed) return;
+                            leaf.style.zIndex = String(200 + i);
+                            for (const below of settled) below.style.visibility = 'hidden';
+                            settled.length = 0;
+                            settled.push(leaf);
+                        }),
+                );
+            };
+            leavesOut.forEach(launch);
+            // 其余的叶一帧建一叶：建好时离轮到它还早，图有时间加载
+            for (let i = leavesOut.length; i < plan.length; i += 1) {
+                await wait(16);
+                if (disposed) return;
+                const leaf = riffleLeaf(plan[i], i, forward, plan.length);
+                stage.append(leaf);
+                launch(leaf, i);
+            }
+            await Promise.all(landed);
             if (disposed) return;
             notifyPage();
             announcePosition();
@@ -1824,6 +2052,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     ribbon.addEventListener('keydown', onRibbonKeyDown);
 
     layout();
+    syncHouse();
 
     /* ── 新卡入册 ─────────────────────────────────────────────────────── */
 
@@ -1846,7 +2075,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                     img.addEventListener('load', resolve);
                     // 候选链换下一张时也会报 error；整条链都失败了才算完
                     img.addEventListener('error', () => win.setTimeout(() => img.dataset.missing !== undefined && resolve(), 0));
-                }),
+                    // load 只代表下载完，解码完才不会在第一帧露出空白
+                }).then(() => img.decode?.().catch(() => {})),
         );
         return Promise.race([Promise.all(pending), wait(timeout)]);
     }
@@ -1904,7 +2134,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
     }
 
     /**
-     * 一张新卡入册：背面朝上从书的正中浮现 → 翻到正面（星芒炸开、流光扫过）→ 落进卡槽。
+     * 一张新卡入册。按游玩时长分三档（见 introfx.js）：闪电、标准、厚重。
+     * 标准档：背面朝上从书的正中浮现 → 翻到正面（星芒炸开、流光扫过）→ 落进卡槽。
      * 卡槽在右页，卡面也是正面朝上，落下去不用再翻一次。
      */
     async function fly(i) {
@@ -1958,95 +2189,135 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         await imagesReady(stage);
         if (disposed) return;
 
-        const { appear, flipAt, flip: flipMs, hold, fly: flyMs } = INTRO;
-        const revealAt = flipAt + flipMs * 0.5;
-        const flyAt = flipAt + flipMs + hold;
-        const end = flyAt + flyMs;
-        const sparks = sparkBurst(u, revealAt - 60);
+        const tier = introTierOf(card);
+        // 快速通关有两种演出轮流播，音效跟着演出走
+        const act = tier === 'fast' ? (introFastStyle?.() ?? nextFastAct(win)) : tier;
+        const extras = [];
         book.insertBefore(veil, stage);
         book.insertBefore(burst, stage);
-        book.insertBefore(sparks, stage);
-
-        const at01 = (ms) => ms / end;
         const pose = (dx, dy, scale, rotate = 0) => `translate(${dx}px, ${dy}px) rotate(${rotate}deg) scale(${scale})`;
 
-        play(veil, [{ opacity: 0 }, { opacity: 1, offset: at01(appear) }, { opacity: 1, offset: at01(flyAt) }, { opacity: 0 }], {
-            duration: end,
-            easing: 'linear',
-        });
-        play(
-            burst,
-            [
-                { opacity: 0, transform: 'translate(-50%, -50%) rotate(0deg) scale(0.55)' },
-                { opacity: 0.5, transform: 'translate(-50%, -50%) rotate(6deg) scale(0.85)', offset: at01(appear) },
-                { opacity: 1, transform: 'translate(-50%, -50%) rotate(16deg) scale(1.08)', offset: at01(revealAt + 120) },
-                { opacity: 0.75, transform: 'translate(-50%, -50%) rotate(24deg) scale(1)', offset: at01(flyAt) },
-                { opacity: 0, transform: 'translate(-50%, -50%) rotate(32deg) scale(1.2)' },
-            ],
-            { duration: end, easing: 'linear' },
-        );
-        play(
-            shadow,
-            [
-                { opacity: 0, transform: `translateY(${7 * u}px) scaleX(1)` },
-                { opacity: 0.8, transform: `translateY(${6 * u}px) scaleX(1)`, offset: at01(flipAt), easing: 'cubic-bezier(.6,0,.4,1)' },
-                { opacity: 0.8, transform: `translateY(${6 * u}px) scaleX(0.1)`, offset: at01(revealAt), easing: 'cubic-bezier(.6,0,.4,1)' },
-                { opacity: 0.8, transform: `translateY(${6 * u}px) scaleX(1)`, offset: at01(flipAt + flipMs) },
-                { opacity: 0.8, transform: `translateY(${6 * u}px) scaleX(1)`, offset: at01(flyAt), easing: 'cubic-bezier(.55,0,.25,1)' },
-                { opacity: 0.4, transform: `translateY(${1 * u}px) scaleX(0.97)` },
-            ],
-            { duration: end },
-        );
-        play(
-            flipper,
-            [
-                { transform: 'rotateY(180deg)' },
-                { transform: 'rotateY(180deg)', offset: at01(flipAt), easing: 'cubic-bezier(.62,0,.3,1)' },
-                { transform: 'rotateY(-8deg)', offset: at01(flipAt + flipMs * 0.82), easing: 'ease-out' },
-                { transform: 'rotateY(0deg)', offset: at01(flipAt + flipMs) },
-                { transform: 'rotateY(0deg)' },
-            ],
-            { duration: end },
-        );
-        play(sheen.firstChild, [{ transform: 'translateX(-160%) skewX(-18deg)' }, { transform: 'translateX(330%) skewX(-18deg)' }], {
-            duration: 760,
-            delay: flipAt + flipMs * 0.7,
-            easing: 'cubic-bezier(.3,.1,.3,1)',
-        });
-        const landed = play(
+        const playStandard = () => {
+            const { appear, flipAt, flip: flipMs, hold, fly: flyMs } = INTRO;
+            const revealAt = flipAt + flipMs * 0.5;
+            const flyAt = flipAt + flipMs + hold;
+            const end = flyAt + flyMs;
+            const sparks = sparkBurst(u, revealAt - 60);
+            book.insertBefore(sparks, stage);
+            extras.push(sparks);
+
+            const at01 = (ms) => ms / end;
+
+            play(veil, [{ opacity: 0 }, { opacity: 1, offset: at01(appear) }, { opacity: 1, offset: at01(flyAt) }, { opacity: 0 }], {
+                duration: end,
+                easing: 'linear',
+            });
+            play(
+                burst,
+                [
+                    { opacity: 0, transform: 'translate(-50%, -50%) rotate(0deg) scale(0.55)' },
+                    { opacity: 0.5, transform: 'translate(-50%, -50%) rotate(6deg) scale(0.85)', offset: at01(appear) },
+                    { opacity: 1, transform: 'translate(-50%, -50%) rotate(16deg) scale(1.08)', offset: at01(revealAt + 120) },
+                    { opacity: 0.75, transform: 'translate(-50%, -50%) rotate(24deg) scale(1)', offset: at01(flyAt) },
+                    { opacity: 0, transform: 'translate(-50%, -50%) rotate(32deg) scale(1.2)' },
+                ],
+                { duration: end, easing: 'linear' },
+            );
+            play(
+                shadow,
+                [
+                    { opacity: 0, transform: `translateY(${7 * u}px) scaleX(1)` },
+                    { opacity: 0.8, transform: `translateY(${6 * u}px) scaleX(1)`, offset: at01(flipAt), easing: 'cubic-bezier(.6,0,.4,1)' },
+                    { opacity: 0.8, transform: `translateY(${6 * u}px) scaleX(0.1)`, offset: at01(revealAt), easing: 'cubic-bezier(.6,0,.4,1)' },
+                    { opacity: 0.8, transform: `translateY(${6 * u}px) scaleX(1)`, offset: at01(flipAt + flipMs) },
+                    { opacity: 0.8, transform: `translateY(${6 * u}px) scaleX(1)`, offset: at01(flyAt), easing: 'cubic-bezier(.55,0,.25,1)' },
+                    { opacity: 0.4, transform: `translateY(${1 * u}px) scaleX(0.97)` },
+                ],
+                { duration: end },
+            );
+            play(
+                flipper,
+                [
+                    { transform: 'rotateY(180deg)' },
+                    { transform: 'rotateY(180deg)', offset: at01(flipAt), easing: 'cubic-bezier(.62,0,.3,1)' },
+                    { transform: 'rotateY(-8deg)', offset: at01(flipAt + flipMs * 0.82), easing: 'ease-out' },
+                    { transform: 'rotateY(0deg)', offset: at01(flipAt + flipMs) },
+                    { transform: 'rotateY(0deg)' },
+                ],
+                { duration: end },
+            );
+            play(sheen.firstChild, [{ transform: 'translateX(-160%) skewX(-18deg)' }, { transform: 'translateX(330%) skewX(-18deg)' }], {
+                duration: 760,
+                delay: flipAt + flipMs * 0.7,
+                easing: 'cubic-bezier(.3,.1,.3,1)',
+            });
+            return play(
+                mover,
+                [
+                    { transform: pose(cx, cy + 12 * u, 0.66, -7), opacity: 0, easing: 'cubic-bezier(.2,.8,.2,1)' },
+                    { transform: pose(cx, cy, 1.1, -2.5), opacity: 1, offset: at01(appear), easing: 'ease-in-out' },
+                    { transform: pose(cx, cy - 1.5 * u, 1.2, 0), opacity: 1, offset: at01(revealAt), easing: 'ease-in-out' },
+                    { transform: pose(cx, cy, 1.12, 0), opacity: 1, offset: at01(flipAt + flipMs) },
+                    { transform: pose(cx, cy, 1.12, 0), opacity: 1, offset: at01(flyAt), easing: 'cubic-bezier(.55,0,.25,1)' },
+                    { transform: pose(0, 0, 0.975, 0), opacity: 1, offset: at01(flyAt + flyMs * 0.84), easing: 'ease-out' },
+                    { transform: pose(0, 0, 1, 0), opacity: 1 },
+                ],
+                { duration: end },
+            );
+        };
+
+        if (introSound?.()) {
+            introAudio ??= createIntroSound(win);
+            const landAt = { lightning: LIGHTNING.land, fire: FIRE.land, heavy: HEAVY_LAND_AT, standard: STANDARD_LAND_AT }[act];
+            introAudio.play(act, landAt);
+        }
+        const env = {
+            doc,
+            book,
+            play,
+            pose,
+            stage,
             mover,
-            [
-                { transform: pose(cx, cy + 12 * u, 0.66, -7), opacity: 0, easing: 'cubic-bezier(.2,.8,.2,1)' },
-                { transform: pose(cx, cy, 1.1, -2.5), opacity: 1, offset: at01(appear), easing: 'ease-in-out' },
-                { transform: pose(cx, cy - 1.5 * u, 1.2, 0), opacity: 1, offset: at01(revealAt), easing: 'ease-in-out' },
-                { transform: pose(cx, cy, 1.12, 0), opacity: 1, offset: at01(flipAt + flipMs) },
-                { transform: pose(cx, cy, 1.12, 0), opacity: 1, offset: at01(flyAt), easing: 'cubic-bezier(.55,0,.25,1)' },
-                { transform: pose(0, 0, 0.975, 0), opacity: 1, offset: at01(flyAt + flyMs * 0.84), easing: 'ease-out' },
-                { transform: pose(0, 0, 1, 0), opacity: 1 },
-            ],
-            { duration: end },
-        );
+            shadow,
+            flipper,
+            sheen,
+            veil,
+            burst,
+            addExtra: (...nodes) => extras.push(...nodes),
+            size: { width: box.width, height: box.height },
+            target: { x: x + at.width / 2, y: y + at.height / 2 },
+            slot: { width: at.width, height: at.height },
+            cx,
+            cy,
+            u,
+        };
+        const acts = { lightning: playLightningIntro, fire: playFireIntro, heavy: playHeavyIntro, standard: playStandard };
+        const landed = acts[act](env);
 
         await landed;
         if (disposed) return;
 
         // 落槽：真卡现身、替身撤走（同一帧），卡槽亮一圈，徽章上掠过一道光
         reveal();
-        const ring = el(doc, 'i', 'ac-intro-ring', { 'aria-hidden': 'true' });
-        ring.style.borderRadius = `${3 * u}px`;
-        ring.style.boxShadow =
-            `0 0 0 ${0.35 * u}px rgba(255, 220, 120, 0.9), 0 0 ${4 * u}px ${1 * u}px rgba(255, 214, 89, 0.45)`;
-        slot.append(ring);
-        play(ring, [{ opacity: 0.95, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.12)' }], {
-            duration: 820,
-            easing: 'cubic-bezier(.2,.8,.2,1)',
-        }).then(() => ring.remove());
+        // 快速通关的特效全在落槽之后，这里不再补光
+        if (tier !== 'fast') {
+            const heavy = tier === 'heavy';
+            const ring = el(doc, 'i', 'ac-intro-ring', { 'aria-hidden': 'true' });
+            ring.style.borderRadius = `${3 * u}px`;
+            ring.style.boxShadow =
+                `0 0 0 ${(heavy ? 0.5 : 0.35) * u}px rgba(255, 220, 120, 0.9), 0 0 ${(heavy ? 6 : 4) * u}px ${1 * u}px rgba(255, 214, 89, 0.45)`;
+            slot.append(ring);
+            play(ring, [{ opacity: 0.95, transform: 'scale(1)' }, { opacity: 0, transform: `scale(${heavy ? 1.08 : 1.12})` }], {
+                duration: heavy ? 1500 : 820,
+                easing: 'cubic-bezier(.2,.8,.2,1)',
+            }).then(() => ring.remove());
+        }
         const real = slot.querySelector('.ac-card');
         real?.setAttribute('data-shine', '');
         later(() => real?.removeAttribute('data-shine'), 1600);
 
         await new Promise((resolve) => win.requestAnimationFrame(resolve));
-        for (const node of [veil, burst, sparks, stage]) node.remove();
+        for (const node of [veil, burst, ...extras, stage]) node.remove();
     }
 
     async function runIntro(newCards, appids) {
@@ -2093,6 +2364,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         hidden.clear();
         for (const slot of book.querySelectorAll('.ac-slot[data-incoming]')) slot.removeAttribute('data-incoming');
         live.textContent = STR.book.introduced(targets.map((i) => list[i].name).reverse());
+        house?.refresh(list);
+        house?.celebrate(list[targets.at(-1)]);
         notifyPage();
         return true;
     }
@@ -2163,6 +2436,56 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         },
         turn,
         introduce,
+        /** 册子里有没有月份足迹（开了年份特殊页、至少有一年有完成日期才有） */
+        get hasYearMonths() {
+            return yearEntries.some((entry) => entry.months != null);
+        },
+        /**
+         * 不做动画，摊开到一年的月份足迹（新手引导用）：正在看的这一年优先，不在任何一年里就去最近的一年。
+         * 返回是否摊开了；翻页途中、入册动画、封面编辑时不动。
+         */
+        showYearMonths() {
+            if (busy || disposed || introducing || coverEditor || riffleStage) return false;
+            const candidates = yearEntries.filter((entry) => entry.months != null);
+            if (candidates.length === 0) return false;
+            const current = yearEntries.find((entry) => entry.key === currentYearKey());
+            const entry = current?.months != null
+                ? current
+                : candidates.reduce((best, item) => (Number(item.key) > Number(best.key) ? item : best));
+            resetWheel();
+            resetTilt();
+            cancelCoverHold();
+            k = clampLeaf(entry.months);
+            layout();
+            announcePosition();
+            notifyPage();
+            return true;
+        },
+        /**
+         * 这一对开页上没有卡（扉页、年份页、尾页）时，不做动画摊开到最近的一页卡（新手引导用）。
+         * 先往后找再往前找：扉页之后就是 No.001，年份页之后就是这一年的卡。返回是否动了。
+         */
+        showNearestCards() {
+            if (busy || disposed || introducing || coverEditor || riffleStage || n === 0) return false;
+            for (let d = 0; d <= leafTotal; d += 1) {
+                for (const spread of d === 0 ? [k] : [k + d, k - d]) {
+                    if (spread < 0 || spread > leafTotal) continue;
+                    const index = firstCardAtSpread(spread);
+                    if (index < 0) continue;
+                    const to = clampLeaf(spreadOfIndex(index));
+                    if (to === k) return false;
+                    resetWheel();
+                    resetTilt();
+                    cancelCoverHold();
+                    k = to;
+                    layout();
+                    announcePosition();
+                    notifyPage();
+                    return true;
+                }
+            }
+            return false;
+        },
         /** 不做动画，直接摊开到第 index 张所在的那一页（那一页在右页） */
         goTo(index) {
             if (busy || disposed || introducing) return;
@@ -2231,6 +2554,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                 k = clampLeaf(k);
             }
             renderTitleStats();
+            house?.refresh(list);
             rebuild();
             notifyPage();
         },
@@ -2265,6 +2589,9 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             pull = null;
             resetWheel();
             riffleStage = null;
+            cancelFlight();
+            introAudio?.destroy();
+            house?.destroy();
             album.remove();
             leaves.clear();
         },

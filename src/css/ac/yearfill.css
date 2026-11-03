@@ -37,6 +37,22 @@
     border: 1px solid var(--album-frame, rgba(255, 255, 255, 0.07));
     border-radius: 0.7cqh;
     background: var(--album-cell, rgba(255, 255, 255, 0.035));
+    transition: border-color 140ms ease, background 140ms ease;
+}
+
+/*
+ * 有游戏的月份可以点开：悬停时亮一下边框。
+ * align-items 必须写明：Steam 的 Chromium 126 给按钮的默认值是 flex-start，
+ * 封面那一排不会撑满格子，按原图尺寸铺开（新版 Chromium 去掉了这条默认值，所以预览里看不出来）
+ */
+.ac-year button.ac-yf__month {
+    align-items: stretch;
+    text-align: left;
+}
+
+.ac-year button.ac-yf__month:hover {
+    border-color: var(--album-accent, rgba(243, 211, 138, 0.7));
+    background: var(--album-cell, rgba(255, 255, 255, 0.06));
 }
 
 .ac-yf__month[data-empty] {
@@ -73,12 +89,14 @@
     display: flex;
     flex: 1;
     align-items: flex-end;
-    gap: 0.45cqh;
+    /* 间距写在下面的 margin 规则里：张数多时要变成负的叠起来 */
+    --tw: 40%;
+    position: relative;
     min-height: 0;
 }
 
 .ac-yf__thumb {
-    flex: 0 1 30%;
+    flex: 0 0 var(--tw);
     min-width: 0;
     aspect-ratio: 2 / 3;
     object-fit: cover;
@@ -86,14 +104,170 @@
     box-shadow: 0 0.2cqh 0.5cqh rgba(0, 0, 0, 0.42);
 }
 
-.ac-yf__thumb--more {
-    display: grid;
-    place-items: center;
-    font-size: 1.1cqh;
-    font-weight: 600;
+/* 张数多了就往左压，叠得越紧露出的越多；三张以内还是原来的并排间距 */
+.ac-yf__thumb + .ac-yf__thumb {
+    margin-left: min(0.45cqh, calc((100% - var(--n, 3) * var(--tw)) / max(var(--n, 3) - 1, 1)));
+}
+
+/* 还有几款：压在那叠封面的右下角，比一张小封面醒目 */
+.ac-yf__more {
+    position: absolute;
+    right: 0;
+    bottom: 0.3cqh;
+    padding: 0.25cqh 0.7cqh;
+    font-size: 1.2cqh;
+    font-weight: 700;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    color: #1d1a14;
+    border-radius: 999px;
+    background: var(--album-accent, rgba(243, 211, 138, 0.95));
+    box-shadow: 0 0.2cqh 0.6cqh rgba(0, 0, 0, 0.45);
+}
+
+/* ── 点开一个月：从格子放大到整页 ──────────────────────────────────────── */
+
+.ac-yf.is-month-open .ac-year__page {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 160ms ease, visibility 0s 160ms;
+}
+
+.ac-yf .ac-year__page {
+    transition: opacity 200ms ease 80ms;
+}
+
+.ac-yf__detail {
+    position: absolute;
+    inset: 7cqh 6.2cqh 8cqh;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.ac-yf__detail[hidden] {
+    display: none;
+}
+
+.ac-yf__detail-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.6cqh;
+    padding-bottom: 1.6cqh;
+    border-bottom: 1px solid var(--album-rule, rgba(255, 255, 255, 0.12));
+}
+
+.ac-yf__detail-titles {
+    flex: 1;
+    min-width: 0;
+}
+
+.ac-yf__detail-title {
+    margin: 0;
+    font-size: 3.6cqh;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     color: var(--ink);
-    background: var(--album-cell, rgba(255, 255, 255, 0.07));
-    box-shadow: inset 0 0 0 1px var(--album-frame, rgba(255, 255, 255, 0.1));
+}
+
+.ac-yf__detail-sub {
+    margin: 0.8cqh 0 0;
+    font-size: 1.3cqh;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    color: var(--album-accent, rgba(243, 211, 138, 0.8));
+}
+
+.ac-year button.ac-yf__detail-close {
+    flex: none;
+    width: 3.6cqh;
+    height: 3.6cqh;
+    font-size: 2.4cqh;
+    line-height: 1;
+    text-align: center;
+    color: var(--album-ink-faint, rgba(255, 255, 255, 0.55));
+    border-radius: 50%;
+    transition: background 140ms ease, color 140ms ease;
+}
+
+.ac-year button.ac-yf__detail-close:hover {
+    color: var(--ink);
+    background: var(--album-cell, rgba(255, 255, 255, 0.08));
+}
+
+.ac-yf__detail-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    margin-top: 2cqh;
+}
+
+.ac-yf__detail-grid {
+    display: grid;
+    flex: 1;
+    grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: 1.6cqh 1.6cqh;
+    min-height: 0;
+}
+
+.ac-yf__detail-grid[hidden] {
+    display: none;
+}
+
+/* 一款也可能是按钮：align-items 同样要写明，见 .ac-yf__month */
+.ac-yf__game {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5cqh;
+    min-width: 0;
+    min-height: 0;
+    padding: 0.6cqh;
+    border-radius: 0.7cqh;
+    transition: background 140ms ease;
+}
+
+.ac-year button.ac-yf__game:hover {
+    background: var(--album-cell, rgba(255, 255, 255, 0.06));
+}
+
+.ac-yf__game-art {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    object-fit: cover;
+    border-radius: 0.5cqh;
+    box-shadow: 0 0.3cqh 0.8cqh rgba(0, 0, 0, 0.45);
+}
+
+.ac-yf__game-name {
+    overflow: hidden;
+    font-size: 1.3cqh;
+    font-weight: 600;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+}
+
+.ac-yf__game-meta {
+    font-size: 1.1cqh;
+    font-variant-numeric: tabular-nums;
+    color: var(--album-ink-faint, rgba(255, 255, 255, 0.5));
+}
+
+.ac-yf__detail .ac-yf__pager {
+    flex: none;
+    margin-top: 1.4cqh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-yf .ac-year__page,
+    .ac-yf.is-month-open .ac-year__page {
+        transition: none;
+    }
 }
 
 .ac-yf__records {
@@ -144,8 +318,7 @@
     margin-top: 3cqh;
 }
 
-.ac-year button.ac-yf__row,
-.ac-yf__row--more {
+.ac-year button.ac-yf__row {
     display: flex;
     align-items: center;
     gap: 1cqh;
@@ -163,8 +336,67 @@
     background: var(--album-cell, rgba(255, 255, 255, 0.06));
 }
 
-.ac-yf__row--more {
-    color: var(--album-ink-faint, rgba(255, 255, 255, 0.4));
+.ac-yf__list[hidden] {
+    display: none;
+}
+
+/* 目录分张：一年打完的游戏一张放不下时，在这一页里翻张 */
+.ac-yf__pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.6cqh;
+    height: 3cqh;
+    margin-top: 1cqh;
+}
+
+/* 箭头用两条边画：字符「‹ ›」的字形本身不居中，放进圆里总是偏上偏左 */
+.ac-year button.ac-yf__page-btn {
+    display: grid;
+    place-items: center;
+    width: 3cqh;
+    height: 3cqh;
+    padding: 0;
+    color: var(--ink);
+    border: 1px solid var(--album-frame, rgba(255, 255, 255, 0.16));
+    border-radius: 50%;
+    transition: background 140ms ease, opacity 140ms ease;
+}
+
+.ac-year button.ac-yf__page-btn:hover:not(:disabled),
+.ac-year button.ac-yf__page-btn:focus-visible {
+    background: var(--album-cell, rgba(255, 255, 255, 0.08));
+}
+
+.ac-yf__page-btn::before {
+    content: "";
+    width: 0.8cqh;
+    height: 0.8cqh;
+    border-top: 0.2cqh solid currentColor;
+    border-left: 0.2cqh solid currentColor;
+}
+
+/* 折线箭头的视觉重心在尖角那一侧，往反方向挪一点才显得居中 */
+.ac-yf__page-btn--prev::before {
+    transform: translateX(0.18cqh) rotate(-45deg);
+}
+
+.ac-yf__page-btn--next::before {
+    transform: translateX(-0.18cqh) rotate(135deg);
+}
+
+.ac-year button.ac-yf__page-btn:disabled {
+    cursor: default;
+    opacity: 0.3;
+}
+
+.ac-yf__page-label {
+    min-width: 16cqh;
+    font-size: 1.14cqh;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+    text-align: center;
+    color: var(--album-ink-faint, rgba(255, 255, 255, 0.45));
 }
 
 .ac-yf__serial {

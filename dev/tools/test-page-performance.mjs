@@ -8,15 +8,19 @@ import { createCardView, createYearSnapshot, sameYearSnapshot } from '../../mill
 const source = readFileSync(new URL('../../millennium/themes/AchievementCollection/src/js/ac/page.js', import.meta.url), 'utf8')
     .replace(/^import [\s\S]*?;\r?$/gm, '').replace(/^export /gm, '');
 function harness({ binding = 'newest', running = false, history = [1, 2], options: extraOptions = {},
-    reading = { tabs: true, tree: false, target: 15 }, treeFeature = true } = {}) {
+    reading = { tabs: true, tree: false, target: 15 }, treeFeature = true, guideDue = false } = {}) {
     let state = { phase: 'ready', cards: [{ appid: 1, name: 'A', completedAt: 2023 }, { appid: 2, name: 'B', completedAt: 2024 }],
         dates: { running, unavailable: new Set() }, intro: { appids: [], ready: false }, manualRevision: 0, owner: {} };
-    let hooks = [], cursor = 0, effects = [], listener, yearReads = 0, sorts = 0, historyReads = 0;
+    let hooks = [], cursor = 0, effects = [], listener, yearReads = 0, sorts = 0, historyReads = 0, classes = [];
     const books = [], introduced = [];
     const options = { '卡册装订方式': binding, '年份特殊页': '开启', ...extraOptions };
-    const win = { addEventListener() {}, removeEventListener() {}, dispatchEvent() {} };
+    const listeners = new Map(), dispatched = [];
+    const win = { addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener() {}, dispatchEvent(event) { dispatched.push(event.type); },
+        setTimeout() { return 0; }, clearTimeout() {} };
     globalThis.window = win;
-    const host = { ownerDocument: { defaultView: win }, replaceChildren() {}, querySelector() {} };
+    let seenGuide = !guideDue;
+    const stubNode = () => ({ append() { this.lastChild = stubNode(); }, setAttribute() {}, addEventListener() {} });
+    const host = { ownerDocument: { defaultView: win, createElement: stubNode }, replaceChildren() {}, querySelector() {} };
     const changed = (a, b) => !a || !b || a.length !== b.length || a.some((v, i) => v !== b[i]);
     const React = {
         useState(initial) {
@@ -28,7 +32,7 @@ function harness({ binding = 'newest', running = false, history = [1, 2], option
         useMemo(fn, deps) { const i = cursor++; if (!hooks[i] || changed(hooks[i].deps, deps)) hooks[i] = { deps, value: fn() }; return hooks[i].value; },
         useCallback(fn, deps) { return this.useMemo(() => fn, deps); },
         useEffect(fn, deps) { const i = cursor++; if (!hooks[i] || changed(hooks[i].deps, deps)) effects.push(() => { hooks[i]?.cleanup?.(); hooks[i] = { deps, cleanup: fn() }; }); },
-        createElement(type, props) { if (props?.ref && props.className === 'ac-book-host') props.ref.current = host; return {}; },
+        createElement(type, props) { if (props?.className) classes.push(props.className); if (props?.ref && props.className === 'ac-book-host') props.ref.current = host; return {}; },
     };
     const writes = [];
     const cache = { readPosition: () => null, readOrder: () => { historyReads++; return history; }, writeOrder(ids) { writes.push(ids); }, readYearSelections: () => ({}) };
@@ -40,17 +44,81 @@ function harness({ binding = 'newest', running = false, history = [1, 2], option
             destroy() { this.destroyed = true; }, updateCard(id, card, options) { this.updates.push({ id, options }); this.cards[this.cards.findIndex(c => c.appid === id)] = card; },
             replaceCards(cards) { this.replacements.push(cards); this.cards = cards.slice(); },
             introduce(cards, ids) { this.cards = cards.slice(); this.intros.push(ids); return new Promise(resolve => { this.completeIntro = resolve; }); } }; books.push(book); return book; },
-        openExportDialog() {}, markOnboardingSeen() {}, shouldShowOnboarding: () => false, showOnboarding() {},
+        openExportDialog() {}, markOnboardingSeen() { seenGuide = true; }, shouldShowOnboarding: () => !seenGuide, showOnboarding() { return { destroy() {} }; },
         markTreeNoticeSeen() {}, shouldShowTreeNotice: () => false, showTreeNotice() {},
         readReading: () => ({ ...reading }), TREE_FEATURE: treeFeature, openReadingSettings() {},
         yearKeyOf: card => { yearReads++; return card.completedAt; },
         sortCards: cards => { sorts++; return [...cards].sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)); },
         createCardView, createYearSnapshot, sameYearSnapshot, tagged: () => ({ log() {} }), STR };
     const Page = new Function(...Object.keys(deps), source + '\nreturn Page;')(...Object.values(deps));
-    function render(patch = {}) { state = { ...state, ...patch }; listener?.(); cursor = 0; effects = []; Page(); for (const effect of effects) effect(); }
+    function render(patch = {}) { state = { ...state, ...patch }; listener?.(); cursor = 0; effects = []; classes = []; Page(); for (const effect of effects) effect(); }
     return { render, books, introduced, setOptions: patch => Object.assign(options, patch), get state() { return state; },
-        reads: () => yearReads, sorts: () => sorts, historyReads: () => historyReads, writes: () => writes };
+        notify: detail => listeners.get('ac:update-notice')?.({ detail }), opens: () => dispatched.filter(type => type === 'ac:update-open').length,
+        reads: () => yearReads, sorts: () => sorts, historyReads: () => historyReads, writes: () => writes, classes: () => classes };
 }
+
+test('the fill-in button counts zero recorded playtime as missing', () => {
+    const h = harness();
+    const cards = (minutes) => [
+        { appid: 1, name: 'A', completedAt: 2023, playtimeMin: minutes },
+        { appid: 2, name: 'B', completedAt: 2024, playtimeMin: 30 },
+    ];
+    h.render({ cards: cards(0) });
+    assert.ok(h.classes().includes('ac-date-open'), 'Steam 记的 0 分钟卡面上不显示时长，要能手动补');
+    h.render({ cards: cards(null) });
+    assert.ok(h.classes().includes('ac-date-open'));
+    h.render({ cards: cards(12) });
+    assert.equal(h.classes().includes('ac-date-open'), false, '日期和时长都齐了就不显示');
+});
+
+test('the fill-in button only counts undated cards that are known to be unavailable', () => {
+    const h = harness();
+    const cards = [
+        { appid: 1, name: 'A', completedAt: null, playtimeMin: 40 },
+        { appid: 2, name: 'B', completedAt: 2024, playtimeMin: 30 },
+    ];
+    h.render({ cards });
+    assert.equal(h.classes().includes('ac-date-open'), false, '日期还在取的路上，先不打扰');
+    h.render({ dates: { ...h.state.dates, unavailable: new Set([1]) } });
+    assert.ok(h.classes().includes('ac-date-open'));
+    h.render({ cards: [{ ...cards[0], source: 'external' }, cards[1]], dates: { ...h.state.dates, unavailable: new Set([1]) } });
+    assert.equal(h.classes().includes('ac-date-open'), false, '别的账号的只读卡不能在这里补');
+});
+
+test('update prompt waits for the new-card intro, then opens once', () => {
+    const h = harness();
+    h.render({ intro: { appids: [2], ready: false } });
+    h.notify({ latest: '1.2.2', restart: false, prompt: true });
+    h.render();
+    assert.equal(h.opens(), 0);
+    h.render({ intro: { appids: [], ready: false } });
+    assert.equal(h.opens(), 1);
+    h.notify({ latest: '1.2.2', restart: false, prompt: false });
+    h.render();
+    assert.equal(h.opens(), 1);
+});
+
+test('update prompt waits for the first-run guide', () => {
+    const h = harness({ guideDue: true });
+    h.render();
+    h.notify({ latest: '1.2.2', restart: false, prompt: true });
+    h.render();
+    assert.equal(h.opens(), 0);
+});
+
+test('a broken book still gets the update prompt, a reminder alone never pops up', () => {
+    const broken = harness();
+    broken.render({ phase: 'error', cards: [], error: 'x' });
+    broken.notify({ latest: '1.2.2', restart: false, prompt: true });
+    broken.render();
+    assert.equal(broken.opens(), 1);
+
+    const quiet = harness();
+    quiet.render();
+    quiet.notify({ latest: '1.2.2', restart: false, prompt: false });
+    quiet.render();
+    assert.equal(quiet.opens(), 0);
+});
 
 test('progress-only notifications skip year scans, sorting and card patches', () => {
     const h = harness(); h.render(); const reads = h.reads(), sorts = h.sorts();

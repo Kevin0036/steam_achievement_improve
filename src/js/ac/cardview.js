@@ -153,7 +153,8 @@ function stat(doc, kind, value, denominator, label) {
 /**
  * @param {Document} doc
  * @param {object} card   { appid, name, total, rare, common, unrated, playtimeMin, completedAt, art: {hero, capsule, header} }
- * @param {object} ctx    { owner: {persona, avatar} }
+ * @param {object} ctx    { owner: {persona, avatar}, lite }
+ *   lite：书签翻阅时飞过的卡。封面、文字都保留，只省掉星星和高光这些一闪而过看不出来的效果
  */
 export function createCardFront(doc, card, ctx = {}) {
     const root = el(doc, 'div', 'ac-cf');
@@ -169,7 +170,7 @@ export function createCardFront(doc, card, ctx = {}) {
     frame.append(art);
     inner.append(frame);
     inner.append(el(doc, 'div', 'ac-cf__rays', { 'aria-hidden': 'true' }));
-    inner.append(sparkles(doc, card.appid));
+    if (!ctx.lite) inner.append(sparkles(doc, card.appid));
     inner.append(el(doc, 'div', 'ac-cf__badge', { role: 'img', 'aria-label': STR.card.badge }));
 
     const body = el(doc, 'div', 'ac-cf__body');
@@ -211,22 +212,22 @@ export function createCardFront(doc, card, ctx = {}) {
     inner.append(body);
 
     // 悬停时跟随指针的反光（pointer-events: none）
-    root.append(el(doc, 'div', 'ac-card__glare', { 'aria-hidden': 'true' }));
+    if (!ctx.lite) root.append(el(doc, 'div', 'ac-card__glare', { 'aria-hidden': 'true' }));
     applyCoverEdit(root, card.appid);
     return root;
 }
 
 /* ── 背面 ────────────────────────────────────────────────────────────── */
 
-export function createCardBack(doc, card) {
+export function createCardBack(doc, card, { lite = false } = {}) {
     const root = el(doc, 'div', 'ac-cb');
     const inner = el(doc, 'div', 'ac-cb__inner');
     const capsule = card.art?.capsule ?? [];
     const rest = [...(card.art?.hero ?? []), ...(card.art?.header ?? [])];
     inner.append(capsuleImage(doc, capsule, rest, card.name));
-    inner.append(el(doc, 'div', 'ac-cb__gloss', { 'aria-hidden': 'true' }));
+    if (!lite) inner.append(el(doc, 'div', 'ac-cb__gloss', { 'aria-hidden': 'true' }));
     root.append(inner);
-    root.append(el(doc, 'div', 'ac-card__glare', { 'aria-hidden': 'true' }));
+    if (!lite) root.append(el(doc, 'div', 'ac-card__glare', { 'aria-hidden': 'true' }));
     applyCoverEdit(root, card.appid);
     return root;
 }

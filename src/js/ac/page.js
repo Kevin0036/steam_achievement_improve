@@ -492,6 +492,8 @@ export function Page({ onClose } = {}) {
     const [settingsOpen, setSettingsOpen] = React.useState(false);
     const [noticeOpen, setNoticeOpen] = React.useState(false);
     const [borrowOpen, setBorrowOpen] = React.useState(false);
+    /** 插件版查到新版本时的提醒；主题版没有人发这个事件，一直是 null */
+    const [updateNotice, setUpdateNotice] = React.useState(null);
     /** 借阅室开着时不重装主册：只读册会临时接管全局封面取景 */
     const borrowOpenRef = React.useRef(false);
     const borrowRef = React.useRef(null);
@@ -554,6 +556,16 @@ export function Page({ onClose } = {}) {
         }
     }, []);
 
+    React.useEffect(() => {
+        const onNotice = (event) => setUpdateNotice(event.detail ?? null);
+        window.addEventListener('ac:update-notice', onNotice);
+        return () => window.removeEventListener('ac:update-notice', onNotice);
+    }, []);
+
+    const openUpdate = React.useCallback(() => {
+        window.dispatchEvent(new CustomEvent('ac:update-open', { detail: { host: hostRef.current } }));
+    }, []);
+
     // 模态卡包必须能退出：Esc 与右上角的返回按钮走同一个 onClose。
     // 监听挂在卡册实际所在的窗口上 —— 模块自己的 window 未必是显示它的那个。
     React.useEffect(() => {
@@ -579,8 +591,11 @@ export function Page({ onClose } = {}) {
             if (hostRef.current?.ownerDocument?.querySelector('.ac-borrow')) return;
             // 封面取景 / 新手引导开着时 Esc 只关这一层
             if (hostRef.current?.querySelector('.ac-coveredit, .ac-onboarding')) return;
+            if (hostRef.current?.parentElement?.querySelector('.ac-guide')) return;
             // 年份选择器开着时 Esc 只关选择器，不能把整个卡包一起关掉
             if (hostRef.current?.querySelector('.ac-year-picker')) return;
+            // 月份足迹点开了一个月：Esc 只收起这个月
+            if (hostRef.current?.querySelector('.ac-leaf[data-visible] .ac-yf__detail:not([hidden])')) return;
             event.preventDefault();
             onClose();
         };
@@ -715,6 +730,7 @@ export function Page({ onClose } = {}) {
                 yearTargets: yearTarget,
                 yearIndex,
                 yearSelections: cache.readYearSelections(),
+                introSound: () => readReading().introSound !== false,
                 onYearChange: (yearKey, selection) => {
                     const all = cache.readYearSelections();
                     all[yearKey] = selection;
@@ -820,12 +836,16 @@ export function Page({ onClose } = {}) {
         return () => window.clearTimeout(timer);
     }, [state.phase, state.cards.length, introPending]);
 
-    // 引导是纯 DOM 浮层，挂在册子的宿主上（和预览页共用同一份 onboarding.js）
+    // 引导是纯 DOM 浮层，和预览页共用同一份 onboarding.js。
+    // 挂在宿主的父节点上：要照到工具条上的按钮，册子重建时宿主也会被清空。
     React.useEffect(() => {
         if (!guideOpen || state.phase !== 'ready') return undefined;
         const host = hostRef.current;
         if (!host) return undefined;
-        const guide = showOnboarding(host, { yearPages: currentYearPages() }, { onClose: () => setGuideOpen(false) });
+        const guide = showOnboarding(host.parentElement ?? host, {
+            getBook: () => bookRef.current,
+            onClose: () => setGuideOpen(false),
+        });
         return () => guide.destroy();
     }, [guideOpen, state.phase]);
 
@@ -892,6 +912,14 @@ export function Page({ onClose } = {}) {
         if (state.phase !== 'ready' && settingsOpen) setSettingsOpen(false);
     }, [state.phase, settingsOpen]);
 
+    // 新版本弹窗让路：引导、入册动画和别的弹层都结束了才弹，工具条上的提醒一直都在。
+    // 还没看过引导的新用户也要等，否则两层浮层会叠在一起。
+    const guideDue = state.phase === 'ready' && state.cards.length > 0 && shouldShowOnboarding();
+    const updateWaits = guideDue || guideOpen || introPending || noticeOpen || dateOpen || exportOpen || settingsOpen || borrowOpen;
+    React.useEffect(() => {
+        if (updateNotice?.prompt && !updateWaits) openUpdate();
+    }, [updateNotice, updateWaits, openUpdate]);
+
     const pluginMode = isPluginMode();
 
     // 补日期入口只在「取不到日期 / 时长、现在仍然空着」的卡存在时出现；
@@ -904,7 +932,8 @@ export function Page({ onClose } = {}) {
             // 别的账号的卡是只读快照，补日期 / 时长只针对当前账号自己的卡
             if (card.source === 'external') continue;
             const missingDate = card.completedAt == null && unavailable.has(card.appid);
-            const missingTime = card.playtimeMin == null;
+            // Steam 记的 0 分钟和没有时长一样：卡面上不显示时长，也要能手动补
+            const missingTime = !(card.playtimeMin > 0);
             if (missingDate || missingTime) needInfo.push(card);
             if (
                 missingDate
@@ -1060,6 +1089,21 @@ export function Page({ onClose } = {}) {
         React.createElement(
             'div',
             { className: 'ac-page-toolbar' },
+            updateNotice
+                ? React.createElement(
+                      'button',
+                      {
+                          type: 'button',
+                          className: 'ac-update-open',
+                          disabled: updateNotice.restart,
+                          title: updateNotice.restart
+                              ? STR.page.updateRestartTitle(updateNotice.latest)
+                              : STR.page.updateTitle(updateNotice.latest),
+                          onClick: openUpdate,
+                      },
+                      updateNotice.restart ? STR.page.updateRestart : STR.page.updateButton(updateNotice.latest),
+                  )
+                : null,
             state.phase === 'ready' && needInfo.length > 0
                 ? React.createElement(
                       'button',

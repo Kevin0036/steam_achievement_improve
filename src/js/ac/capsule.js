@@ -18,6 +18,8 @@
  * 封面一更新地址就变，旧结论自然作废。
  */
 
+import { sampleBitmap } from './samplebitmap.js';
+
 const STORE_KEY = 'ac:v2:capsule';
 const MAX_ENTRIES = 400;
 
@@ -161,9 +163,9 @@ function loadImage(doc, url) {
 }
 
 async function detectFrame(doc, url) {
-    const img = await loadImage(doc, url);
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
+    const img = (await sampleBitmap(doc, url, SAMPLE_W)) ?? (await loadImage(doc, url));
+    const w = img.naturalWidth ?? img.width;
+    const h = img.naturalHeight ?? img.height;
     if (!w || !h) return null;
 
     const W = SAMPLE_W;
@@ -173,6 +175,7 @@ async function detectFrame(doc, url) {
     canvas.height = H;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(img, 0, 0, W, H);
+    img.close?.();
     const { data } = ctx.getImageData(0, 0, W, H); // 跨域污染时这里会抛，外面按「正常封面」处理
 
     /** 一整行（horizontal）或一整列的平均颜色与均匀度 */

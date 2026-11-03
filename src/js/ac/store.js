@@ -956,6 +956,13 @@ function planDateRequests(cards, known, fresh) {
     return [...first, ...missing].slice(0, DATE_FETCH_PER_OPEN).map((c) => c.appid);
 }
 
+/** 这一轮根本不会去取日期（设置里关了，或者客户端没有成就接口）：没有日期的卡只能靠手动补 */
+function markUndatedUnavailable(cards) {
+    for (const card of cards) {
+        if (card.completedAt == null && !manualDates.has(card.appid)) dateUnavailable.add(card.appid);
+    }
+}
+
 function startDateBackfill(cards, known, fresh = [], isCurrent = () => true) {
     stopDateBackfill();
     settled.clear();
@@ -967,13 +974,15 @@ function startDateBackfill(cards, known, fresh = [], isCurrent = () => true) {
 
     if (!state.dates.enabled) {
         out.log('完成日期读取已在主题设置里关闭');
-        setState({ dates: { ...state.dates, enabled: false, running: false } });
+        markUndatedUnavailable(cards);
+        setState({ dates: { ...state.dates, enabled: false, running: false, unavailable: new Set(dateUnavailable) } });
         settleIntro();
         return;
     }
     if (!data.probeAchievementsApi()) {
         warn('SteamClient.Apps.GetMyAchievementsForApp 不可用，完成日期全部留空');
-        setState({ dates: { ...state.dates, running: false, total: 0, done: 0 } });
+        markUndatedUnavailable(cards);
+        setState({ dates: { ...state.dates, running: false, total: 0, done: 0, unavailable: new Set(dateUnavailable) } });
         settleIntro();
         return;
     }
@@ -1149,7 +1158,13 @@ export function clearManualDate(appid) {
 
     const known = cache.readDates().get(appid);
     const restore = card ? cachedDateState(card, known) : { completedAt: null, completedAtSource: 'none' };
-    patchCard(appid, restore, { manualRevision: state.manualRevision + 1 });
+    // 手动填过的卡这一轮不会去请求日期，退回无日期后要重新算作「取不到」，
+    // 否则它会从补日期列表里消失，入口按钮也可能跟着不见
+    if (restore.completedAt == null) dateUnavailable.add(appid);
+    patchCard(appid, restore, {
+        manualRevision: state.manualRevision + 1,
+        dates: { ...state.dates, unavailable: new Set(dateUnavailable) },
+    });
     out.log(`已撤销手动完成日期：${appid}`);
     return true;
 }
@@ -1215,6 +1230,8 @@ export function clearAllManualEntries() {
         let next = card;
         if (clearedDates.has(card.appid)) {
             next = { ...next, ...cachedDateState(card, known.get(card.appid)) };
+            // 同 clearManualDate：退回无日期的卡重新算作「取不到」
+            if (next.completedAt == null && card.source !== 'external') dateUnavailable.add(card.appid);
             changed = true;
         }
         if (clearedTimes.has(card.appid)) {
@@ -1233,6 +1250,7 @@ export function clearAllManualEntries() {
                 summary: { ...state.summary, datedCount },
                 sortKeys: availableSortKeys(cards),
                 manualRevision: state.manualRevision + 1,
+                dates: { ...state.dates, unavailable: new Set(dateUnavailable) },
             },
             null,
             'manual-entries-cleared',

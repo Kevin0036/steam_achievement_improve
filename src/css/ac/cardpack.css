@@ -18,6 +18,7 @@
 @import url("./borrow.css");
 @import url("./roomsound.css");
 @import url("./yearfill.css");
+@import url("./pethouse.css");
 @import url("./albumframes.css");
 @import url("./albumstyles.css");
 
@@ -94,6 +95,42 @@
     color: #ffffff;
     border-color: #66c0f4;
     background: rgba(42, 71, 94, 0.95);
+}
+
+/* 有新版本时的提醒：一直留在这里，弹窗关掉之后还能点开 */
+.ac-page-toolbar > .ac-update-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #f3dfa6;
+    border-color: rgba(232, 200, 116, 0.55);
+    background: rgba(48, 40, 22, 0.86);
+}
+
+.ac-page-toolbar > .ac-update-open::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f0d78e;
+}
+
+.ac-page-toolbar > .ac-update-open:hover:not(:disabled),
+.ac-page-toolbar > .ac-update-open:focus-visible {
+    color: #fff4d2;
+    border-color: #f0d78e;
+    background: rgba(70, 58, 30, 0.92);
+}
+
+.ac-page-toolbar > .ac-update-open:disabled {
+    cursor: default;
+    color: #bfe6c9;
+    border-color: rgba(143, 226, 168, 0.4);
+    background: rgba(22, 44, 32, 0.86);
+}
+
+.ac-page-toolbar > .ac-update-open:disabled::before {
+    background: #8fe2a8;
 }
 
 /* ── 手动补完成日期 / 时长 ──────────────────────────────────────────────── */
@@ -1201,6 +1238,206 @@
     font-size: 11.5px;
     line-height: 1.5;
     color: var(--ac-text-dim);
+}
+
+/* 成就卡片那一行的「选择」：打开选卡那一屏 */
+.ac-export__pick {
+    flex: none;
+    height: 24px;
+    padding: 0 12px;
+    font: 600 11.5px/1 var(--ac-font);
+    color: #cfe6f5;
+    cursor: pointer;
+    border: 1px solid rgba(102, 192, 244, 0.42);
+    border-radius: 999px;
+    background: rgba(27, 40, 56, 0.7);
+}
+
+.ac-export__pick:hover,
+.ac-export__pick:focus-visible {
+    color: #ffffff;
+    border-color: #66c0f4;
+    background: rgba(42, 71, 94, 0.95);
+    outline: none;
+}
+
+/* ── 选卡 ── */
+
+.ac-export__picker {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    margin-top: 16px;
+}
+
+.ac-export__picker[hidden],
+.ac-export__options[hidden],
+.ac-export__foot[hidden],
+.ac-export__pickrow[hidden],
+.ac-export__pickempty[hidden] {
+    display: none;
+}
+
+.ac-export__picktitle {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+}
+
+.ac-export__pickbar {
+    display: flex;
+    gap: 8px;
+}
+
+.ac-export__search {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    padding: 0 12px;
+    font: 12.5px/1 var(--ac-font);
+    color: var(--ac-text);
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    outline: none;
+}
+
+.ac-export__search:focus {
+    border-color: rgba(102, 192, 244, 0.6);
+}
+
+.ac-export__mini,
+.ac-export__year {
+    flex: none;
+    height: 30px;
+    padding: 0 12px;
+    font: 600 11.5px/1 var(--ac-font);
+    color: var(--ac-text-dim);
+    cursor: pointer;
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 8px;
+    background: transparent;
+}
+
+.ac-export__mini:hover,
+.ac-export__year:hover,
+.ac-export__mini:focus-visible,
+.ac-export__year:focus-visible {
+    color: var(--ac-text);
+    border-color: rgba(102, 192, 244, 0.5);
+    outline: none;
+}
+
+.ac-export__years {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ac-export__year {
+    height: 26px;
+    padding: 0 10px;
+    font-variant-numeric: tabular-nums;
+    border-radius: 999px;
+}
+
+/* 这一年全选 / 选了一部分 / 一张没选 */
+.ac-export__year[data-state="all"] {
+    color: #eaf6ff;
+    border-color: rgba(102, 192, 244, 0.6);
+    background: rgba(42, 71, 94, 0.85);
+}
+
+.ac-export__year[data-state="some"] {
+    color: #cfe6f5;
+    border-color: rgba(102, 192, 244, 0.45);
+    border-style: dashed;
+}
+
+.ac-export__picklist {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.ac-export__pickrow {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ac-export__pickrow:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.ac-export__thumb {
+    flex: none;
+    width: 20px;
+    height: 30px;
+    object-fit: cover;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ac-export__serial {
+    flex: none;
+    width: 52px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.ac-export__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ac-export__date {
+    flex: none;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(243, 211, 138, 0.7);
+}
+
+.ac-export__pickempty {
+    margin: 0;
+    padding: 18px 12px;
+    font-size: 12px;
+    text-align: center;
+    color: var(--ac-text-dim);
+}
+
+.ac-export__pickfoot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.ac-export__picksum {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(102, 192, 244, 0.85);
 }
 
 .ac-export__count {

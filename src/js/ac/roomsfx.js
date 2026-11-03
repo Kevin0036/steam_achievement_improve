@@ -11,7 +11,7 @@
  * 随机数用固定种子，同样的采样率每次渲染结果完全一致。
  */
 
-function seededRandom(seed) {
+export function seededRandom(seed) {
     let state = seed >>> 0;
     return () => {
         state = (state + 0x6d2b79f5) | 0;
@@ -40,19 +40,19 @@ function createBandpass(rate, q) {
     };
 }
 
-/** 一小段指数衰减的带通噪声：蜡裂、碎屑、纸张落定都是它 */
-function addBurst(out, rate, random, { at, freq, q, gain, decay }) {
+/** 一小段指数衰减的带通噪声：蜡裂、碎屑、纸张落定都是它。rise 是起音时间（秒），用来磨掉硬边 */
+export function addBurst(out, rate, random, { at, freq, q, gain, decay, rise = 0 }) {
     const start = Math.round(at * rate);
     const length = Math.min(out.length - start, Math.ceil(decay * rate * 8));
     const band = createBandpass(rate, q);
     for (let i = 0; i < length; i += 1) {
-        const envelope = Math.exp(-i / (decay * rate));
+        const envelope = Math.exp(-i / (decay * rate)) * (rise > 0 ? 1 - Math.exp(-i / (rise * rate)) : 1);
         out[start + i] += band(random() * 2 - 1, freq) * envelope * gain;
     }
 }
 
 /** 音高下滑的低频：蜡块本身的重量感 */
-function addThump(out, rate, { at, from, to, gain, decay }) {
+export function addThump(out, rate, { at, from, to, gain, decay }) {
     const start = Math.round(at * rate);
     const length = Math.min(out.length - start, Math.ceil(decay * rate * 7));
     let phase = 0;
@@ -68,7 +68,7 @@ function addThump(out, rate, { at, from, to, gain, decay }) {
  * 纸张摩擦：带通噪声 + 不规则的起伏。flutter 越大起伏越明显，
  * 只有平滑噪声听起来是风声，起伏才让它像纸。
  */
-function addRustle(out, rate, random, { at, dur, attack, release, from, to, q, gain, flutter }) {
+export function addRustle(out, rate, random, { at, dur, attack, release, from, to, q, gain, flutter }) {
     const start = Math.round(at * rate);
     const length = Math.min(out.length - start, Math.round(dur * rate));
     const band = createBandpass(rate, q);
@@ -86,8 +86,20 @@ function addRustle(out, rate, random, { at, dur, attack, release, from, to, q, g
     }
 }
 
+/** 一个带泛音的音：入册音效里清亮的余音 */
+export function addBell(out, rate, { at, freq, gain, decay, rise = 0.003 }) {
+    const start = Math.round(at * rate);
+    const length = Math.min(out.length - start, Math.ceil(decay * rate * 7));
+    for (let i = 0; i < length; i += 1) {
+        const t = i / rate;
+        const envelope = (1 - Math.exp(-t / rise)) * Math.exp(-t / decay);
+        const tone = Math.sin(2 * Math.PI * freq * t) + 0.22 * Math.sin(2 * Math.PI * freq * 2.76 * t) * Math.exp(-t / (decay * 0.4));
+        out[start + i] += tone * envelope * gain;
+    }
+}
+
 /** 收尾：叠一点桌面的早期反射，归一到目标峰值，末端淡出防爆音 */
-function finish(out, rate, peak) {
+export function finish(out, rate, peak) {
     for (const [delay, gain] of [[0.019, 0.24], [0.033, 0.15], [0.051, 0.09]]) {
         const offset = Math.round(delay * rate);
         for (let i = out.length - 1; i >= offset; i -= 1) out[i] += out[i - offset] * gain;

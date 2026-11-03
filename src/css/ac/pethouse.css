@@ -1,0 +1,541 @@
+/* 成就小屋（pethouse.js）：装了桌宠插件时代替「未完待续」
+   一间挖进书页里的小房间：外圈是一层层纸页的切口，里面的房间用一张拉伸的 SVG 画出透视，
+   后墙区域（x 11–89%、y 8–60%）放相框与奖杯搁板。视频和反光只在摊开时动。 */
+
+.ac-house {
+    --paper: #f4ead6;
+    --paper-ink: #3a2c22;
+    position: absolute;
+    inset: 7.6cqh 5.5% 6.4cqh;
+    padding: 1.5cqh;
+    border-radius: 1.2cqh;
+    /* 纸页切口：一层层米色纸边 */
+    background:
+        repeating-linear-gradient(0deg, rgba(120, 96, 64, 0.32) 0 1px, transparent 1px 0.45cqh),
+        repeating-linear-gradient(90deg, rgba(120, 96, 64, 0.18) 0 1px, transparent 1px 0.45cqh),
+        linear-gradient(#e6dac0, #cdbd9c);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.35),
+        0 0.4cqh 1.6cqh rgba(0, 0, 0, 0.45);
+}
+
+.ac-house__room {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 0.6cqh;
+    background: #3a2c24;
+    box-shadow: inset 0 0 0 1px rgba(60, 40, 20, 0.6);
+}
+
+/* 往书里凹进去：切口内侧压一圈阴影，四角压暗 */
+.ac-house__room::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow:
+        inset 0 1.4cqh 1.6cqh -0.6cqh rgba(0, 0, 0, 0.55),
+        inset 1cqh 0 1.4cqh -0.8cqh rgba(0, 0, 0, 0.35),
+        inset -1cqh 0 1.4cqh -0.8cqh rgba(0, 0, 0, 0.35);
+    background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(20, 10, 4, 0.38));
+}
+
+.ac-house__shell {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* ── 门牌：钉在上沿切口正中 ───────────────────────────────────────────── */
+
+.ac-house__sign {
+    position: absolute;
+    z-index: 6;
+    top: -0.6cqh;
+    left: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.7cqh 2.6cqh 0.8cqh;
+    transform: translateX(-50%);
+    border-radius: 1.4cqh;
+    background: linear-gradient(#a7774f, #7c5434);
+    box-shadow:
+        inset 0 0.25cqh 0 rgba(255, 255, 255, 0.25),
+        inset 0 -0.3cqh 0 rgba(0, 0, 0, 0.25),
+        0 0.6cqh 1cqh rgba(0, 0, 0, 0.45);
+    white-space: nowrap;
+}
+
+.ac-house__sign::before,
+.ac-house__sign::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 0.8cqh;
+    aspect-ratio: 1;
+    margin-top: -0.4cqh;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f1e2b8, #9c8455);
+}
+
+.ac-house__sign::before { left: 0.8cqh; }
+.ac-house__sign::after { right: 0.8cqh; }
+
+.ac-house__sign-title {
+    padding-left: 0.25em;
+    font-size: 1.9cqh;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    color: #fff4dc;
+    text-shadow: 0 0.15cqh 0 rgba(60, 30, 10, 0.7);
+}
+
+.ac-house__sign-sub {
+    margin-top: 0.15cqh;
+    font-size: 1.05cqh;
+    letter-spacing: 0.12em;
+    color: rgba(255, 240, 210, 0.7);
+}
+
+/* ── 灯：从天花板吊下来，在后墙上铺一片暖光 ───────────────────────────── */
+
+.ac-house__glow {
+    position: absolute;
+    left: 52%;
+    top: -6%;
+    width: 72%;
+    height: 66%;
+    pointer-events: none;
+    background: radial-gradient(closest-side, rgba(255, 214, 140, 0.42), rgba(255, 200, 120, 0.12) 60%, transparent);
+    mix-blend-mode: soft-light;
+}
+
+.ac-house__lamp {
+    position: absolute;
+    z-index: 2;
+    left: 91%;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.ac-house__lamp-cord {
+    width: 0.25cqh;
+    height: 4.2cqh;
+    background: #2a1d15;
+}
+
+.ac-house__lamp-shade {
+    position: relative;
+    width: 6.4cqh;
+    height: 3.4cqh;
+    border-radius: 3.4cqh 3.4cqh 0.6cqh 0.6cqh;
+    background: linear-gradient(#f2c46d, #d9973e);
+    box-shadow: inset 0 0.3cqh 0 rgba(255, 255, 255, 0.35), 0 0.4cqh 0.6cqh rgba(0, 0, 0, 0.35);
+}
+
+.ac-house__lamp-shade::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -0.9cqh;
+    width: 2cqh;
+    height: 1.2cqh;
+    margin-left: -1cqh;
+    border-radius: 0 0 1cqh 1cqh;
+    background: #fff3c9;
+    box-shadow: 0 0 2.4cqh 1.2cqh rgba(255, 220, 140, 0.55);
+}
+
+/* ── 后墙：相框墙 + 奖杯搁板 ──────────────────────────────────────────── */
+
+.ac-house__back {
+    position: absolute;
+    left: 11%;
+    width: 78%;
+    top: 8%;
+    height: 52%;
+    z-index: 1; /* 自成一层：搁板和白金光晕的 z-index:-1 留在墙面之上 */
+    /* 竖条墙纸，只铺在后墙上 */
+    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1.4cqh, transparent 1.4cqh 2.8cqh);
+}
+
+.ac-house__gallery {
+    position: absolute;
+    left: 4%;
+    right: 4%;
+    top: 7%;
+    height: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 5%;
+}
+
+.ac-house__col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2.4cqh;
+    height: 100%;
+}
+
+/* Q 版相框：胖胖的圆角边框 + 白色卡纸 + 顶上一枚钉子，略微歪着挂 */
+.ac-house__frame {
+    --frame: linear-gradient(145deg, #f7ecd6, #d8c3a0);
+    position: relative;
+    height: 44%;
+    aspect-ratio: 2 / 2.8;
+    transform: rotate(var(--tilt, 0deg));
+    filter: drop-shadow(0 0.7cqh 0.6cqh rgba(40, 20, 8, 0.45));
+}
+
+.ac-house__frame--big {
+    --frame: linear-gradient(145deg, #fff0a8, #e0a52c 45%, #ffe27a 70%, #b97a14);
+    height: 100%;
+}
+
+.ac-house__frame[data-tone="1"] { --frame: linear-gradient(145deg, #ffd3dc, #e48ea2); }
+.ac-house__frame[data-tone="2"] { --frame: linear-gradient(145deg, #c9f0dc, #6fbf97); }
+.ac-house__frame[data-tone="3"] { --frame: linear-gradient(145deg, #cfe3ff, #7ea6e0); }
+.ac-house__frame[data-tone="4"] { --frame: linear-gradient(145deg, #f4ead6, #cbb48c); }
+
+.ac-house__frame-border {
+    position: absolute;
+    inset: 0;
+    display: block;
+    padding: 0.75cqh;
+    border-radius: 1.1cqh;
+    background: var(--frame);
+    box-shadow:
+        inset 0 0.25cqh 0 rgba(255, 255, 255, 0.6),
+        inset 0 -0.3cqh 0 rgba(0, 0, 0, 0.18);
+}
+
+.ac-house__frame--big .ac-house__frame-border {
+    padding: 1.1cqh;
+    border-radius: 1.5cqh;
+}
+
+.ac-house__frame-mat {
+    position: relative;
+    display: block;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 0.6cqh;
+    background: #fbf6ea;
+    box-shadow: inset 0 0.2cqh 0.5cqh rgba(0, 0, 0, 0.35);
+}
+
+/* 玻璃反光 */
+.ac-house__frame-mat::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(125deg, rgba(255, 255, 255, 0.28), transparent 38%);
+    pointer-events: none;
+}
+
+.ac-house__frame-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ac-house__frame-img[data-missing] {
+    visibility: hidden;
+}
+
+.ac-house__nail {
+    position: absolute;
+    z-index: 1;
+    top: -0.5cqh;
+    left: 50%;
+    width: 0.9cqh;
+    aspect-ratio: 1;
+    margin-left: -0.45cqh;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f5f0e6, #8b8172);
+    box-shadow: 0 0.15cqh 0.25cqh rgba(0, 0, 0, 0.5);
+}
+
+.ac-house__frame-star {
+    position: absolute;
+    z-index: 1;
+    right: -0.9cqh;
+    top: -0.9cqh;
+    display: grid;
+    place-items: center;
+    width: 2.8cqh;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    font-size: 1.6cqh;
+    line-height: 1;
+    color: #fff;
+    background: radial-gradient(circle at 35% 30%, #ff8f8f, #d8423f);
+    box-shadow: 0 0.3cqh 0.5cqh rgba(0, 0, 0, 0.35), inset 0 0.2cqh 0 rgba(255, 255, 255, 0.4);
+}
+
+/* 空框：虚线卡纸 + 加号，下一款全成就会挂在这里 */
+.ac-house__frame[data-empty] {
+    filter: none;
+    opacity: 0.75;
+}
+
+.ac-house__frame[data-empty] .ac-house__frame-border {
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: none;
+    outline: 0.25cqh dashed rgba(90, 62, 42, 0.55);
+    outline-offset: -0.25cqh;
+}
+
+.ac-house__frame[data-empty] .ac-house__frame-mat {
+    display: grid;
+    place-items: center;
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: none;
+}
+
+.ac-house__frame-plus {
+    font-size: 2.6cqh;
+    font-weight: 300;
+    color: rgba(90, 62, 42, 0.6);
+}
+
+.ac-house__frame[data-fresh] {
+    animation: ac-house-pop 0.9s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes ac-house-pop {
+    0% { transform: rotate(var(--tilt, 0deg)) scale(0.6); }
+    100% { transform: rotate(var(--tilt, 0deg)) scale(1); }
+}
+
+/* 搁板：前沿是木板正面，杯子站在上面 */
+.ac-house__shelf {
+    position: absolute;
+    left: 14%;
+    right: 14%;
+    bottom: 9%;
+    height: 34%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 6%;
+}
+
+.ac-house__plank {
+    position: absolute;
+    z-index: -1;
+    left: 0;
+    right: 0;
+    bottom: -2.5cqh;
+    height: 2.7cqh;
+    border-radius: 0.4cqh;
+    background: linear-gradient(#c49670 0 22%, #84593a 22%, #6d4a30);
+    box-shadow: 0 1cqh 1cqh rgba(40, 20, 8, 0.4);
+}
+
+.ac-house__plank::before,
+.ac-house__plank::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    width: 1.4cqh;
+    height: 1.4cqh;
+    background: linear-gradient(135deg, #7a5233 50%, transparent 50%);
+}
+
+.ac-house__plank::before { left: 10%; }
+.ac-house__plank::after { right: 10%; transform: scaleX(-1); }
+
+.ac-house__cup {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 78%;
+}
+
+.ac-house__cup--platinum {
+    height: 100%;
+}
+
+.ac-house__cup-art {
+    height: 100%;
+    aspect-ratio: 60 / 72;
+    filter: drop-shadow(0 0.5cqh 0.5cqh rgba(40, 20, 8, 0.4));
+    transform: translateY(11%); /* 画布底下留了 8/72 的空白，让底座正好落在搁板上 */
+    overflow: visible;
+}
+
+.ac-house__cup-count {
+    position: absolute;
+    bottom: -2.25cqh;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.3cqh;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0.12cqh 0 rgba(30, 15, 5, 0.8);
+}
+
+.ac-house__cup--platinum .ac-house__cup-count { color: #e8f0ff; font-size: 1.45cqh; }
+.ac-house__cup--gold .ac-house__cup-count { color: #ffd76a; }
+.ac-house__cup--silver .ac-house__cup-count { color: #e3e7ec; }
+
+/* 白金杯背后一圈冷光 */
+.ac-house__cup--platinum::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    left: 50%;
+    top: 30%;
+    width: 160%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(210, 228, 255, 0.55), transparent);
+}
+
+/* 每隔几秒扫过一道反光（只在小屋摊开时） */
+.ac-house[data-active] .ac-house__shine {
+    animation: ac-house-shine 5.5s ease-in-out infinite;
+}
+
+@keyframes ac-house-shine {
+    0%, 62% { transform: skewX(-18deg) translateX(0); }
+    80%, 100% { transform: skewX(-18deg) translateX(80px); }
+}
+
+/* ── 地板：地毯、摆件、桌宠 ───────────────────────────────────────────── */
+
+.ac-house__rug {
+    position: absolute;
+    left: 50%;
+    bottom: 5%;
+    width: 64%;
+    height: 15%;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background:
+        radial-gradient(closest-side, transparent 56%, rgba(255, 255, 255, 0.35) 57% 60%, transparent 61%),
+        radial-gradient(closest-side, transparent 76%, rgba(255, 240, 210, 0.5) 77% 81%, transparent 82%),
+        radial-gradient(closest-side, #e48ea2, #c96a82);
+    box-shadow: 0 0.4cqh 0.6cqh rgba(40, 20, 8, 0.35);
+}
+
+.ac-house__books {
+    position: absolute;
+    left: 13%;
+    bottom: 33%;
+    width: 10%;
+    filter: drop-shadow(0 0.3cqh 0.3cqh rgba(40, 20, 8, 0.4));
+}
+
+.ac-house__plant {
+    position: absolute;
+    right: 5%;
+    bottom: 6%;
+    width: 13%;
+    filter: drop-shadow(0 0.6cqh 0.6cqh rgba(40, 20, 8, 0.45));
+}
+
+.ac-house__shadow {
+    position: absolute;
+    left: 50%;
+    bottom: 8.5%;
+    width: 22%;
+    height: 4%;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(40, 16, 20, 0.45), transparent);
+}
+
+/* 视频是 16:9（640×360），角色站在画面中间；按高度放大，左右多出来的透明部分不占点击 */
+.ac-house__pet {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    bottom: 7%;
+    width: 15%;
+    height: 38%;
+    margin: 0;
+    padding: 0;
+    transform: translateX(-50%);
+    border: 0;
+    background: none;
+    cursor: pointer;
+    overflow: visible;
+}
+
+.ac-house__sprite {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    transform: translateX(-50%);
+    pointer-events: none;
+    object-fit: contain;
+}
+
+.ac-house__pet:focus-visible {
+    outline: 2px solid rgba(255, 214, 89, 0.6);
+    outline-offset: 0.4cqh;
+    border-radius: 1cqh;
+}
+
+.ac-house__bubble {
+    position: absolute;
+    z-index: 4;
+    left: calc(50% + 5.5cqh);
+    bottom: 31%;
+    width: max-content;
+    max-width: calc(47% - 5.5cqh); /* 右边别出房间 */
+    padding: 0.9cqh 1.5cqh;
+    transform: translate(0, 0.8cqh) scale(0.96);
+    transform-origin: 0 100%;
+    border-radius: 1.6cqh;
+    font-size: 1.4cqh;
+    line-height: 1.5;
+    color: var(--paper-ink);
+    background: var(--paper);
+    box-shadow: 0 0.6cqh 1.2cqh rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.ac-house__bubble::after {
+    content: '';
+    position: absolute;
+    left: 1.6cqh;
+    bottom: -0.8cqh;
+    border: 0.9cqh solid transparent;
+    border-bottom: 0;
+    border-top-color: var(--paper);
+}
+
+.ac-house__bubble[data-show] {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-house__bubble { transition: none; }
+    .ac-house[data-active] .ac-house__shine,
+    .ac-house__frame[data-fresh] { animation: none; }
+}

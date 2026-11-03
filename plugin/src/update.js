@@ -2,22 +2,35 @@
  * 插件自更新。
  *
  * Millennium 的自动更新对本插件不可靠，所以插件自己问 GitHub 最新 release：
- *   · 进入卡包时静默检查一次（每个 Steam 会话一次）；
- *   · 有新版时弹窗：自动更新 / 前往发布页 / 暂不更新（跳过这一版）；
+ *   · 每次进入卡包都检查（Steam 常常开着好几天，不能只在启动后查一次）；
+ *   · 有新版时卡册右上角一直留着提醒，弹窗等引导和入册动画结束才出现；
+ *   · 弹窗三个选择：自动更新 / 前往发布页 / 暂不更新（这一版不再弹窗，提醒还在）；
+ *   · 关掉弹窗只是这次 Steam 运行期间不再弹；
  *   · 自动更新走后端 Lua：下载 release 资产并替换插件文件，重启 Steam 后生效。
  *
  * 网络与文件写入全部在后端完成，前端只负责展示。后端不可用时退回浏览器 fetch，
  * 这时只提示、不自动安装。
+ *
+ * 和卡册之间走两个 window 事件，主题版没有这边的监听，不受影响：
+ *   ac:update-notice —— 这边告诉卡册该显示什么提醒（detail 为 null 表示没有）；
+ *   ac:update-open   —— 卡册告诉这边可以弹窗了，或者用户点了提醒。
  */
 
 import { ensureNodeStyles } from '../../src/js/ac/env.js';
 import { PLUGIN_NAME, PLUGIN_VERSION } from './mode.js';
 import { openReleasesPage, RELEASES_PAGE } from './release.js';
+import { decideUpdate, releaseNotesText } from './updatelogic.js';
 
 const REPO = 'Kevin0036/steam_achievement_improve';
 const API_LATEST = `https://api.github.com/repos/${REPO}/releases/latest`;
 const STATE_KEY = 'ac:plugin:update:v1';
 const OPEN_CHECK_DELAY_MS = 1200;
+/**
+ * 短时间反复进出卡包时用上一次的结果。GitHub 未登录接口每小时只有 60 次，
+ * 而且按出口 IP 算，共用网络的用户会互相占额度。
+ */
+const RECHECK_GAP_MS = 5 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 15000;
 const REQUIRED_ASSETS = [
     'AchievementCollection-plugin.js',
     'AchievementCollection-backend.lua',
@@ -44,29 +57,14 @@ function writeState(patch) {
     }
 }
 
-/* 只在本个 Steam 会话里限一次；不跨会话节流，否则新版本发布后要等几小时才会提示 */
-let checkedThisSession = false;
-
-/* ── 版本号 ─────────────────────────────────────────────────────────────── */
-
-function versionParts(value) {
-    // 预发布后缀（1.1.7-beta）只影响显示，比较时按 1.1.7 处理，否则内测版永远收不到正式版
-    const cleaned = String(value ?? '').trim().replace(/^v/i, '').split('-')[0];
-    if (!/^\d+(\.\d+)*$/.test(cleaned)) return null;
-    return cleaned.split('.').map((part) => Number.parseInt(part, 10));
-}
-
-export function isNewerVersion(candidate, current) {
-    const a = versionParts(candidate);
-    const b = versionParts(current);
-    if (!a || !b) return false;
-    for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
-        const left = a[i] ?? 0;
-        const right = b[i] ?? 0;
-        if (left !== right) return left > right;
-    }
-    return false;
-}
+/* 下面三项只活在这次 Steam 运行期间：重启之后都该重新判断 */
+/** 最近一次查到的结果；检查失败时不覆盖，继续按它提醒 */
+let lastRelease = null;
+/** 这次运行里装好的版本：后端拿不到版本号时靠它显示「等待重启」 */
+let installedVersion = null;
+/** 用户关掉过弹窗的版本 */
+let dismissedVersion = null;
+let openDialog = null;
 
 /* ── 后端 / 网络 ────────────────────────────────────────────────────────── */
 
@@ -109,6 +107,7 @@ async function fetchFromGitHub() {
     const response = await fetch(API_LATEST, {
         headers: { Accept: 'application/vnd.github+json' },
         cache: 'no-store',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`GitHub API ${response.status}`);
     return normalizeRelease(await response.json());
@@ -121,7 +120,7 @@ async function askGitHub() {
             const info = await callBackend('FetchRelease');
             if (info?.success && typeof info.raw === 'string') {
                 try {
-                    return normalizeRelease(JSON.parse(info.raw));
+                    return { ...normalizeRelease(JSON.parse(info.raw)), onDisk: info.current ?? null };
                 } catch (err) {
                     backendError = err?.message ?? String(err);
                 }
@@ -154,7 +153,7 @@ function resolveHost(host) {
     return cardpack ?? host ?? doc.body;
 }
 
-function showUpdateDialog(info, { host, onSkip, onInstalled } = {}) {
+function showUpdateDialog(info, { host, onSkip, onInstalled, onClosed } = {}) {
     const anchor = resolveHost(host);
     const doc = anchor.ownerDocument;
     ensureNodeStyles(anchor);
@@ -178,7 +177,7 @@ function showUpdateDialog(info, { host, onSkip, onInstalled } = {}) {
     head.append(titles, closeButton);
 
     const notes = el(doc, 'div', 'ac-update__notes');
-    const body = String(info.notes ?? '').trim();
+    const body = releaseNotesText(info.notes);
     notes.textContent = body.length > 1200 ? `${body.slice(0, 1200)}…` : body;
     if (!notes.textContent) notes.hidden = true;
 
@@ -212,6 +211,7 @@ function showUpdateDialog(info, { host, onSkip, onInstalled } = {}) {
         closed = true;
         overlay.remove();
         doc.defaultView?.removeEventListener('keydown', onKeyDown, true);
+        onClosed?.();
     };
     const onKeyDown = (event) => {
         if (event.key !== 'Escape' || event.defaultPrevented || busy) return;
@@ -255,7 +255,7 @@ function showUpdateDialog(info, { host, onSkip, onInstalled } = {}) {
             });
             if (!result?.success) throw new Error(result?.error || '后端返回失败');
             installed = true;
-            writeState({ installedVersion: info.latest, skippedVersion: null });
+            writeState({ skippedVersion: null });
             setStatus(`已安装 v${result.version ?? info.latest}，重启 Steam 后生效。`, 'ok');
             installButton.remove();
             skipButton.textContent = '完成';
@@ -284,51 +284,82 @@ function showUpdateDialog(info, { host, onSkip, onInstalled } = {}) {
 
 let inflight = null;
 
-async function runCheck({ force = false, manual = false, host = null } = {}) {
-    if (!manual && !force && checkedThisSession) {
-        return { status: 'session', current: PLUGIN_VERSION };
-    }
-    checkedThisSession = true;
-    const state = readState();
-
-    let info;
-    try {
-        info = await askGitHub();
-    } catch (err) {
-        writeState({ lastErrorAt: Date.now(), lastError: err?.message ?? String(err) });
-        return { status: 'error', error: err?.message ?? String(err), current: PLUGIN_VERSION };
-    }
-
-    const latest = String(info.latest ?? '').replace(/^v/i, '');
-    const update = isNewerVersion(latest, PLUGIN_VERSION);
-    writeState({ lastCheckAt: Date.now(), lastErrorAt: null, lastError: null });
-
-    if (!update) return { status: 'latest', latest, current: PLUGIN_VERSION };
-    if (state.installedVersion === latest) {
-        return { status: 'installed', latest, current: PLUGIN_VERSION };
-    }
-    if (!manual && state.skippedVersion === latest) {
-        return { status: 'skipped', latest, current: PLUGIN_VERSION };
-    }
-
-    showUpdateDialog(
-        {
-            ...info,
-            latest,
-            current: PLUGIN_VERSION,
-            tag: info.tag || `v${latest}`,
-            notes: info.notes ?? '',
-            assets: info.assets ?? {},
-        },
-        {
-            host,
-            onSkip: () => {},
-        },
-    );
-    return { status: 'update', latest, current: PLUGIN_VERSION };
+function statusOf(info, manual = false) {
+    return decideUpdate({
+        latest: info.latest,
+        running: PLUGIN_VERSION,
+        onDisk: info.onDisk,
+        installed: installedVersion,
+        skipped: readState().skippedVersion,
+        manual,
+    });
 }
 
-export function checkForUpdates(options = {}) {
+/** 把现在该显示的提醒告诉卡册；卡册没开着时没有人听，下次进入会再发一遍 */
+function publishNotice() {
+    const info = lastRelease?.info;
+    const status = info ? statusOf(info) : 'latest';
+    const notice = status === 'latest'
+        ? null
+        : {
+              latest: info.latest,
+              restart: status === 'restart',
+              prompt: status === 'update' && dismissedVersion !== info.latest && !openDialog,
+          };
+    window.dispatchEvent(new CustomEvent('ac:update-notice', { detail: notice }));
+}
+
+/** 弹出更新窗口。已经开着，或者还没有查到结果时什么也不做 */
+export function openUpdateDialog(host = null) {
+    const info = lastRelease?.info;
+    if (!info || openDialog || statusOf(info, true) !== 'update') return;
+    openDialog = showUpdateDialog(
+        { ...info, current: PLUGIN_VERSION },
+        {
+            host,
+            onInstalled: () => {
+                installedVersion = info.latest;
+            },
+            onClosed: () => {
+                openDialog = null;
+                dismissedVersion = info.latest;
+                publishNotice();
+            },
+        },
+    );
+    publishNotice();
+}
+
+async function refreshRelease(manual) {
+    const fresh = lastRelease && Date.now() - lastRelease.at < RECHECK_GAP_MS;
+    if (fresh && !manual) return null;
+    try {
+        const info = await askGitHub();
+        lastRelease = { at: Date.now(), info: { ...info, latest: String(info.latest).replace(/^v/i, '') } };
+        writeState({ lastCheckAt: Date.now(), lastErrorAt: null, lastError: null });
+        return null;
+    } catch (err) {
+        const message = err?.message ?? String(err);
+        writeState({ lastErrorAt: Date.now(), lastError: message });
+        return message;
+    }
+}
+
+async function runCheck({ manual = false, host = null } = {}) {
+    const error = await refreshRelease(manual);
+    const info = lastRelease?.info;
+    // 这次没连上：手动检查要如实告知；自动检查下次进入再试，手里有上次的结果就接着提醒
+    if (error && (manual || !info)) return { status: 'error', error, current: PLUGIN_VERSION };
+
+    const status = statusOf(info, manual);
+    publishNotice();
+    if (manual && status === 'update') openUpdateDialog(host);
+    return { status, latest: info.latest, current: PLUGIN_VERSION };
+}
+
+export async function checkForUpdates(options = {}) {
+    // 手动检查不能吃自动检查的结果：那次可能已经被「暂不更新」拦下，点了按钮却没有反应
+    if (inflight && options.manual) await inflight.catch(() => {});
     if (inflight) return inflight;
     inflight = runCheck(options).finally(() => {
         inflight = null;
@@ -336,7 +367,7 @@ export function checkForUpdates(options = {}) {
     return inflight;
 }
 
-/** 首次进入卡包：让页面先画完，再做一次静默检查 */
+/** 进入卡包：让页面先画完，再静默检查 */
 export function maybeCheckOnOpen(host) {
     window.setTimeout(() => {
         checkForUpdates({ host }).catch(() => {});
@@ -345,7 +376,7 @@ export function maybeCheckOnOpen(host) {
 
 /** 面板里的手动检查 */
 export function checkNow(host) {
-    return checkForUpdates({ force: true, manual: true, host }).catch((err) => ({
+    return checkForUpdates({ manual: true, host }).catch((err) => ({
         status: 'error',
         error: err?.message ?? String(err),
     }));

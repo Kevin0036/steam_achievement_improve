@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就收藏册 · 入册动画</title>
+
+<!--
+  入册动画挑选页。下面的 iframe 是真实的 cardpack.html，动画和音效都是正式代码，
+  按卡片真实的游玩时长分档，这里只是挑一张对应档位的卡在册子上重播。
+  按钮的点击会解锁 iframe 里的音频，所以这里不用先点书页就有声音。
+-->
+
+<style>
+    html, body { margin: 0; height: 100%; color: #ebedf0; font: 13px/1.5 "Be Vietnam Pro", "Microsoft YaHei UI", "Segoe UI", sans-serif; background: #0b0b0c; }
+    * { box-sizing: border-box; }
+    .wrap { display: flex; flex-direction: column; height: 100vh; }
+    .picker { flex: none; display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; padding: 12px 16px; background: #111113; border-bottom: 1px solid #ffffff12; }
+    .tier { flex: 1 1 190px; min-width: 190px; padding: 9px 12px; color: inherit; font: inherit; text-align: left; cursor: pointer; border: 1px solid #ffffff14; border-radius: 10px; background: #18181b; transition: border-color 120ms ease, background 120ms ease; }
+    .tier:hover:not(:disabled) { border-color: #ffffff33; }
+    .tier[aria-pressed="true"] { border-color: #d6b77a; background: #211e18; }
+    .tier:disabled { cursor: wait; opacity: 0.6; }
+    .tier:focus-visible { outline: 2px solid #d6b77a; outline-offset: 2px; }
+    .tier b { display: block; font-size: 13.5px; font-weight: 600; }
+    .tier span { display: block; font-size: 11.5px; color: #8e939b; }
+    .controls { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 6px; font-size: 12px; color: #a3a8b0; }
+    .controls label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .controls select { padding: 2px 6px; color: #ebedf0; font: inherit; border: 1px solid #ffffff22; border-radius: 6px; background: #1d1d20; }
+    .controls select:disabled { opacity: 0.45; }
+    .sweep { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+    .sweep button { padding: 5px 12px; color: inherit; font: inherit; font-size: 12px; cursor: pointer; border: 1px solid #ffffff14; border-radius: 8px; background: #18181b; }
+    .sweep button:hover:not(:disabled) { border-color: #ffffff33; }
+    .sweep button:disabled { cursor: wait; opacity: 0.6; }
+    .sweep button:focus-visible { outline: 2px solid #d6b77a; outline-offset: 2px; }
+    iframe { flex: 1; width: 100%; min-height: 0; border: 0; background: #111; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="picker">
+        <button type="button" class="tier" data-tier="fast" data-style="lightning"><b>闪电 · 15 小时以内</b><span data-role="card">—</span></button>
+        <button type="button" class="tier" data-tier="fast" data-style="fire"><b>火焰 · 15 小时以内</b><span data-role="card">—</span></button>
+        <button type="button" class="tier" data-tier="standard"><b>标准 · 15～50 小时</b><span data-role="card">—</span></button>
+        <button type="button" class="tier" data-tier="heavy"><b>厚重 · 超过 50 小时</b><span data-role="card">—</span></button>
+        <div class="sweep">
+            <button type="button" data-sweep="lightning">闪电 · 依次四个卡槽</button>
+            <button type="button" data-sweep="fire">火焰 · 依次四个卡槽</button>
+        </div>
+        <div class="controls">
+            <label>版式
+                <select id="perPage"><option value="1">一页一张</option><option value="4">一页四张</option></select>
+            </label>
+            <label>卡槽
+                <select id="slot" disabled>
+                    <option value="">默认</option>
+                    <option value="0">左上</option>
+                    <option value="1">右上</option>
+                    <option value="2">左下</option>
+                    <option value="3">右下</option>
+                </select>
+            </label>
+            <label>册子
+                <select id="album">
+                    <option value="grid">方格黑卡</option>
+                    <option value="dots">墨点手账</option>
+                    <option value="astral">月相星图</option>
+                    <option value="velvet">绿绒牌桌</option>
+                </select>
+            </label>
+            <label><input type="checkbox" id="sound" checked> 音效</label>
+        </div>
+    </div>
+    <iframe id="frame" title="入册动画预览"></iframe>
+</div>
+
+<script type="module">
+const frame = document.getElementById('frame');
+const buttons = [...document.querySelectorAll('.tier')];
+const sweeps = [...document.querySelectorAll('[data-sweep]')];
+const perPage = document.getElementById('perPage');
+const album = document.getElementById('album');
+const sound = document.getElementById('sound');
+const slot = document.getElementById('slot');
+let loaded = () => {};
+
+function load() {
+    const query = new URLSearchParams({ binding: 'sequential', fresh: '1', perPage: perPage.value, owner: 'Player' });
+    if (album.value !== 'grid') query.set('album', album.value);
+    if (!sound.checked) query.set('introSound', '0');
+    slot.disabled = perPage.value !== '4';
+    if (slot.disabled) slot.value = '';
+    frame.src = `./cardpack.html?${query}`;
+    return new Promise((resolve) => { loaded = resolve; });
+}
+
+function setBusy(busy) {
+    for (const button of [...buttons, ...sweeps]) button.disabled = busy;
+    perPage.disabled = busy;
+    album.disabled = busy;
+    sound.disabled = busy;
+    slot.disabled = busy || perPage.value !== '4';
+}
+
+const chosenSlot = () => (slot.value === '' ? null : Number(slot.value));
+
+async function run(tier, style, source) {
+    const target = frame.contentWindow;
+    if (!target?.__demoIntro) return;
+    setBusy(true);
+    for (const button of buttons) button.setAttribute('aria-pressed', String(button === source));
+    try {
+        await target.__demoIntro(tier, style, chosenSlot());
+    } finally {
+        setBusy(false);
+    }
+}
+
+/** 四个卡槽依次播一遍：不是四卡版式就先切过去 */
+async function sweep(style) {
+    if (perPage.value !== '4') {
+        perPage.value = '4';
+        await load();
+    }
+    setBusy(true);
+    for (const button of buttons) button.setAttribute('aria-pressed', 'false');
+    try {
+        for (const position of [0, 1, 2, 3]) {
+            slot.value = String(position);
+            await frame.contentWindow.__demoIntro('fast', style, position);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+    } finally {
+        setBusy(false);
+    }
+}
+
+for (const button of buttons) button.addEventListener('click', () => run(button.dataset.tier, button.dataset.style ?? null, button));
+for (const button of sweeps) button.addEventListener('click', () => sweep(button.dataset.sweep));
+for (const control of [perPage, album, sound]) control.addEventListener('change', load);
+
+frame.addEventListener('load', async () => {
+    const target = frame.contentWindow;
+    for (let i = 0; i < 40 && !target.__introCard; i += 1) await new Promise((resolve) => setTimeout(resolve, 100));
+    for (const button of buttons) {
+        const card = target.__introCard?.(button.dataset.tier);
+        const hours = card?.playtimeMin == null ? '' : ` · ${(card.playtimeMin / 60).toFixed(1)}h`;
+        button.querySelector('[data-role="card"]').textContent = card ? `${card.name}${hours}` : '册子里没有这一档的卡';
+        button.disabled = !card;
+    }
+    for (const button of sweeps) button.disabled = false;
+    loaded();
+});
+
+load();
+</script>
+</body>
+</html>

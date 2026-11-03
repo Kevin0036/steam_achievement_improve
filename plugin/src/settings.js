@@ -15,6 +15,7 @@ export const OPTIONS = {
     yearIndex: '书口年份索引',
     yearTree: '年度之树',
     yearTarget: '年度目标款数',
+    introSound: '入册音效',
     dates: '成就卡包：读取完成日期',
 };
 
@@ -31,6 +32,7 @@ export const DEFAULTS = {
     [OPTIONS.yearIndex]: '开启',
     [OPTIONS.yearTree]: '关闭',
     [OPTIONS.yearTarget]: '15',
+    [OPTIONS.introSound]: '开启',
     [OPTIONS.dates]: 'yes',
 };
 
@@ -75,6 +77,7 @@ export function readOptions() {
     if (![ '开启', '关闭' ].includes(merged[OPTIONS.yearIndex])) merged[OPTIONS.yearIndex] = '开启';
     if (![ '开启', '关闭' ].includes(merged[OPTIONS.yearTree])) merged[OPTIONS.yearTree] = '关闭';
     merged[OPTIONS.yearTarget] = normalizeTarget(merged[OPTIONS.yearTarget]);
+    if (![ '开启', '关闭' ].includes(merged[OPTIONS.introSound])) merged[OPTIONS.introSound] = '开启';
     if (![ 'yes', 'no' ].includes(merged[OPTIONS.dates])) merged[OPTIONS.dates] = 'yes';
 
     // 1.1.1 起默认改为「顺序入册」。旧存档分不清「用户真的选过最新优先」还是

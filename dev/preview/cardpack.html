@@ -25,16 +25,19 @@
     ?target=20            年度之树的目标款数（配合 ?tree=1）
     ?tabs=1               书口显示年份索引标签，点击跳到对应年份页
     ?atYear=2025          跳到某一年的年份页（配合 ?years=1）
+    ?stress=100           再复制出 100 张卡放进 2025 年（看一年很多款、册子很厚时的目录、月份足迹和书签翻阅）
     ?face=tree            配合 ?atYear 与 ?tree=1，翻到年度之树
     ?fresh=1              忽略本地保存的年份槽位，用预览默认选择
     ?empty=1              年份槽位全部留空（模拟主题里第一次开启）
-    ?onboard=1            显示第一次进入的新手引导
+    ?onboard=1            显示第一次进入的新手引导（聚光灯式，会摆上和正式页面一样的工具条）
+    ?updateDemo=1         用模拟后端演示新版本提醒和更新弹窗
     ?settings=1           打开阅读设置面板（书口索引 / 年度之树 / 目标滑块）
     ?notice=1             显示 1.1.6 年度之树尝鲜提示
     ?skipYear=2023        模拟这一年没有全成就游戏（检查断档年份的书口标签）
     ?album=velvet         册子风格：dots / astral / velvet
     ?readOnly=1           只读册（和借阅时一样，不能换徽章和封面）
     ?face=months          配合 ?atYear，翻到月份足迹；?face=index 翻到本年目录
+    ?pet=1                假装装了桌宠插件：最后一页「未完待续」换成成就小屋（大肥鱼素材只在预览里）
 -->
 
 <link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
@@ -98,6 +101,7 @@ import { showOnboarding, showTreeNotice } from '/theme/src/js/ac/onboarding.js';
 import { openReadingSettings } from '/theme/src/js/ac/readingpanel.js';
 import { setOptionProvider } from '/theme/src/js/ac/env.js';
 import { createTreePage } from '/theme/src/js/ac/treepage.js';
+import { introTierOf } from '/theme/src/js/ac/introfx.js';
 
 const params = new URLSearchParams(location.search);
 const perPage = params.get('perPage') === '4' ? 4 : 1;
@@ -122,7 +126,23 @@ setOptionProvider((name) => {
     return undefined;
 });
 // fixtures 按完成时间倒序；顺序入册在预览里直接反过来模拟「旧的先入册」
-const base = binding === 'sequential' ? [...CARDS].reverse() : CARDS;
+// ?stress=100 用现有的卡复制出 N 张，分散在 2025 年的各个月：看一年打完很多款、整本册子很厚时的样子
+const stress = Math.max(0, Math.min(2000, Number(params.get('stress')) || 0));
+const SOURCE = stress === 0
+    ? CARDS
+    : [
+          ...CARDS,
+          ...Array.from({ length: stress }, (_, i) => {
+              const card = CARDS[i % CARDS.length];
+              return {
+                  ...card,
+                  appid: 900000000 + i,
+                  name: `${card.name} · ${i + 1}`,
+                  completedAt: Math.floor(new Date(2025, i % 12, 1 + ((i * 7) % 27), 12).getTime() / 1000),
+              };
+          }),
+      ].sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+const base = binding === 'sequential' ? [...SOURCE].reverse() : SOURCE;
 // ?skipYear=2023 把这一年的游戏从册子里拿掉，模拟「这一年一款全成就都没有」的断档
 const skipYear = params.get('skipYear');
 const ALL =
@@ -224,6 +244,20 @@ const book = createBook(host, {
     yearIndex,
     yearSelections,
     readOnly: params.get('readOnly') === '1',
+    // 预览专用：?pet=1 假装装了桌宠插件。正式版由桌宠插件提供素材地址和今日情报。
+    petHouse:
+        params.get('pet') === '1'
+            ? {
+                  name: '大肥鱼',
+                  sprites: Object.fromEntries(
+                      ['idle', 'wave', 'tidy', 'cheer', 'sleep'].map((k) => [k, `./assets/pet/dsh-fish/${k}.webm`]),
+                  ),
+                  credit: '形象：dsh-pet 大肥鱼 · CC BY-NC-SA 4.0',
+                  lines: ['3 位好友在线，2 人在玩《Hades II》', '阿杰刚解锁了一个 1.8% 的稀有成就！', '你离《Celeste》全成就只差 2 个'],
+              }
+            : null,
+    introSound: () => params.get('introSound') !== '0',
+    introFastStyle: () => window.__fastStyle ?? params.get('fast'),
     onYearChange: (year, selection) => {
         yearSelections[year] = selection;
         try {
@@ -243,11 +277,31 @@ const book = createBook(host, {
 });
 if (fresh.length > 0) setTimeout(() => book.introduce(ALL, fresh), 700);
 
+// 预览专用：摆上和 page.js 一样的两条工具条。平时不显示，引导和更新提醒要照到它们
+function mountToolbars() {
+    if (host.querySelector('.ac-page-toolbar')) return;
+    const bar = (className, buttons) => {
+        const node = document.createElement('div');
+        node.className = className;
+        for (const [name, text] of buttons) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = name;
+            button.textContent = text;
+            node.append(button);
+        }
+        host.append(node);
+    };
+    bar('ac-page-toolbar ac-page-toolbar--left', [['ac-borrow-open', '借阅室']]);
+    bar('ac-page-toolbar', [['ac-date-open', '补日期 / 时长'], ['ac-plugin-settings', '设置']]);
+}
+
 // 预览专用：?onboard=1 预览新手引导（正式页面由 page.js 在第一次进入时自动弹出）
 let onboarding = null;
 function openOnboarding() {
     onboarding?.destroy();
-    onboarding = showOnboarding(host, { yearPages }, { onClose: () => { onboarding = null; } });
+    mountToolbars();
+    onboarding = showOnboarding(host, { getBook: () => book, onClose: () => { onboarding = null; } });
     return onboarding;
 }
 window.__onboard = openOnboarding;
@@ -484,6 +538,7 @@ window.__exportBuild = (options = {}) =>
         binding: options.binding ?? binding,
         yearPages: options.yearPages ?? yearPages,
         types: options.types ?? { cards: true, tickets: true, stamps: true },
+        cardIds: options.cardIds ?? null,
         onProgress: options.onProgress ?? null,
     });
 window.__exportTest = async (options = {}) => {
@@ -503,77 +558,108 @@ window.__exportTest = async (options = {}) => {
 };
 
 window.__book = book;
+// 预览专用：演示某一档的入册动画（preview/intro-tiers.html 用）。在已有的册子上直接重播，不用刷新
+let introRunning = false;
+window.__demoIntro = async (tier, fastStyle = null, slot = null) => {
+    if (introRunning) return null;
+    window.__fastStyle = fastStyle;
+    const card = ALL.find((item) => introTierOf(item) === tier);
+    if (!card) return null;
+    introRunning = true;
+    // 指定卡槽：把这张卡换到第一页的那个位置（四卡时 0～3 依次是左上、右上、左下、右下）
+    const order = ALL.filter((item) => item !== card);
+    order.splice(Number.isInteger(slot) ? slot : ALL.indexOf(card), 0, card);
+    try {
+        await book.introduce(order, [card.appid]);
+    } finally {
+        introRunning = false;
+    }
+    return card;
+};
+window.__introCard = (tier) => ALL.find((item) => introTierOf(item) === tier) ?? null;
 window.__replayIntro = (n = 1) => {
     const next = new URLSearchParams(location.search);
     next.set('intro', String(n));
     location.search = next.toString();
 };
 
-// 预览专用：?updateDemo=1 用模拟后端展示插件的「发现新版本」弹窗
+// 预览专用：?updateDemo=1 用模拟后端演示新版本提醒和更新弹窗。
+// 跑的是真实的 update.js，测试可以先放一个自己的 window.Millennium 进来，模拟超时、失败和已安装。
 if (params.get('updateDemo') === '1') {
-    const style = document.createElement('style');
-    style.textContent = `
-        .ac-update { position: fixed; z-index: 2147483200; }
-        .ac-update__panel { width: min(560px, 100%); }
-        .ac-update__notes {
-            max-height: 240px;
-            margin: 14px 0 0;
-            padding: 10px 12px;
-            overflow: auto;
-            color: var(--ac-text-dim);
-            font-size: 12px;
-            line-height: 1.75;
-            white-space: pre-wrap;
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.03);
-        }
-        .ac-update__status { margin: 12px 0 0; color: var(--ac-text-dim); font-size: 12px; line-height: 1.6; }
-        .ac-update__status:empty { display: none; }
-        .ac-update__status.is-ok { color: #8fe2a8; }
-        .ac-update__status.is-error { color: #ff9a9a; }
-        .ac-update .ac-export__foot { flex-wrap: wrap; }
-    `;
-    document.head.append(style);
-    await import('/theme/update-harness.js');
-    const { checkNow } = window.__updateHarness;
-    const asset = (name) =>
-        `https://github.com/Kevin0036/steam_achievement_improve/releases/download/v1.1.3/${name}`;
-    window.Millennium = {
+    const sheet = document.createElement('link');
+    sheet.rel = 'stylesheet';
+    sheet.href = '/theme/plugin/src/ui.css';
+    document.head.append(sheet);
+
+    const asset = (name, size) => [name, {
+        name,
+        size,
+        browser_download_url: `https://github.com/Kevin0036/steam_achievement_improve/releases/download/v1.2.2/${name}`,
+    }];
+    const release = {
+        tag_name: 'v1.2.2',
+        html_url: 'https://github.com/Kevin0036/steam_achievement_improve/releases/tag/v1.2.2',
+        body: [
+            '## 懒人包（第一次安装看这里）',
+            '',
+            '**[AchievementCollection-Lazy-v1.2.2-Windows.zip](https://example.com/lazy.zip)**（约 4 MB）',
+            '',
+            '## v1.2.2 更新内容',
+            '',
+            '### 新手引导',
+            '',
+            '- **聚光灯引导**：一步照亮一个真实的东西，翻页和书签可以当场试。',
+            '- 入册动画按游玩时长分成三档。',
+            '',
+            '## 校验',
+            '',
+            '```text',
+            'sha256 ...',
+            '```',
+        ].join('\n'),
+        assets: [
+            asset('AchievementCollection-plugin.js', 593251),
+            asset('AchievementCollection-backend.lua', 20104),
+            asset('AchievementCollection-showcase.js', 7234),
+            asset('AchievementCollection-showcase.css', 21088),
+        ].map(([, item]) => item),
+    };
+    window.__AC_PLUGIN_VERSION__ = window.__AC_PLUGIN_VERSION__ ?? '1.2.1';
+    window.Millennium = window.Millennium ?? {
         callServerMethod: (plugin, method) => {
-            if (method === 'CheckUpdate') {
-                return Promise.resolve(
-                    JSON.stringify({
-                        success: true,
-                        current: '1.1.2',
-                        latest: '1.1.3',
-                        tag: 'v1.1.3',
-                        url: 'https://github.com/Kevin0036/steam_achievement_improve/releases/tag/v1.1.3',
-                        notes: [
-                            '· 修复成就卡片星芒在部分环境下位置失效的问题',
-                            '· 烫金层改为全册共用一张，卡片出血改用彩色边框',
-                            '· 进入卡包时检查插件更新，可直接下载安装',
-                        ].join('\n'),
-                        assets: {
-                            'AchievementCollection-plugin.js': { url: asset('AchievementCollection-plugin.js'), size: 293251 },
-                            'AchievementCollection-backend.lua': { url: asset('AchievementCollection-backend.lua'), size: 15104 },
-                            'AchievementCollection-showcase.js': { url: asset('AchievementCollection-showcase.js'), size: 7234 },
-                            'AchievementCollection-showcase.css': { url: asset('AchievementCollection-showcase.css'), size: 21088 },
-                        },
-                    }),
-                );
+            if (method === 'FetchRelease') {
+                return Promise.resolve(JSON.stringify({ success: true, current: '1.2.1', raw: JSON.stringify(release) }));
             }
             if (method === 'InstallUpdate') {
-                return new Promise((resolve) =>
-                    setTimeout(() => resolve(JSON.stringify({ success: true, version: '1.1.3' })), 900),
-                );
+                return new Promise((resolve) => {
+                    setTimeout(() => resolve(JSON.stringify({ success: true, version: '1.2.2' })), 900);
+                });
             }
             return Promise.resolve('{}');
         },
     };
-    localStorage.removeItem('ac:plugin:update:v1');
-    sessionStorage.removeItem('ac:plugin:update:session');
-    window.setTimeout(() => checkNow(document.querySelector('[data-ac="cardpack"]')), 600);
+    window.__demoRelease = release;
+
+    mountToolbars();
+    const { checkNow, maybeCheckOnOpen, openUpdateDialog } = await import('/theme/plugin/src/update.js');
+    // 正式页面里这一段在 page.js：工具条上的提醒，以及没有别的浮层时弹窗
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'ac-update-open';
+    pill.style.display = 'none';
+    host.querySelector('.ac-page-toolbar:not(.ac-page-toolbar--left)').prepend(pill);
+    pill.addEventListener('click', () => openUpdateDialog(host));
+    window.addEventListener('ac:update-notice', (event) => {
+        const notice = event.detail;
+        pill.style.display = notice ? '' : 'none';
+        if (!notice) return;
+        pill.disabled = notice.restart;
+        pill.textContent = notice.restart ? '重启 Steam 完成更新' : `新版本 v${notice.latest}`;
+        if (notice.prompt) openUpdateDialog(host);
+    });
+    window.__enterCardPack = () => maybeCheckOnOpen(host);
+    window.__checkNow = () => checkNow(host);
+    window.__enterCardPack();
 }
 </script>
 </body>

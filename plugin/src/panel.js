@@ -338,6 +338,18 @@ function buildPanelComponent(React) {
                 ),
                 row(
                     React,
+                    '入册音效',
+                    '新卡落进卡槽时的轻声提示。',
+                    toggle(
+                        React,
+                        '入册音效',
+                        options[OPTIONS.introSound] === '开启',
+                        (checked) => patch(OPTIONS.introSound, checked ? '开启' : '关闭'),
+                        themeActive,
+                    ),
+                ),
+                row(
+                    React,
                     '读取完成日期',
                     '关闭后不补全每张卡的完成日期，打开卡包更快。',
                     toggle(
@@ -406,7 +418,7 @@ function buildPanelComponent(React) {
                 row(
                     React,
                     '新手引导',
-                    '重新看一遍翻页、封面调整和补日期 / 时长的手势说明。',
+                    '跟着聚光灯重新认一遍翻页、书签、封面取景、月份足迹这些操作。',
                     h(
                         'button',
                         { type: 'button', className: 'ac-plugin-btn is-ghost', onClick: requestOnboarding },
@@ -468,7 +480,7 @@ function buildPanelComponent(React) {
                 row(
                     React,
                     '插件版本',
-                    '进入卡包时会自动检查更新，也可以在这里手动检查。',
+                    '每次进入卡包都会检查更新，有新版时卡册右上角会提醒；也可以在这里手动检查。',
                     h('span', { className: 'ac-plugin-version' }, `v${VERSION}`),
                 ),
                 h(
@@ -484,7 +496,7 @@ function buildPanelComponent(React) {
                                 const result = await checkNow(rootRef.current);
                                 if (result.status === 'latest') {
                                     setUpdateMessage(`已是最新版本 v${result.latest}。`);
-                                } else if (result.status === 'installed') {
+                                } else if (result.status === 'restart') {
                                     setUpdateMessage(`v${result.latest} 已下载，重启 Steam 后生效。`);
                                 } else if (result.status === 'error') {
                                     setUpdateMessage(result.error || '检查更新失败。');

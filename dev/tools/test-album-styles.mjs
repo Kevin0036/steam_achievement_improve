@@ -21,7 +21,7 @@ before(async () => {
     server = createPreviewServer();
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     base = `http://127.0.0.1:${server.address().port}`;
-    browser = await chromium.launch({ channel: 'msedge', headless: true });
+    browser = await chromium.launch({ ...(process.env.AC_CHROMIUM ? { executablePath: process.env.AC_CHROMIUM } : { channel: 'msedge' }), headless: true });
 });
 
 after(async () => {
@@ -97,7 +97,7 @@ test('年度之树的代码还在：?tree=1 能走到保留的旧路径', async 
 test('阅读设置：四款可选、没有树的开关，选中后写进本机设置', async () => {
     const { page, errors } = await open(`${BASE}&settings=1`, '.ac-set__chip');
     await page.waitForSelector('.ac-set__chip');
-    assert.deepEqual(await page.locator('.ac-set__chip').allTextContents(), ['方格黑卡', '墨点手账', '星图', '丝绒展柜']);
+    assert.deepEqual(await page.locator('.ac-set__chip').allTextContents(), ['方格黑卡', '墨点手账', '月相星图', '绿绒牌桌']);
     assert.equal(await page.locator('.ac-set__range').count(), 0, '年度目标滑块应该收起');
     assert.equal(await page.getByText('年度之树').count(), 0);
     await page.locator('.ac-set__chip[data-album-id="astral"]').click();
@@ -259,7 +259,7 @@ test('单卡用同一张边框：单卡和四卡的装饰是统一的', async ()
     await four.page.close();
 });
 
-test('丝绒：边框换成黄铜展盘后，卡片不再各带一圈黄铜', async () => {
+test('绿绒牌桌：卡片不再各带一圈黄铜', async () => {
     for (const query of ['binding=sequential&fresh=1&at=5&album=velvet', 'binding=sequential&perPage=4&fresh=1&at=9&album=velvet']) {
         const { page } = await open(query, '.ac-slot');
         const shadow = await page.evaluate(() =>
@@ -294,6 +294,6 @@ test('风格挑选页只有四款', async () => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await page.goto(`${base}/preview/album-styles.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.style');
-    assert.deepEqual(await page.locator('.style b').allTextContents(), ['方格黑卡', '墨点手账', '星图', '丝绒展柜']);
+    assert.deepEqual(await page.locator('.style b').allTextContents(), ['方格黑卡', '墨点手账', '月相星图', '绿绒牌桌']);
     await page.close();
 });

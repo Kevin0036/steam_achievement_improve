@@ -214,6 +214,9 @@
     mask: var(--ac-sparkle) center / contain no-repeat;
     filter: drop-shadow(0 0 0.8cqw rgba(255, 214, 89, 0.6));
     transform: translate(-50%, -50%);
+    /* 基础亮度要和动画首帧一致：等 animation-delay、以及减少动态效果关掉动画时，
+       显示的都是这里的值。不写就是不透明度 1，翻页后星星会亮得刺眼，过几秒才恢复 */
+    opacity: 0.95;
     animation: ac-twinkle 3.6s ease-in-out infinite;
 }
 
@@ -225,6 +228,7 @@
 .ac-cf__spark--dust {
     background: #fff;
     filter: none;
+    opacity: 0.32;
     animation-name: ac-twinkle-dust;
     animation-duration: 5s;
 }

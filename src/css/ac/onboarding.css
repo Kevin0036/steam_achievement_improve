@@ -1,9 +1,300 @@
 /* ============================================================================
  * 成就收藏册 · 第一次进入的引导
  * ----------------------------------------------------------------------------
- * 盖住整本册子的深色面板：一页只讲一件事，用「上一页 / 下一页」与圆点翻页。
+ * .ac-guide 是聚光灯引导：遮罩上挖一个洞，旁边一个小说明框。
+ * .ac-onboarding 是单页的提示面板（年度之树的尝鲜提示在用）。
  * 尺寸用 px / clamp —— 宿主可能是整页，也可能是插件的小模态窗口。
  * ==========================================================================*/
+
+.ac-guide {
+    position: absolute;
+    inset: 0;
+    z-index: 620;
+    pointer-events: none;
+    color: var(--ac-text);
+    font-family: var(--ac-font);
+    -webkit-user-select: none;
+    user-select: none;
+    animation: ac-onboarding-fade 240ms ease-out both;
+}
+
+/* 取景编辑器开着时整层让开 */
+.ac-guide.is-away {
+    visibility: hidden;
+}
+
+.ac-guide.is-leaving * {
+    pointer-events: none !important;
+}
+
+.ac-guide__mask {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+    background: rgba(6, 7, 10, 0.66);
+    transition: clip-path 380ms var(--ac-ease-out);
+}
+
+/* 不能动手的步骤：透明地盖住聚光灯，只看不碰 */
+.ac-guide__shield {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+}
+
+.ac-guide[data-try] .ac-guide__shield {
+    display: none;
+}
+
+.ac-guide__ring {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1.5px solid rgba(240, 215, 142, 0.92);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 20px rgba(240, 215, 142, 0.32);
+    transition:
+        left 380ms var(--ac-ease-out),
+        top 380ms var(--ac-ease-out),
+        width 380ms var(--ac-ease-out),
+        height 380ms var(--ac-ease-out),
+        border-radius 380ms var(--ac-ease-out),
+        border-color 180ms ease;
+}
+
+/* 可以动手的步骤：外圈一直往外扩，提示这里能操作 */
+.ac-guide[data-try] .ac-guide__ring::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border: 1.5px solid rgba(240, 215, 142, 0.8);
+    border-radius: inherit;
+    opacity: 0;
+    animation: ac-guide-pulse 1900ms ease-out infinite;
+}
+
+.ac-guide.is-done .ac-guide__ring {
+    border-color: #8fe2a8;
+}
+
+.ac-guide.is-done .ac-guide__ring::after {
+    animation: none;
+}
+
+/* 书签太小，光有聚光灯还是不知道怎么用：让它自己往下探一探 */
+.ac-book__ribbon[data-guide-nudge]:not([data-pulling]) {
+    animation: ac-guide-nudge 1500ms ease-in-out infinite;
+}
+
+.ac-guide__tip {
+    position: absolute;
+    box-sizing: border-box;
+    width: 292px;
+    max-width: calc(100% - 24px);
+    padding: 12px 16px 14px;
+    pointer-events: auto;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #24262d 0%, #191a20 100%);
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.ac-guide__tip.is-enter {
+    animation: ac-guide-tip 260ms var(--ac-ease-out) 90ms both;
+}
+
+/* 指向目标的小箭头：说明框在目标哪一侧，箭头就长在相反的那条边上 */
+.ac-guide__tip::before {
+    content: "";
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    box-sizing: border-box;
+    transform: rotate(45deg);
+    border: 0 solid rgba(255, 255, 255, 0.11);
+    background: #1f2026;
+}
+
+.ac-guide__tip[data-side="left"]::before {
+    top: var(--ac-guide-arrow);
+    right: -6.5px;
+    margin-top: -5.5px;
+    border-width: 1px 1px 0 0;
+}
+
+.ac-guide__tip[data-side="right"]::before {
+    top: var(--ac-guide-arrow);
+    left: -6.5px;
+    margin-top: -5.5px;
+    border-width: 0 0 1px 1px;
+}
+
+.ac-guide__tip[data-side="top"]::before {
+    bottom: -6.5px;
+    left: var(--ac-guide-arrow);
+    margin-left: -5.5px;
+    border-width: 0 1px 1px 0;
+}
+
+.ac-guide__tip[data-side="bottom"]::before {
+    top: -6.5px;
+    left: var(--ac-guide-arrow);
+    margin-left: -5.5px;
+    border-width: 1px 0 0 1px;
+    background: #24262d;
+}
+
+.ac-guide__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 22px;
+}
+
+.ac-guide__count {
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+    color: rgba(243, 223, 166, 0.72);
+}
+
+.ac-guide__skip {
+    padding: 2px 0;
+    font: 500 11px/1.4 var(--ac-font);
+    color: rgba(255, 255, 255, 0.46);
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    transition: color 140ms ease;
+}
+
+.ac-guide__skip:hover,
+.ac-guide__skip:focus-visible {
+    color: rgba(255, 255, 255, 0.85);
+    outline: none;
+}
+
+.ac-guide__title {
+    margin: 6px 0 0;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: 0.06em;
+    color: #f6f3ec;
+}
+
+.ac-guide__desc {
+    margin: 5px 0 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.ac-guide__status {
+    margin: 7px 0 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: rgba(243, 223, 166, 0.78);
+}
+
+.ac-guide.is-done .ac-guide__status {
+    font-weight: 600;
+    color: #8fe2a8;
+}
+
+.ac-guide__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.ac-guide__prev,
+.ac-guide__next {
+    height: 30px;
+    padding: 0 14px;
+    font: 600 12px/1 var(--ac-font);
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    border-radius: 999px;
+    transition: color 140ms ease, border-color 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.ac-guide__prev {
+    color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: transparent;
+}
+
+.ac-guide__prev:hover:not(:disabled),
+.ac-guide__prev:focus-visible:not(:disabled) {
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.32);
+    outline: none;
+}
+
+.ac-guide__prev:disabled {
+    opacity: 0.32;
+    cursor: default;
+}
+
+.ac-guide__next {
+    color: #eaf6ff;
+    border: 1px solid rgba(102, 192, 244, 0.55);
+    background: rgba(42, 71, 94, 0.9);
+}
+
+.ac-guide__next:hover,
+.ac-guide__next:focus-visible {
+    color: #ffffff;
+    border-color: #66c0f4;
+    background: rgba(58, 92, 120, 0.95);
+    outline: none;
+}
+
+.ac-guide__next.is-finish {
+    color: #221f17;
+    border-color: rgba(232, 200, 116, 0.9);
+    background: linear-gradient(180deg, #f0d78e, #cfae5f);
+}
+
+.ac-guide__next.is-finish:hover,
+.ac-guide__next.is-finish:focus-visible {
+    color: #17140d;
+    border-color: #ffe6a0;
+    background: linear-gradient(180deg, #ffe9ad, #dcbb6d);
+}
+
+@keyframes ac-guide-tip {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ac-guide-pulse {
+    0% { opacity: 0.85; transform: scale(1); }
+    70%, 100% { opacity: 0; transform: scale(1.035); }
+}
+
+@keyframes ac-guide-nudge {
+    0%, 55%, 100% { transform: translateY(0); }
+    28% { transform: translateY(5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-guide,
+    .ac-guide__tip.is-enter {
+        animation-duration: 1ms;
+    }
+
+    .ac-guide__mask,
+    .ac-guide__ring {
+        transition: none;
+    }
+
+    .ac-guide[data-try] .ac-guide__ring::after,
+    .ac-book__ribbon[data-guide-nudge]:not([data-pulling]) {
+        animation: none;
+    }
+}
 
 .ac-onboarding {
     position: absolute;
@@ -90,10 +381,6 @@
     padding: clamp(8px, 2vh, 16px) 0 0;
 }
 
-.ac-onboarding__slide.is-enter {
-    animation: ac-onboarding-slide 260ms var(--ac-ease-out) both;
-}
-
 .ac-onboarding__title {
     margin: 0;
     padding-left: 0.24em;
@@ -115,41 +402,6 @@
     font-size: 13px;
     line-height: 1.85;
     color: rgba(255, 255, 255, 0.62);
-}
-
-.ac-onboarding__dots {
-    display: flex;
-    justify-content: center;
-    gap: 7px;
-    margin-top: auto;
-    padding-top: 18px;
-}
-
-.ac-onboarding__dot {
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    font: 600 10px/1 var(--ac-font);
-    font-variant-numeric: tabular-nums;
-    color: rgba(255, 255, 255, 0.38);
-    cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 50%;
-    background: transparent;
-    transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
-}
-
-.ac-onboarding__dot:hover,
-.ac-onboarding__dot:focus-visible {
-    color: rgba(255, 255, 255, 0.78);
-    border-color: rgba(255, 255, 255, 0.28);
-    outline: none;
-}
-
-.ac-onboarding__dot.is-active {
-    color: #1c1b17;
-    border-color: rgba(232, 200, 116, 0.9);
-    background: linear-gradient(180deg, #f0d78e, #cfae5f);
 }
 
 .ac-onboarding__foot {
@@ -250,11 +502,6 @@
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes ac-onboarding-slide {
-    from { opacity: 0; transform: translateY(9px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
 @media (max-width: 560px) {
     .ac-onboarding {
         padding: 14px;
@@ -278,8 +525,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .ac-onboarding,
-    .ac-onboarding__panel,
-    .ac-onboarding__slide.is-enter {
+    .ac-onboarding__panel {
         animation-duration: 1ms;
     }
 }

@@ -104,6 +104,32 @@ test('missing date persists cooldown and manual entry across disposal/reopen', a
     assert.equal(store.getState().cards[0].completedAtSource, 'manual');
 });
 
+test('clearing a manual date on a later open puts the card back in the fill-in list', async () => {
+    reset(); dateMode = 'missing'; await loaded();
+    assert.ok(store.setManualDate(1001, now - 12));
+    store.dispose(); await loaded();
+    assert.equal(store.getState().dates.unavailable.has(1001), false, 'a manually dated card is not missing anything');
+    assert.ok(store.clearManualDate(1001));
+    assert.equal(store.getState().cards[0].completedAt, null);
+    assert.ok(store.getState().dates.unavailable.has(1001), 'the card must stay reachable from the fill-in button');
+
+    store.setManualDate(1001, now - 12);
+    store.dispose(); await loaded();
+    assert.equal(store.clearAllManualEntries(), 1);
+    assert.ok(store.getState().dates.unavailable.has(1001));
+});
+
+test('date reading turned off keeps undated cards fillable after the cooldown expires', async () => {
+    reset(); dateMode = 'missing'; await loaded();
+    const actualNow = Date.now;
+    try {
+        Date.now = () => actualNow() + 8 * 86400000;
+        store.dispose(); store.setDatesEnabled(false); await loaded();
+        assert.equal(store.getState().cards[0].completedAt, null);
+        assert.ok(store.getState().dates.unavailable.has(1001));
+    } finally { Date.now = actualNow; }
+});
+
 test('rarity/art failures cool down independently from successful dates', async () => {
     reset(); globalMode = 'error'; assetsMode = 'error';
     await store.load(); await waitFor(() => !store.getState().dates.running && globalCalls.length === 1 && artCalls.length === 1);

@@ -246,7 +246,7 @@
     --album-board-size: 120px 120px, auto;
     --album-board-blend: soft-light, normal;
     --album-stitch: rgba(214, 183, 122, 0.36);
-    --album-ribbon: linear-gradient(90deg, #8c6f35 0%, #e0c078 48%, #8c6f35 100%);
+    --album-ribbon: linear-gradient(90deg, #6a2db3 0%, #c394f7 48%, #6a2db3 100%);
     --album-paper:
         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'%3E%3Cg fill='none' stroke='%23a9bbf0' stroke-opacity='.13' stroke-width='.8'%3E%3Ccircle cx='300' cy='300' r='282'/%3E%3Ccircle cx='300' cy='300' r='196'/%3E%3Ccircle cx='300' cy='300' r='104' stroke-dasharray='2 5'/%3E%3Cpath d='M18 300H582M300 18V582M100 100 500 500M500 100 100 500' stroke-dasharray='1 6'/%3E%3C/g%3E%3Cg fill='none' stroke='%23d6b77a' stroke-opacity='.32' stroke-width='.8'%3E%3Cpath d='M86 150 146 98 214 134 264 86M214 134 238 208 176 250M406 424 462 372 530 408 512 482 442 500Z'/%3E%3Cpath d='M338 172 398 146 448 192 500 170'/%3E%3C/g%3E%3Cg fill='%23f0e6c8'%3E%3Ccircle cx='86' cy='150' r='2.2'/%3E%3Ccircle cx='146' cy='98' r='1.6'/%3E%3Ccircle cx='214' cy='134' r='2.6'/%3E%3Ccircle cx='264' cy='86' r='1.5'/%3E%3Ccircle cx='238' cy='208' r='1.7'/%3E%3Ccircle cx='176' cy='250' r='2'/%3E%3Ccircle cx='406' cy='424' r='2.3'/%3E%3Ccircle cx='462' cy='372' r='1.6'/%3E%3Ccircle cx='530' cy='408' r='2.5'/%3E%3Ccircle cx='512' cy='482' r='1.5'/%3E%3Ccircle cx='442' cy='500' r='1.9'/%3E%3Ccircle cx='338' cy='172' r='1.5'/%3E%3Ccircle cx='398' cy='146' r='2.3'/%3E%3Ccircle cx='448' cy='192' r='1.6'/%3E%3Ccircle cx='500' cy='170' r='1.9'/%3E%3C/g%3E%3Cg fill='%23c9d4f4' fill-opacity='.5'%3E%3Ccircle cx='60' cy='420' r='1'/%3E%3Ccircle cx='128' cy='336' r='1.2'/%3E%3Ccircle cx='204' cy='470' r='.9'/%3E%3Ccircle cx='288' cy='392' r='1.1'/%3E%3Ccircle cx='340' cy='530' r='.9'/%3E%3Ccircle cx='372' cy='284' r='1'/%3E%3Ccircle cx='556' cy='296' r='1.2'/%3E%3Ccircle cx='470' cy='64' r='1'/%3E%3Ccircle cx='32' cy='52' r='.9'/%3E%3Ccircle cx='582' cy='560' r='1'/%3E%3C/g%3E%3C/svg%3E"),
         linear-gradient(180deg, #131a33, #0f152b 40%, #0b1022);
@@ -261,13 +261,13 @@
     --album-recess: rgba(4, 7, 18, 0.5);
 }
 
-/* 丝绒展柜：胡桃木外框 + 祖母绿绒面，卡片嵌在黄铜展盘里 */
+/* 绿绒牌桌（id 沿用 velvet）：胡桃木围栏 + 绿绒台面，边框是筹码和花色 */
 .ac-cardpack[data-album="velvet"] {
     --album-board:
         repeating-linear-gradient(91deg, rgba(0, 0, 0, 0.16) 0 0.4cqh, transparent 0.4cqh 1.5cqh, rgba(255, 216, 170, 0.035) 1.5cqh 2cqh, transparent 2cqh 3.1cqh),
         linear-gradient(180deg, #4a2d1b, #2c1a0f);
     --album-stitch: rgba(205, 169, 104, 0.46);
-    --album-ribbon: linear-gradient(90deg, #7f6530 0%, #d9bb74 48%, #7f6530 100%);
+    --album-ribbon: linear-gradient(90deg, #7a1f1c 0%, #bb3b33 48%, #7a1f1c 100%);
     --album-paper:
         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .7 0 0 0 0 .95 0 0 0 0 .85 0 0 0 .34 -.12'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"),
         radial-gradient(95% 80% at 42% 30%, #17594c 0%, #0f4035 58%, #0a2c25 100%);

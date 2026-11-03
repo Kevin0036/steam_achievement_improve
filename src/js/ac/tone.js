@@ -13,6 +13,8 @@
  * 取样失败（跨域、404、解码失败）时返回 null，调用方用默认底色。
  */
 
+import { sampleBitmap } from './samplebitmap.js';
+
 const STORE_KEY = 'ac:v1:tone';
 
 export const DEFAULT_TONE = { h: 222, s: 0.1, l: 0.24 };
@@ -69,6 +71,9 @@ function mute({ h, s, l }) {
     };
 }
 
+/** 取样只要 32×12 的格子，先缩到这个宽度就足够 */
+const SAMPLE_BITMAP_W = 256;
+
 function loadImage(doc, url) {
     return new Promise((resolve, reject) => {
         const img = doc.createElement('img');
@@ -86,9 +91,10 @@ function loadImage(doc, url) {
  * @param {number} visibleRatio  卡片上露出部分的宽高比（宽 / 高）
  */
 async function sample(doc, url, visibleRatio) {
-    const img = await loadImage(doc, url);
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
+    // 先缩成小图再裁：比例不变，裁出来的还是卡面上露出的那一段
+    const img = (await sampleBitmap(doc, url, SAMPLE_BITMAP_W)) ?? (await loadImage(doc, url));
+    const w = img.naturalWidth ?? img.width;
+    const h = img.naturalHeight ?? img.height;
     if (!w || !h) return null;
 
     // object-fit: cover 时露出来的那一段
@@ -105,6 +111,7 @@ async function sample(doc, url, visibleRatio) {
     canvas.height = H;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(img, sx, sy, cropW, sh, 0, 0, W, H);
+    img.close?.();
     const { data } = ctx.getImageData(0, 0, W, H); // 跨域污染时这里会抛
 
     let r = 0;
@@ -146,6 +153,12 @@ export async function getTone(doc, appid, urls, visibleRatio = 1.3) {
         }
     }
     return null;
+}
+
+/** 只查缓存、不采样：书签翻阅时飞过的页用这个，采样要在主线程解码图片 */
+export function peekTone(appid) {
+    const cached = readStore()[appid];
+    return Array.isArray(cached) && cached.length === 3 ? { h: cached[0], s: cached[1], l: cached[2] } : null;
 }
 
 /** 预览 / 自检用：清空缓存 */

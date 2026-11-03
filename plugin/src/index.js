@@ -12,7 +12,7 @@ import { PLUGIN_VERSION, PLUGIN_NAME } from './mode.js';
 import './styles.js';
 import { waitForGlobal } from '../../src/js/ac/env.js';
 import { buildPanel, buildPanelContent } from './panel.js';
-import { maybeCheckOnOpen } from './update.js';
+import { maybeCheckOnOpen, openUpdateDialog } from './update.js';
 
 const GUARD = Symbol.for('ac.plugin.runtime');
 
@@ -109,6 +109,9 @@ async function bootstrap() {
     window.addEventListener('ac:open-settings', openPluginSettings);
     window.addEventListener('ac:cardpack-opened', (event) => {
         maybeCheckOnOpen(event?.detail?.host ?? null);
+    });
+    window.addEventListener('ac:update-open', (event) => {
+        openUpdateDialog(event?.detail?.host ?? null);
     });
     log(`已启动 · v${PLUGIN_VERSION}`);
 }
