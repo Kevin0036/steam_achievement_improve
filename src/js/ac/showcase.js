@@ -11,6 +11,7 @@
  *      数字本身一个都不动。
  *
  * 徽章、隐藏「X 项为稀有」等纯视觉的部分全在 showcase.css 里，不需要 JS。
+ * 例外是蓝紫徽章：要查这款游戏的 DLC 成就集合是不是全打通了，见 showcasesets.js。
  *
  * 幂等：每个元素各自用 data 属性判断是否处理过；社区页面在编辑模式切换时会
  * 局部重渲染，重入时只处理新出现的节点。
@@ -18,6 +19,7 @@
 
 import { SHOWCASE } from './selectors.js';
 import { repairShowcaseCovers } from './showcaseart.js';
+import { markAllSets } from './showcasesets.js';
 import { SHOWCASE_STR } from './showcaseStrings.js';
 import { tagged } from './utils.js';
 
@@ -69,5 +71,5 @@ export function enhanceShowcase(root) {
         out.log(`展柜已识别：${root.querySelectorAll(SHOWCASE.slot).length} 个格子`);
     }
 
-    return tidyStats(root) + repairShowcaseCovers(root);
+    return tidyStats(root) + repairShowcaseCovers(root) + markAllSets(root);
 }

@@ -64,8 +64,8 @@ export const HEAVY_END = HEAVY_LAND_AT + HEAVY.settle;
 
 const clamp01 = (value) => Math.min(1, Math.max(0, value));
 
-/** 铺在书上的一块画布，坐标系就是书内坐标；四周留白给飞出书外的火星和电弧 */
-function createFxCanvas({ doc, book, size, addExtra }) {
+/** 铺在书上的一块画布，坐标系就是书内坐标；四周留白给飞出书外的火星和电弧（徽章翻新的光球也画在这上面） */
+export function createFxCanvas({ doc, book, size, addExtra }) {
     const win = doc.defaultView;
     const padX = size.width * 0.12;
     const padTop = size.height * 0.28;

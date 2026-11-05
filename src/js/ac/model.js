@@ -11,6 +11,34 @@
  *   3. 客户端数据与我们的缓存冲突时一律以客户端为准。
  */
 
+/**
+ * 进度条目里有没有成就集合的字段（Steam 2026-10 起的进度接口才有）。
+ * 有的话「全成就」看本体集合：groups_completed_base / groups_total_base 是非 DLC 集合的完成数 / 总数，
+ * DLC 集合另算，不拖累本体（详见 summarizeSets）。
+ */
+export function hasSetProgress(entry) {
+    return Number.isFinite(entry?.groups_total_base) && entry.groups_total_base > 0 && Number.isFinite(entry?.groups_completed_base);
+}
+
+/**
+ * 进度条目看起来用了成就集合：有 DLC 集合、本体拆成了几个集合，或者本体总数和总数对不上。
+ * 只有一个本体集合、DLC 集合又没买的游戏（例如编程农场）从进度上看不出来，
+ * 要等完整成就表和进度对不上时才去查（见 store.js 的 confirmCompletions）。
+ */
+export function suspectSets(entry) {
+    if (!hasSetProgress(entry)) return false;
+    if ((entry.groups_total_dlc ?? 0) > 0 || entry.groups_total_base > 1) return true;
+    return Number.isFinite(entry.base_game_total) && Number.isFinite(entry.total) && entry.base_game_total !== entry.total;
+}
+
+/** 集合进度的指纹：变了就要重新查一次集合（买了 DLC、打通了一个集合、游戏加了集合……） */
+export function setSignature(entry) {
+    if (!hasSetProgress(entry)) return null;
+    const n = (v) => (Number.isFinite(v) ? v : '-');
+    return [entry.unlocked, entry.total, entry.groups_completed_base, entry.groups_total_base,
+        entry.groups_completed_dlc, entry.groups_total_dlc, entry.base_game_total].map(n).join('/');
+}
+
 /** 全成就判定的唯一入口 */
 export function classify(entry) {
     if (!entry || typeof entry !== 'object') return 'unknown';
@@ -19,6 +47,12 @@ export function classify(entry) {
 
     // 铁律 1：total 为空或 0 => 数据缺失，绝不判为未完成
     if (!Number.isFinite(total) || total <= 0) return 'unknown';
+
+    // 用了成就集合的口径：本体集合都完成就算全成就，DLC 集合没打完（或没买）不影响。
+    // Steam 的规则是集合完成后一直算完成，之后加了成就也一样，这里照它来。
+    if (hasSetProgress(entry)) {
+        return entry.groups_completed_base >= entry.groups_total_base ? 'complete' : 'incomplete';
+    }
 
     if (allUnlocked === true) return 'complete';
 
@@ -249,6 +283,162 @@ export function computeRarityCounts(data, expectedTotal) {
         }
     }
     return { rare, common, unrated };
+}
+
+/* ── 成就集合 ───────────────────────────────────────────────────────────── */
+
+/** 本体集合的 groupid：Steam 里不属于任何自建集合的成就都在 0 号组 */
+export const BASE_GROUP_ID = 0;
+
+/**
+ * 把 Player.GetGameAchievements（成就表 + 集合）和 Player.GetUserAchievements（个人解锁 + 集合完成）
+ * 汇总成本体 / DLC 两份成绩单。口径照 Steam 客户端自己的成就页（steamui 里的 15777 / 86537 模块）：
+ *   · 一个成就算不算进它的集合：集合本身归档了，或者这个成就没归档，或者你解锁过它；
+ *   · 集合完成：Steam 记的 is_completed（完成之后一直算完成），或者算进去的成就全解锁了；
+ *   · 集合看不看得见：里面有没归档的成就，或者有你解锁过的；开发者专用集合不算；
+ *   · 「用了成就集合」：看得见的集合多于一个，或者唯一的那个不是 0 号本体组。
+ * 本体 = 所有非 DLC 集合（包括开发者自建的「全体玩家可得」集合），DLC = 限定 DLC 拥有者的集合。
+ * 没买的 DLC 集合拿不到，自然完成不了：这时只算本体全成就（蓝徽章）。
+ *
+ * 稀有 / 普通只数已经解锁的成就：完成过的集合后来加了新成就时，卡面不把还没拿到的算进去。
+ *
+ * @param {{groups?:object[], achievements?:object[], user?:{achievements?:object[], groups?:object[]}}|null} raw
+ * @returns {null | {
+ *   hasSets: boolean, allSets: boolean, dlcSets: number, dlcCompleted: number,
+ *   base: SetScope, all: SetScope, groups: object[] }}
+ *   SetScope = { total, achieved, rare, common, unrated, complete, completedAt }
+ */
+export function summarizeSets(raw) {
+    const rows = raw?.achievements;
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+
+    const unlockedBy = new Map();
+    for (const row of raw.user?.achievements ?? []) {
+        if (Number.isInteger(row?.internal_key)) unlockedBy.set(row.internal_key, row);
+    }
+    const userGroups = new Map();
+    for (const row of raw.user?.groups ?? []) userGroups.set(row?.groupid ?? BASE_GROUP_ID, row);
+
+    const groups = new Map([[BASE_GROUP_ID, { id: BASE_GROUP_ID, dlcappid: 0, archived: false, developeronly: false, name: '', rows: [] }]]);
+    for (const g of raw.groups ?? []) {
+        const id = g?.groupid ?? BASE_GROUP_ID;
+        groups.set(id, {
+            id,
+            dlcappid: Number(g?.dlcappid) || 0,
+            archived: g?.archived === true,
+            developeronly: g?.developeronly === true,
+            name: g?.localized_name ?? '',
+            rows: groups.get(id)?.rows ?? [],
+        });
+    }
+    for (const row of rows) {
+        const id = row?.groupid ?? BASE_GROUP_ID;
+        if (!groups.has(id)) groups.set(id, { id, dlcappid: 0, archived: false, developeronly: false, name: '', rows: [] });
+        groups.get(id).rows.push(row);
+    }
+
+    const isUnlocked = (row) => unlockedBy.get(row.internal_key)?.unlocked === true;
+    const counts = (group, row) => group.archived || row.archived !== true || isUnlocked(row);
+    const visible = (group) =>
+        !group.developeronly && group.rows.some((row) => (!group.archived && row.archived !== true) || isUnlocked(row));
+
+    const summaries = [];
+    for (const group of groups.values()) {
+        if (!visible(group)) continue;
+        let total = 0;
+        let achieved = 0;
+        let rare = 0;
+        let common = 0;
+        let unrated = 0;
+        let latest = 0;
+        for (const row of group.rows) {
+            if (!counts(group, row)) continue;
+            total += 1;
+            if (!isUnlocked(row)) continue;
+            achieved += 1;
+            const raw = row.player_percent_unlocked;
+            const pct = typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '') ? Number(raw) : NaN;
+            if (!Number.isFinite(pct) || pct < 0 || pct > 100) unrated += 1;
+            else if (pct < RARE_THRESHOLD) rare += 1;
+            else common += 1;
+            const ts = toSeconds(unlockedBy.get(row.internal_key)?.unlock_time);
+            if (ts != null && ts > latest) latest = ts;
+        }
+        const flag = userGroups.get(group.id);
+        summaries.push({
+            id: group.id,
+            name: group.name,
+            dlcappid: group.dlcappid,
+            dlc: group.dlcappid !== 0,
+            total,
+            achieved,
+            rare,
+            common,
+            unrated,
+            latest,
+            complete: flag?.is_completed === true || (total > 0 && achieved === total),
+            achievable: flag?.is_achievable === true,
+        });
+    }
+
+    const scope = (list) => {
+        const sum = (key) => list.reduce((acc, g) => acc + g[key], 0);
+        const latest = list.reduce((acc, g) => Math.max(acc, g.latest), 0);
+        return {
+            total: sum('total'),
+            achieved: sum('achieved'),
+            rare: sum('rare'),
+            common: sum('common'),
+            unrated: sum('unrated'),
+            complete: list.length > 0 && list.every((g) => g.complete),
+            completedAt: latest > 0 && latest <= Date.now() / 1000 + 86400 ? latest : null,
+        };
+    };
+    const base = scope(summaries.filter((g) => !g.dlc));
+    const dlc = summaries.filter((g) => g.dlc);
+    const all = scope(summaries);
+    return {
+        hasSets: summaries.length > 1 || (summaries.length === 1 && summaries[0].id !== BASE_GROUP_ID),
+        allSets: base.complete && dlc.length > 0 && dlc.every((g) => g.complete),
+        dlcSets: dlc.length,
+        dlcCompleted: dlc.filter((g) => g.complete).length,
+        base,
+        all,
+        groups: summaries,
+    };
+}
+
+/**
+ * 用集合成绩单改写一张卡：蓝徽章只算本体，蓝紫徽章（本体 + 所有 DLC 集合）把 DLC 成就也算进杯数。
+ * 完成日期两种都取本体集合打满的时间：卡片按它装订，翻新时卡留在原来的卡槽里。
+ */
+export function applySetsToCard(card, sets) {
+    const scope = sets.allSets ? sets.all : sets.base;
+    return {
+        ...card,
+        allSets: sets.allSets,
+        total: scope.total,
+        unlocked: scope.achieved,
+        rare: scope.rare,
+        common: scope.common,
+        unrated: scope.unrated,
+        sets: {
+            dlcSets: sets.dlcSets,
+            dlcCompleted: sets.dlcCompleted,
+            // 本体和所有 DLC 集合都打满的那天（卡面上「全集合」那一行）；完成日期 completedAt 仍是本体打满那天
+            allCompletedAt: sets.allSets ? (sets.all.completedAt ?? null) : null,
+            base: { total: sets.base.total, rare: sets.base.rare, common: sets.base.common, unrated: sets.base.unrated },
+        },
+    };
+}
+
+/**
+ * 翻新之前那张卡的样子（蓝徽章、只算本体的杯数）。from 没给的项沿用新卡上的值。
+ * book.js 的翻新动画和 page.js 摆旧卡都用它，两边算出来的必须一模一样。
+ */
+export function cardBeforeUpgrade(card, from = {}) {
+    const pick = (key) => (Number.isFinite(from?.[key]) ? from[key] : card[key]);
+    return { ...card, allSets: false, rare: pick('rare'), common: pick('common'), total: pick('total'), playtimeMin: pick('playtimeMin') };
 }
 
 /**

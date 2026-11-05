@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>全集合日期</title>
+
+<!--
+  蓝紫卡正面写上「DLC 集合全部打满」那天的几种放法（只是试稿，可能不采用）。
+  卡片是真实的 createCardFront（正式 cardpack.css + cardview.js），各方案只在这一页里改 DOM / 加样式，
+  正式代码没有动。卡面上原来的日期仍是本体打满的那天（排序、年份都按它），新日期只是多写一笔。
+-->
+
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/cardpack.css">
+
+<style>
+    html, body { margin: 0; background: rgb(17, 17, 17); color: #9aa3b2; font: 13px/1.6 "Be Vietnam Pro", "Microsoft YaHei UI", sans-serif; }
+    main { max-width: 1400px; margin: 0 auto; padding: 22px 24px 48px; }
+    h2 { margin: 30px 0 4px; font-size: 14px; font-weight: 600; color: #e6e1d6; letter-spacing: 0.02em; }
+    p.lead { margin: 0 0 16px; color: #7d838d; max-width: 980px; }
+    .tools { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
+    .tools select, .tools input { height: 30px; padding: 0 10px; font: inherit; color: #ebedf0; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: rgb(24,24,27); }
+    .tools label { display: flex; align-items: center; gap: 8px; }
+
+    .cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 26px; }
+    .cards.small { grid-template-columns: repeat(5, minmax(0, 170px)); justify-content: start; gap: 22px; }
+    .col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .col .ac-card { cursor: default; }
+    .tag { color: #e6e1d6; font-weight: 600; }
+    .tag small { display: block; font-weight: 400; color: #7d838d; line-height: 1.5; }
+
+    /* ── 共用：全集合那一笔的颜色 —— 和徽章一样左蓝右紫，紫色是 Steam DLC 集合奖章的 #B658C4 ── */
+    .ac-cf { --dlc-ink: linear-gradient(90deg, #8fb6ff 0%, #c58be6 55%, #d98fe4 100%); --dlc-solid: #cf8de2; }
+    .dlc-text {
+        background: var(--dlc-ink);
+        -webkit-background-clip: text; background-clip: text;
+        color: transparent; -webkit-text-fill-color: transparent;
+    }
+
+    /* A 双日期：日期栏写成「本体那天 → 全集合那天」 */
+    .v-a .ac-cf__owner { gap: 1.6cqw; }
+    .v-a .dlc-arrow {
+        flex: none; width: 3.4cqw; height: 1.6cqw;
+        background: var(--dlc-ink);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 8'%3E%3Cpath d='M0 4h14M11 1l3 3-3 3' fill='none' stroke='%23000' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+                mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 8'%3E%3Cpath d='M0 4h14M11 1l3 3-3 3' fill='none' stroke='%23000' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+    .v-a .dlc-date { flex: none; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+    /* B 分割线嵌字：原来那条细线中间嵌一行小字 */
+    .v-b .ac-cf__rule { display: none; }
+    .v-b .dlc-rule {
+        display: flex; align-items: center; gap: 2cqw; width: 100%;
+        margin: -1.4cqw 0 2.4cqw;
+        font-size: 3.3cqw; font-weight: 600; line-height: 1; letter-spacing: 0.06em; white-space: nowrap;
+    }
+    .v-b .dlc-rule::before, .v-b .dlc-rule::after { content: ''; flex: 1; height: 1px; }
+    .v-b .dlc-rule::before { background: linear-gradient(90deg, transparent, rgba(143, 182, 255, 0.45)); }
+    .v-b .dlc-rule::after { background: linear-gradient(90deg, rgba(207, 141, 226, 0.45), transparent); }
+    .v-b .dlc-rule i { font-style: normal; opacity: 0.8; margin-right: 1.2cqw; }
+
+    /* C 徽章铭牌：徽章正下方一块小牌子，像奖章下面挂的那一条 */
+    .v-c .dlc-plate {
+        position: absolute; left: 50%; top: calc(19.5% + 35cqw * 1.18 - 1.6cqw);
+        transform: translateX(-50%);
+        display: flex; align-items: center; gap: 1.4cqw;
+        padding: 1.2cqw 3cqw 1.25cqw;
+        border-radius: 1.2cqw;
+        font-size: 3.2cqw; font-weight: 600; line-height: 1; letter-spacing: 0.06em; white-space: nowrap;
+        color: #fff8ee;
+        background:
+            linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 55%, rgba(0,0,0,.18)),
+            linear-gradient(90deg, #3f78e6 0%, #6a63da 45%, #a254bb 75%, #8a3f97 100%);
+        box-shadow: 0 0 0 0.3cqw rgba(246, 223, 176, 0.75), 0 1cqw 2cqw rgba(0, 0, 0, 0.35);
+        text-shadow: 0 0.2cqw 0.4cqw rgba(0, 0, 0, 0.35);
+        font-variant-numeric: tabular-nums;
+    }
+    .v-c .dlc-plate i { font-style: normal; opacity: 0.82; font-weight: 500; }
+
+    /* D 邮戳：右上角一枚紫色圆戳，像在卡上加盖了一次 */
+    .v-d .dlc-stamp {
+        position: absolute; top: 4.5cqw; right: 4.5cqw;
+        width: 26cqw; aspect-ratio: 1;
+        display: grid; place-items: center; align-content: center; gap: 0.6cqw;
+        border-radius: 50%;
+        color: rgba(226, 178, 238, 0.92);
+        border: 0.5cqw solid currentColor;
+        box-shadow: inset 0 0 0 0.9cqw rgba(0,0,0,0), inset 0 0 0 1.25cqw currentColor;
+        background: radial-gradient(circle, rgba(60, 22, 70, 0.55), rgba(60, 22, 70, 0.25) 70%);
+        transform: rotate(-12deg);
+        text-align: center; line-height: 1;
+        -webkit-backdrop-filter: blur(1px); backdrop-filter: blur(1px);
+        filter: drop-shadow(0 0.6cqw 1.2cqw rgba(0,0,0,.35));
+    }
+    .v-d .dlc-stamp b { font-size: 3.6cqw; font-weight: 800; letter-spacing: 0.12em; padding-left: 0.12em; }
+    .v-d .dlc-stamp span { font-size: 2.9cqw; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+    .v-d .dlc-stamp em { font-style: normal; font-size: 2.1cqw; letter-spacing: 0.2em; opacity: 0.75; padding-left: 0.2em; }
+</style>
+</head>
+<body>
+<main>
+    <div class="tools">
+        <label>卡面游戏 <select id="game"></select></label>
+        <label>全集合日期 <input id="dlcDate" type="date" value="2026-11-04"></label>
+        <label>昵称 <select id="persona">
+            <option value="">真实昵称</option>
+            <option value="long">很长的昵称</option>
+            <option value="none">没有昵称</option>
+        </select></label>
+    </div>
+
+    <h2>卡面效果</h2>
+    <p class="lead">只有蓝紫卡才多这一笔。卡面上原来那个金色日期仍是本体集合打满的那天，排序和年份页都按它；新加的是 DLC 集合全部打满的那天，用和徽章一样的左蓝右紫。示例日期可以在上面改。</p>
+    <div class="cards" id="cards"></div>
+
+    <h2>四卡版式的大小</h2>
+    <p class="lead">一页四张时卡会缩到这么小，看看字还认不认得出来。</p>
+    <div class="cards small" id="small"></div>
+</main>
+
+<script type="module">
+import { CARDS, OWNER } from './fixtures.js';
+import { createCardFront, formatCardDate } from '/theme/src/js/ac/cardview.js';
+
+const VARIANTS = [
+    { id: 'none', name: '现在', note: '只有本体日期' },
+    { id: 'a', name: 'A · 双日期', note: '日期栏写成「本体 → 全集合」，不加新的一行' },
+    { id: 'b', name: 'B · 分割线嵌字（已采用）', note: '杯数上方那条细线中间嵌一行「全集合」 · 正式卡面就是这一版' },
+    { id: 'c', name: 'C · 徽章铭牌', note: '徽章正下方挂一块蓝紫小牌子' },
+    { id: 'd', name: 'D · 邮戳', note: '右上角加盖一枚紫色圆戳' },
+];
+
+const select = document.getElementById('game');
+const dateInput = document.getElementById('dlcDate');
+const personaSelect = document.getElementById('persona');
+const PREFERRED = 2060160;
+for (const card of CARDS) select.append(new Option(card.name, String(card.appid)));
+select.value = String(CARDS.some((c) => c.appid === PREFERRED) ? PREFERRED : CARDS[0].appid);
+
+const el = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+};
+
+function decorate(front, variant, dlcText) {
+    front.classList.add(`v-${variant}`);
+    const body = front.querySelector('.ac-cf__body');
+    const inner = front.querySelector('.ac-cf__inner');
+    const title = `DLC 成就集合全部完成：${dlcText}`;
+    if (variant === 'a') {
+        let row = front.querySelector('.ac-cf__owner');
+        if (!row) {
+            row = el('div', 'ac-cf__owner');
+            body.insertBefore(row, front.querySelector('.ac-cf__rule'));
+        }
+        const arrow = el('i', 'dlc-arrow');
+        arrow.setAttribute('aria-hidden', 'true');
+        const date = el('time', 'dlc-date dlc-text', dlcText);
+        date.title = title;
+        row.append(arrow, date);
+    } else if (variant === 'b') {
+        const line = el('div', 'dlc-rule');
+        const text = el('span', 'dlc-text');
+        text.append(el('i', null, '全集合'), document.createTextNode(dlcText));
+        text.title = title;
+        line.append(text);
+        front.querySelector('.ac-cf__rule').after(line);
+    } else if (variant === 'c') {
+        const plate = el('div', 'dlc-plate');
+        plate.append(el('i', null, '全集合'), el('span', null, dlcText));
+        plate.title = title;
+        inner.append(plate);
+    } else if (variant === 'd') {
+        const stamp = el('div', 'dlc-stamp');
+        stamp.append(el('em', null, 'ALL SETS'), el('b', null, '全集合'), el('span', null, dlcText));
+        stamp.title = title;
+        inner.append(stamp);
+    }
+}
+
+function cardBox(card, owner, variant, dlcText) {
+    const box = el('div', 'ac-card');
+    const tilt = el('div', 'ac-card__tilt');
+    const front = createCardFront(document, card, { owner });
+    if (variant !== 'none') decorate(front, variant, dlcText);
+    tilt.append(front);
+    box.append(el('div', 'ac-card__shadow'), tilt);
+    box.addEventListener('pointerenter', () => box.setAttribute('data-hover', ''));
+    box.addEventListener('pointerleave', () => box.removeAttribute('data-hover'));
+    return box;
+}
+
+function render() {
+    const base = CARDS.find((c) => String(c.appid) === select.value) ?? CARDS[0];
+    const card = { ...base, allSets: true };
+    const owner = personaSelect.value === 'long'
+        ? { ...OWNER, persona: '一个名字特别特别长的玩家昵称' }
+        : personaSelect.value === 'none' ? {} : OWNER;
+    // 按本地日期解析（valueAsDate 是 UTC 零点，西半球会差一天）
+    const [y, m, d] = dateInput.value.split('-').map(Number);
+    const picked = y ? new Date(y, m - 1, d, 12) : new Date();
+    const dlcText = formatCardDate(picked.getTime() / 1000);
+    for (const [hostId, withNotes] of [['cards', true], ['small', false]]) {
+        const host = document.getElementById(hostId);
+        host.replaceChildren();
+        for (const v of VARIANTS) {
+            const col = el('div', 'col');
+            const tag = el('div', 'tag', v.name);
+            if (withNotes) tag.append(el('small', null, v.note));
+            col.append(tag, cardBox(card, owner, v.id, dlcText));
+            host.append(col);
+        }
+    }
+}
+
+for (const node of [select, dateInput, personaSelect]) node.addEventListener('change', render);
+render();
+</script>
+</body>
+</html>

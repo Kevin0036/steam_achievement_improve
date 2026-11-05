@@ -22,6 +22,7 @@ import * as data from './datasource.js';
 import * as cache from './cache.js';
 import * as accounts from './accounts.js';
 import {
+    applySetsToCard,
     availableSortKeys,
     buildArt,
     buildCard,
@@ -31,9 +32,13 @@ import {
     computeCompletedAt,
     computeRarityCounts,
     confirmCompletion,
+    hasSetProgress,
     mergeExtraProgress,
+    setSignature,
     sortCards,
     summarize,
+    summarizeSets,
+    suspectSets,
     verifyExtraCompletion,
 } from './model.js';
 import { Generation, log, warn, tagged } from './utils.js';
@@ -53,6 +58,13 @@ const RARE_REFRESH_PER_OPEN = 4;
 const DATE_FETCH_PER_OPEN = 80;
 const MISSING_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const ERROR_COOLDOWN_MS = 5 * 60 * 1000;
+/** 成就集合的成绩单多久重查一次：稀有数会漂移，按 30 天轮换（和全球完成率同一个期限） */
+const SETS_REFRESH_MS = RARE_REFRESH_AGE_MS;
+/**
+ * 蓝紫徽章的卡查得勤一点：游戏又出了新的 DLC 集合、你还没买时，进度指纹不会变
+ * （没买的集合不算进进度），只有重查成就表才知道它该退回蓝徽章。
+ */
+const SETS_RECHECK_ALL_MS = 3 * 24 * 60 * 60 * 1000;
 
 let failures = new Map();
 function cooling(kind, card) {
@@ -103,6 +115,11 @@ function initialState() {
         manualRevision: 0,
         /** 新收录、还没播入册动画的游戏；ready = 它们的完成日期已经有结果（拿到或确定拿不到） */
         intro: { appids: [], ready: false },
+        /**
+         * 早就在册子里、这次 DLC 成就集合也全部打通的卡：等着播徽章翻新动画。
+         * from 是只算本体时的杯数（翻新前那张蓝徽章卡上的数字），见 detectUpgrades。
+         */
+        upgrade: { changes: [] },
         /** 库外游戏扫描：正在核对玩过但已不在库里的游戏 */
         extraScan: {
             running: false,
@@ -338,6 +355,17 @@ function detectFresh(cards, incomplete = [], persist = true) {
     return current.filter((appid) => !shelved.has(appid));
 }
 
+/**
+ * 「新卡」里完成日期早于上次看册子的那些（留一天余量，日期按秒、看册子按毫秒）。
+ * 日期还不知道的不算：真正刚打完的游戏日期要等补全，不能因为没日期就不播动画。
+ */
+function resurfacedCards(cards, fresh, lastSeenAt) {
+    if (!Number.isFinite(lastSeenAt) || lastSeenAt <= 0 || fresh.length === 0) return [];
+    const ids = new Set(fresh);
+    const cutoff = lastSeenAt / 1000 - 86400;
+    return cards.filter((card) => ids.has(card.appid) && Number.isFinite(card.completedAt) && card.completedAt < cutoff).map((card) => card.appid);
+}
+
 /** 入册动画播完：记进「已收进册子」 */
 export function markIntroduced(appids) {
     const shelved = cache.readShelved() ?? new Set();
@@ -346,6 +374,67 @@ export function markIntroduced(appids) {
     const rest = state.intro.appids.filter((appid) => !appids.includes(appid));
     setState({ intro: { appids: rest, ready: rest.length === 0 || state.intro.ready } }, null, 'intro-done');
     out.log(`新收录入册：${appids.join(', ')}`);
+}
+
+/* ── 徽章翻新 ───────────────────────────────────────────────────────────── */
+
+/**
+ * 早就在册子里、这次本体和所有 DLC 成就集合都打通了的卡：要播徽章翻新动画（蓝 → 蓝紫）。
+ * 和「已经给你看过的蓝紫徽章」（cache upgraded）比一比：
+ *   · 第一次（升级到这一版后从没记录过）：现有的蓝紫全记下，不播动画；
+ *   · 新收录的卡本来就要播入册动画，直接以蓝紫入册，不再翻新一次；
+ *   · 退回蓝徽章的（游戏又出了新的 DLC 集合）移出记录，以后打通时再翻新一次。
+ * from 是翻新前那张蓝徽章卡上的数字：杯数取集合成绩单里只算本体的那份，
+ * 游玩时长取上次给你看的那一册（上次已经是蓝紫的话就不再涨时长）。
+ *
+ * @param {boolean} [persist=true]  false 时只读不写（首屏缓存阶段用）
+ * @returns {Array<{appid:number, from:{rare?:number, common?:number, total?:number, playtimeMin?:number}}>}
+ */
+function detectUpgrades(cards, fresh, previousCards, persist = true) {
+    const purple = cards.filter((card) => card.allSets === true);
+    const recorded = cache.readUpgraded();
+    if (!recorded) {
+        if (persist) cache.writeUpgraded(purple.map((card) => card.appid));
+        return [];
+    }
+    const shelved = cache.readShelved() ?? new Set();
+    const freshSet = new Set(fresh);
+    let changed = false;
+    for (const card of cards) {
+        if (card.allSets !== true && card.sets && recorded.delete(card.appid)) changed = true;
+    }
+    const changes = [];
+    for (const card of purple) {
+        if (recorded.has(card.appid)) continue;
+        if (freshSet.has(card.appid) || !shelved.has(card.appid)) {
+            recorded.add(card.appid);
+            changed = true;
+            continue;
+        }
+        const base = card.sets?.base;
+        const before = previousCards.get(card.appid);
+        changes.push({
+            appid: card.appid,
+            from: {
+                rare: base?.rare,
+                common: base?.common,
+                total: base?.total,
+                playtimeMin: before && before.allSets !== true ? before.playtimeMin : card.playtimeMin,
+            },
+        });
+    }
+    if (changed && persist) cache.writeUpgraded(recorded);
+    return changes;
+}
+
+/** 徽章翻新播完：记进「已经看过的蓝紫徽章」 */
+export function markUpgraded(appids) {
+    const recorded = cache.readUpgraded() ?? new Set();
+    for (const appid of appids) recorded.add(appid);
+    cache.writeUpgraded(recorded);
+    const rest = state.upgrade.changes.filter((change) => !appids.includes(change.appid));
+    setState({ upgrade: { changes: rest } }, null, 'upgrade-done');
+    out.log(`徽章翻新：${appids.join(', ')}`);
 }
 
 /** 新收录的完成日期都有结果了（或者补全流程已经结束），就可以播动画了 */
@@ -366,7 +455,49 @@ function settleIntro() {
  * 接口不可用时退回本地 achievements 汇总缓存；两者都没有就维持原判（铁律 2）。
  */
 const completionChecks = new Map();
-let completionReport = { checked: 0, rejected: [], unverified: [] };
+let completionReport = { checked: 0, rejected: [], unverified: [], sets: 0 };
+
+/**
+ * 成就集合的成绩单：同一个进度指纹下用缓存，否则去 Steam 查一次（成就表 + 本人记录）。
+ *   force = false 时只查「从进度上看得出用了集合」的游戏（见 model.js suspectSets）；
+ *   force = true 是复核对不上时追查（只有一个本体集合、DLC 集合没买的游戏走这条）。
+ * 查不到时同一个指纹下的旧结论照用：接口失败不等于成绩变了（铁律 2）。
+ * @returns {Promise<{sets:object|null, unavailable?:boolean, known?:boolean}>}
+ */
+async function judgeSets(appid, progress, setsCache, { force = false } = {}) {
+    const sig = setSignature(progress);
+    const cached = setsCache.get(appid);
+    const age = Date.now() - (cached?.checkedAt ?? 0);
+    const maxAge = cached?.sets.allSets ? SETS_RECHECK_ALL_MS : SETS_REFRESH_MS;
+    if (cached && cached.sig === sig && age < maxAge) return { sets: cached.sets };
+    if (!force && !cached && !suspectSets(progress)) return { sets: null };
+
+    const summary = summarizeSets(await data.requestAchievementSets(appid));
+    if (!summary) {
+        if (cached && cached.sig === sig) return { sets: cached.sets };
+        return { sets: null, unavailable: true, known: cached?.sets.hasSets === true };
+    }
+    const { groups, ...sets } = summary;
+    setsCache.set(appid, { sig, checkedAt: Date.now(), sets });
+    out.log(
+        `成就集合 ${appid}：本体 ${sets.base.achieved}/${sets.base.total}${sets.base.complete ? '（完成）' : ''}`
+        + ` · DLC 集合 ${sets.dlcCompleted}/${sets.dlcSets}${sets.allSets ? ' → 蓝紫徽章' : ''}`,
+    );
+    return { sets };
+}
+
+/** 集合成绩单换成日期缓存的一条：完成日期取本体集合打满的时间，杯数照卡面的口径 */
+function setDateEntry(sets, checkedAt) {
+    const scope = sets.allSets ? sets.all : sets.base;
+    return {
+        completedAt: sets.base.completedAt,
+        rare: scope.rare,
+        common: scope.common,
+        unrated: scope.unrated,
+        total: scope.total,
+        fetchedAt: checkedAt,
+    };
+}
 
 async function confirmCompletions(cards, isCurrent) {
     if (!data.probeAchievementsApi()) {
@@ -376,11 +507,28 @@ async function confirmCompletions(cards, isCurrent) {
     const effective = data.readEffectiveProgress();
     const fingerprint = data.getAccountFingerprint() ?? 'anon';
     const extras = cache.readExtras(fingerprint === 'anon' ? null : fingerprint);
+    const setsCache = cache.readSets();
+    const setsBefore = JSON.stringify([...setsCache]);
     const kept = [];
     const dates = new Map();
+    /** 按成就集合判定的卡：日期 / 杯数以集合成绩单为准，覆盖旧的日期缓存 */
+    const setDates = new Map();
     const rejected = [];
     const unverified = [];
     let checked = 0;
+    let judgedBySets = 0;
+
+    /** 用集合成绩单下结论：本体集合都完成才留下；留下的按蓝 / 蓝紫改写杯数 */
+    const settleBySets = (card, sets) => {
+        checked += 1;
+        judgedBySets += 1;
+        if (!sets.base.complete) {
+            rejected.push({ appid: card.appid, evidence: { total: sets.base.total, achieved: sets.base.achieved, sets: true } });
+            return;
+        }
+        kept.push(applySetsToCard(card, sets));
+        setDates.set(card.appid, setDateEntry(sets, setsCache.get(card.appid)?.checkedAt ?? Date.now()));
+    };
 
     for (const card of cards) {
         if (!isCurrent()) return null;
@@ -394,11 +542,52 @@ async function confirmCompletions(cards, isCurrent) {
         // 本地 mapCache 也可能只缓存了成就子集（3/45 被记成 3/3），
         // 不能单凭它放行，同样要用完整个人列表复核。
         const progress = effective.entries.get(card.appid) ?? null;
+
+        // 用了成就集合的游戏：完整个人列表里有 DLC 集合的成就，拿它复核会把本体全成就误判成没打满。
+        // 改看集合成绩单（成就表里每个成就属于哪个集合），本体集合都完成就算。
+        if (hasSetProgress(progress)) {
+            const verdict = await judgeSets(card.appid, progress, setsCache);
+            if (!isCurrent()) return null;
+            if (verdict.sets) {
+                settleBySets(card, verdict.sets);
+                continue;
+            }
+            if (verdict.unavailable) {
+                // 看得出用了集合、却查不到：照进度的结论留着，下次再查（铁律 2）
+                unverified.push(card.appid);
+                kept.push(card);
+                continue;
+            }
+        }
+
+        /**
+         * 完整个人列表说没打满，但进度里有集合字段：可能是 DLC 集合的成就混了进去
+         * （编程农场就是这样：本体 59 个全拿了，列表里还有没买的 DLC 集合的成就）。
+         * 剔除之前查一次集合成绩单，以它为准；查不到就先留着，不凭一份对不上的列表剔掉。
+         * @returns {Promise<boolean|null>} true = 已按集合下了结论；null = 书已换代
+         */
+        const rescueBySets = async () => {
+            if (!hasSetProgress(progress)) return false;
+            const verdict = await judgeSets(card.appid, progress, setsCache, { force: true });
+            if (!isCurrent()) return null;
+            if (verdict.sets) {
+                settleBySets(card, verdict.sets);
+                return true;
+            }
+            unverified.push(card.appid);
+            kept.push(card);
+            return true;
+        };
+
         const key = `${fingerprint}:${card.appid}`;
         const memo = completionChecks.get(key);
         if (memo && memo.claimed === card.total) {
             if (memo.ok) kept.push(card);
-            else rejected.push({ appid: card.appid, evidence: memo.evidence });
+            else {
+                const rescued = await rescueBySets();
+                if (rescued === null) return null;
+                if (!rescued) rejected.push({ appid: card.appid, evidence: memo.evidence });
+            }
             continue;
         }
 
@@ -425,7 +614,9 @@ async function confirmCompletions(cards, isCurrent) {
         const ok = confirmCompletion(progress ?? card, evidence);
         completionChecks.set(key, { claimed: card.total, ok, evidence });
         if (!ok) {
-            rejected.push({ appid: card.appid, evidence });
+            const rescued = await rescueBySets();
+            if (rescued === null) return null;
+            if (!rescued) rejected.push({ appid: card.appid, evidence });
             continue;
         }
 
@@ -445,7 +636,12 @@ async function confirmCompletions(cards, isCurrent) {
         }
     }
 
-    completionReport = { checked, rejected, unverified };
+    if (JSON.stringify([...setsCache]) !== setsBefore) cache.writeSets(setsCache);
+    completionReport = { checked, rejected, unverified, sets: judgedBySets };
+    if (judgedBySets > 0) {
+        const purple = kept.filter((card) => card.allSets === true).length;
+        out.log(`成就集合：${judgedBySets} 款按集合判定，其中 ${purple} 款本体和 DLC 集合都打通（蓝紫徽章）`);
+    }
     if (rejected.length > 0 || unverified.length > 0) {
         const nameOf = new Map(cards.map((card) => [card.appid, card.name]));
         const label = (appid) => nameOf.get(appid) || `App ${appid}`;
@@ -460,7 +656,7 @@ async function confirmCompletions(cards, isCurrent) {
     } else if (checked > 0) {
         out.log(`全成就复核：${checked} 款候选全部确认`);
     }
-    return { cards: kept, dates, report: completionReport };
+    return { cards: kept, dates, setDates, report: completionReport };
 }
 
 /* ── 账号作用域与多账号合并 ─────────────────────────────────────────────── */
@@ -620,6 +816,10 @@ export async function load({ silent = false } = {}) {
     manualDates = cache.readManualDates();
     manualTimes = cache.readManualTimes();
     failures = cache.readFailures();
+    // 上次给你看的那一册：徽章翻新时，翻新前的游玩时长从这里取；它的保存时间就是你上次看册子的时候
+    const previous = cache.readState();
+    const previousCards = new Map((previous?.cards ?? []).map((card) => [card.appid, card]));
+    const lastSeenAt = previous?.savedAt ?? 0;
 
     // 1) 先上本地派生缓存，让首屏立刻有东西
     if (!silent) {
@@ -639,6 +839,8 @@ export async function load({ silent = false } = {}) {
                     sortKeys: availableSortKeys(cachedCards),
                     // 缓存里可能已经有上次没来得及入册的新卡：先藏着，别在首屏一闪而过
                     intro: { appids: detectFresh(ownCards, [], false), ready: false },
+                    // 上次查到了、但还没来得及播翻新动画的蓝紫徽章：先按旧样子摆着
+                    upgrade: { changes: detectUpgrades(ownCards, [], previousCards, false) },
                 },
                 null,
                 'cache',
@@ -728,6 +930,11 @@ export async function load({ silent = false } = {}) {
     for (const [appid, entry] of validation.dates) {
         if (!dates.has(appid)) dates.set(appid, entry);
     }
+    // 按成就集合判定的卡：日期和杯数来自集合成绩单（只算本体 / 本体 + DLC），盖掉按整张成就表算的旧值
+    if (validation.setDates.size > 0) {
+        for (const [appid, entry] of validation.setDates) dates.set(appid, entry);
+        cache.writeDates(dates);
+    }
     // 手动日期 / 时长放在成就接口之后合并：用户填的就是最终值，接口后来取到了也以手动为准
     const cards = applyManualTimes(
         applyManualDates(
@@ -768,8 +975,21 @@ export async function load({ silent = false } = {}) {
         }
         if (changed) cache.writeShelved(shelved);
     }
-    const fresh = detectFresh(cards, assembled.incomplete).filter((appid) => !toppedUp.has(appid));
+    const detected = detectFresh(cards, assembled.incomplete).filter((appid) => !toppedUp.has(appid));
+    // 完成日期早于你上次看册子的「新卡」，其实是以前就打完、这次才露面的（之前被误判没收进来，
+    // 或者换了判定口径）：和补缓存浮出来的老游戏一样，直接记为已入册，不播入册动画
+    const resurfaced = resurfacedCards(cards, detected, lastSeenAt);
+    if (resurfaced.length > 0) {
+        const shelvedNow = cache.readShelved() ?? new Set();
+        for (const appid of resurfaced) shelvedNow.add(appid);
+        cache.writeShelved(shelvedNow);
+        out.log(`以前就打完、这次才收进册子 ${resurfaced.length} 款（不播入册动画）：${resurfaced.join(', ')}`);
+    }
+    const fresh = detected.filter((appid) => !resurfaced.includes(appid));
     if (fresh.length > 0) out.log(`新收录 ${fresh.length} 款：${fresh.join(', ')}`);
+    // 这次才收进册子的卡（新收录和以前就打完的）直接以现在的徽章入册，不再翻新一次
+    const upgrades = detectUpgrades(cards, detected, previousCards);
+    if (upgrades.length > 0) out.log(`徽章翻新 ${upgrades.length} 款：${upgrades.map((change) => change.appid).join(', ')}`);
 
     setState(
         {
@@ -786,6 +1006,7 @@ export async function load({ silent = false } = {}) {
             syncedAt: Date.now(),
             sortKeys: availableSortKeys(shown),
             intro: { appids: fresh, ready: false },
+            upgrade: { changes: upgrades },
         },
         null,
         'client',
@@ -823,7 +1044,9 @@ function startCachedMetadata(cards, dates, isCurrent) {
     // Each worker is serial; global stats never wait for artwork or date requests.
     (async () => {
         let updated = 0;
-        const eligible = cards.filter((c) => !cooling('rarity', c));
+        // 按成就集合判定的卡，杯数来自集合成绩单（只算本体，或本体 + DLC），整张成就表的全球完成率会算错口径；
+        // 它们的稀有数随成绩单按期重查（见 judgeSets）
+        const eligible = cards.filter((c) => !c.sets && !cooling('rarity', c));
         const aging = eligible.filter((c) => c.rare != null && c.common != null && c.unrated === 0
             && Date.now() - (dates.get(c.appid)?.fetchedAt ?? 0) > RARE_REFRESH_AGE_MS)
             .sort((a, b) => (dates.get(a.appid)?.fetchedAt ?? 0) - (dates.get(b.appid)?.fetchedAt ?? 0));
@@ -946,6 +1169,9 @@ function planDateRequests(cards, known, fresh) {
     for (const card of cards) {
         // 用户手动填过日期的，不再请求成就接口（多半也取不到）
         if (manualDates.has(card.appid)) continue;
+        // 按成就集合判定的卡：日期是本体集合打满的时间，来自集合成绩单；
+        // 个人成就列表里混着 DLC 集合的解锁时间，拿它算会把日期算到 DLC 上
+        if (card.sets) continue;
         if (cooling('date', card)) continue;
         const entry = known.get(card.appid);
         if (!entry || entry.total !== card.total || entry.completedAt == null) {
@@ -968,7 +1194,10 @@ function startDateBackfill(cards, known, fresh = [], isCurrent = () => true) {
     settled.clear();
     dateUnavailable.clear();
     for (const card of cards) {
-        if (card.completedAt == null && cooling('date', card)) dateUnavailable.add(card.appid);
+        // 按集合判定、成绩单里又没有解锁时间的卡，这一轮不会去取日期：直接给出补日期入口
+        if (card.completedAt == null && (cooling('date', card) || (card.sets && !manualDates.has(card.appid)))) {
+            dateUnavailable.add(card.appid);
+        }
     }
     state = { ...state, dates: { ...state.dates, unavailable: new Set(dateUnavailable) } };
 

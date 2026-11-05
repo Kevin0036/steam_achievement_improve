@@ -11,6 +11,10 @@
  *   node tools/build-plugin.mjs --install      构建并写入本机 Millennium 插件目录
  *   node tools/build-plugin.mjs --zip          额外生成手动安装 zip
  *   node tools/build-plugin.mjs --notes "..."  Release 清单里的更新说明
+ *   node tools/build-plugin.mjs --debug        调试版：卡包左上角多一个「动画重播」面板（入册各档、徽章翻新），
+ *                                              版本号是下一个补丁号加 -debug（比线上新，不会被自动更新换掉；
+ *                                              正式版发布后又比它新，能正常升级）。产物放在 .tmp/debug-plugin/，
+ *                                              直接装进本机 Millennium 插件目录，不碰 plugin/ 下的发布产物
  *   node tools/build-plugin.mjs --install --local-music
  *                                              本机验收：音乐内嵌进 bundle（多约 2.9 MB），不依赖网站。
  *                                              只写入本机插件目录，不生成发布产物；验收后跑一次普通构建还原
@@ -35,6 +39,8 @@ const args = process.argv.slice(2);
 const install = args.includes('--install');
 const makeZip = args.includes('--zip');
 const localMusic = args.includes('--local-music');
+const debug = args.includes('--debug');
+const DEBUG_DIR = path.join(root, '.tmp', 'debug-plugin');
 const notesIndex = args.indexOf('--notes');
 const notes = notesIndex >= 0 ? args[notesIndex + 1] || '' : '';
 
@@ -104,8 +110,8 @@ function buildShowcaseCss() {
     console.log(`[showcase css] ${path.relative(root, output)}  ${(Buffer.byteLength(chunks.join('\n')) / 1024).toFixed(1)} KB`);
 }
 
-async function buildShowcaseBundle(version) {
-    const outfile = path.join(PLUGIN_DIR, 'showcase.js');
+async function buildShowcaseBundle(version, outfile = path.join(PLUGIN_DIR, 'showcase.js')) {
+    ensureDir(path.dirname(outfile));
     await esbuild.build({
         entryPoints: [path.join(THEME_DIR, 'src/js/ac/profile.js')],
         outfile,
@@ -116,7 +122,7 @@ async function buildShowcaseBundle(version) {
         minify: true,
         charset: 'utf8',
         legalComments: 'none',
-        define: { __AC_PLUGIN_VERSION__: JSON.stringify(version) },
+        define: { __AC_PLUGIN_VERSION__: JSON.stringify(version), __AC_DEBUG__: JSON.stringify(debug) },
         banner: { js: `/* AchievementCollection showcase v${version} */` },
         logLevel: 'warning',
     });
@@ -130,8 +136,7 @@ function localMusicUrl() {
     return `data:audio/mpeg;base64,${bytes.toString('base64')}`;
 }
 
-async function buildBundle(version) {
-    const outfile = path.join(PLUGIN_DIR, '.millennium/Dist/index.js');
+async function buildBundle(version, outfile = path.join(PLUGIN_DIR, '.millennium/Dist/index.js')) {
     ensureDir(path.dirname(outfile));
 
     await esbuild.build({
@@ -148,6 +153,7 @@ async function buildBundle(version) {
         define: {
             __AC_PLUGIN_VERSION__: JSON.stringify(version),
             __AC_ROOM_MUSIC__: JSON.stringify(localMusic ? localMusicUrl() : null),
+            __AC_DEBUG__: JSON.stringify(debug),
         },
         banner: { js: `/* AchievementCollection plugin v${version} */` },
         logLevel: 'warning',
@@ -250,12 +256,50 @@ function makeZipArchive(version) {
     }
 }
 
+/** 下一个补丁号 + -debug：1.2.2 → 1.2.3-debug */
+function debugVersion(version) {
+    const [major, minor, patch] = version.replace(/-.*$/, '').split('.').map((n) => Number.parseInt(n, 10) || 0);
+    return `${major}.${minor}.${patch + 1}-debug`;
+}
+
+/** 调试版：在 .tmp/debug-plugin 里拼好整个插件目录，再整体装进本机 Millennium */
+async function buildDebug(version) {
+    const v = debugVersion(version);
+    console.log(`[build-plugin] 调试版 v${v}`);
+    rmSync(DEBUG_DIR, { recursive: true, force: true });
+    buildCss();
+    buildShowcaseCss();
+    await buildBundle(v, path.join(DEBUG_DIR, '.millennium/Dist/index.js'));
+    await buildShowcaseBundle(v, path.join(DEBUG_DIR, 'showcase.js'));
+    ensureDir(path.join(DEBUG_DIR, 'backend'));
+    copyFileSync(path.join(PLUGIN_DIR, 'backend/main.lua'), path.join(DEBUG_DIR, 'backend/main.lua'));
+    copyFileSync(path.join(PLUGIN_DIR, 'showcase.css'), path.join(DEBUG_DIR, 'showcase.css'));
+    copyFileSync(path.join(PLUGIN_DIR, 'README.md'), path.join(DEBUG_DIR, 'README.md'));
+    const manifest = { ...readJson(path.join(PLUGIN_DIR, 'plugin.json')), version: v };
+    writeFileSync(path.join(DEBUG_DIR, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}
+`, 'utf8');
+
+    const target = path.join(PLUGINS_DIR, 'AchievementCollection');
+    for (const file of ['plugin.json', 'backend/main.lua', '.millennium/Dist/index.js', 'showcase.js', 'showcase.css', 'README.md']) {
+        ensureDir(path.dirname(path.join(target, file)));
+        copyFileSync(path.join(DEBUG_DIR, file), path.join(target, file));
+    }
+    console.log(`[install] ${target}`);
+    console.log(`
+完成：调试版 v${v} 已装进本机，重启 Steam 生效。换回正式版：把装之前备份的插件目录拷回去（.tmp/backup-<日期>-installed-*），或重新安装正式版的 Release。`);
+}
+
 async function main() {
     if (!existsSync(path.join(PLUGIN_DIR, 'plugin.json'))) fail(`找不到插件目录：${PLUGIN_DIR}`);
     const pluginJson = readJson(path.join(PLUGIN_DIR, 'plugin.json'));
     const version = String(pluginJson.version || '').trim();
     if (!version) fail('plugin.json 缺少 version');
     if (localMusic && (!install || makeZip)) fail('--local-music 只用于本机验收：必须配合 --install，且不能和 --zip 一起用');
+    if (debug) {
+        if (makeZip || localMusic) fail('--debug 只装本机：不能和 --zip / --local-music 一起用');
+        await buildDebug(version);
+        return;
+    }
 
     console.log(`[build-plugin] v${version}`);
     buildCss();

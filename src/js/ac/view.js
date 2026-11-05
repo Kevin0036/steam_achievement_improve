@@ -1,19 +1,24 @@
 /** Cached card ordering for React's frequently fired store subscription. */
-export function createCardView({ sortCards, readOrder, writeOrder }) {
+/**
+ * 两种装订都按完成时间排：
+ *   · 最新优先：sortCards（完成时间倒序）
+ *   · 顺序入册：完成时间正序，没有日期的排在最后
+ * 顺序入册以前另记一份「入册先后」，以前打完、后来才露面的卡（例如之前被误判没收进来）会被
+ * 挤到末尾，修起来还得靠一次性修复；现在直接按日期排，两种装订永远互为倒序。
+ */
+export function createCardView({ sortCards }) {
     let lastCards = null;
     let lastBinding = null;
     let lastFreeze = false;
-    let lastPersist = false;
     let lastManualRevision = 0;
     let sortedBasis = new Map();
     let lastById = new Map();
     let lastIds = [];
     let lastResult = null;
-    let history = null;
 
-    function select(cards, { binding = 'newest', freezeOrder = false, persist = true, manualRevision = 0 } = {}) {
+    function select(cards, { binding = 'newest', freezeOrder = false, manualRevision = 0 } = {}) {
         if (cards === lastCards && binding === lastBinding && freezeOrder === lastFreeze
-            && persist === lastPersist && manualRevision === lastManualRevision) {
+            && manualRevision === lastManualRevision) {
             return lastResult;
         }
         const byId = new Map(cards.map(card => [card.appid, card]));
@@ -21,38 +26,19 @@ export function createCardView({ sortCards, readOrder, writeOrder }) {
         const previousMembers = new Set(lastIds);
         const sameMembers = idsNow.length === lastIds.length && idsNow.every(id => previousMembers.has(id));
         const sameBinding = binding === lastBinding;
+        const sameNames = sameMembers && cards.every(card => lastById.get(card.appid)?.name === card.name);
+        const sameKeys = sameMembers && cards.every(card => {
+            const before = sortedBasis.get(card.appid);
+            return before && before.completedAt === card.completedAt && before.name === card.name;
+        });
+        // 补日期期间页面顺序先冻住，补完再统一排一次（手动改日期、增删卡、改名都立即重排）
+        const frozen = freezeOrder && sameNames && manualRevision === lastManualRevision;
         let ids;
-        if (binding === 'sequential') {
-            if (!history) history = readOrder();
-            const frozen = sameBinding && freezeOrder && sameMembers
-                && manualRevision === lastManualRevision;
-            if (frozen) ids = lastIds;
-            else {
-                const kept = history.filter(id => byId.has(id));
-                const known = new Set(kept);
-                const fresh = cards.filter(card => !known.has(card.appid));
-                const freshIds = sortByCompletion(fresh).map(card => card.appid);
-                ids = [...kept, ...freshIds];
-                // Undated cards only have a provisional slot: persist once the batch is fully
-                // dated, otherwise the appid order gets frozen in as "arrival order" for good.
-                const settled = fresh.every(card => card.completedAt != null);
-                if (persist && fresh.length && settled) {
-                    history = [...history, ...freshIds];
-                    writeOrder(history);
-                }
-            }
-        } else {
-            const sameNames = sameMembers && cards.every(card => lastById.get(card.appid)?.name === card.name);
-            const sameKeys = sameMembers && cards.every(card => {
-                const before = sortedBasis.get(card.appid);
-                return before && before.completedAt === card.completedAt && before.name === card.name;
-            });
-            const frozen = freezeOrder && sameNames && manualRevision === lastManualRevision;
-            if (sameBinding && sameMembers && (frozen || sameKeys)) ids = lastIds;
-            else {
-                ids = sortCards(cards).map(card => card.appid);
-                sortedBasis = byId;
-            }
+        if (sameBinding && sameMembers && (frozen || sameKeys)) ids = lastIds;
+        else {
+            const sorted = binding === 'sequential' ? sortByCompletion(cards) : sortCards(cards);
+            ids = sorted.map(card => card.appid);
+            sortedBasis = byId;
         }
         // Identity is the order token. A recalculation with the same sequence needs no rebinding.
         if (ids.length === lastIds.length && ids.every((id, i) => id === lastIds[i])) ids = lastIds;
@@ -61,7 +47,6 @@ export function createCardView({ sortCards, readOrder, writeOrder }) {
         lastCards = cards;
         lastBinding = binding;
         lastFreeze = freezeOrder;
-        lastPersist = persist;
         lastManualRevision = manualRevision;
         lastIds = ids;
         lastById = byId;
@@ -72,7 +57,7 @@ export function createCardView({ sortCards, readOrder, writeOrder }) {
     return { select };
 }
 
-/** Arrival order: completion time ascending, undated cards last, stable by appid. */
+/** 顺序入册：完成时间正序，没有日期的排在最后，同一时刻按 appid */
 function sortByCompletion(cards) {
     return [...cards].sort((a, b) => {
         const left = a.completedAt ?? Infinity;

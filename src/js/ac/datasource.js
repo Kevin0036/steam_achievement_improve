@@ -173,9 +173,17 @@ function rememberServiceProgressRow(row) {
         percentage: Number.isFinite(percentage) ? percentage : null,
         source: 'player-service',
     };
+    // 成就集合（2026-10 起才有）：判全成就要看本体集合，这几项不能在白名单里丢掉
+    for (const key of SET_PROGRESS_FIELDS) {
+        const value = Number(row[key]);
+        if (row[key] != null && Number.isFinite(value)) entry[key] = value;
+    }
     serviceProgress.set(appid, entry);
     return entry;
 }
+
+/** GetAchievementsProgress 每行里和成就集合有关的字段（本地 mapCache 里是同样的名字） */
+const SET_PROGRESS_FIELDS = ['groups_completed_base', 'groups_total_base', 'groups_completed_dlc', 'groups_total_dlc', 'base_game_total'];
 
 /**
  * 本次 Steam 会话里最多同步一次。接口不可用时立即返回，加载流程退回本地缓存。
@@ -732,6 +740,49 @@ export async function requestGlobalAchievements(appid, { signal, expectedTotal }
     if (signal?.aborted) return null;
     const cached = await requestCachedAchievements(appid, { signal });
     return cached ? { ...cached, source: 'achievementmap' } : null;
+}
+
+/**
+ * 成就集合：一款游戏的成就表（每个成就属于哪个集合、集合是不是 DLC / 归档）和本人的解锁记录
+ * （含每个集合是否完成）。两个请求都走客户端已有的 CM 连接，和 Steam 自己的成就页是同一对接口。
+ * 原样返回，由 model.js 的 summarizeSets 汇总；任何一个失败都返回 null（不猜）。
+ *
+ * @returns {Promise<{groups:object[], achievements:object[], user:{achievements:object[], groups:object[]}}|null>}
+ */
+export async function requestAchievementSets(appid, { signal } = {}) {
+    const id = Number(appid);
+    if (!Number.isFinite(id) || id <= 0 || signal?.aborted) return null;
+    try {
+        const api = getMillenniumApi();
+        const match = (value) => value && typeof value.GetGameAchievements === 'function' && typeof value.GetUserAchievements === 'function';
+        const service = api?.findModuleExport?.(match)
+            ?? Object.values(api?.findModuleByExport?.(match) ?? {}).find(match);
+        const transport = getApp()?.cm?.GetServiceTransport?.();
+        const steamid = getApp()?.GetCurrentUser?.()?.strSteamID;
+        if (!service || !transport || !steamid) return null;
+        const [game, user] = await Promise.all([
+            withTimeout(service.GetGameAchievements(transport, { appid: id, language: 'schinese' }), TIMEOUT_MS, `SetSchema(${id})`, signal),
+            withTimeout(service.GetUserAchievements(transport, { appid: id, steamid }), TIMEOUT_MS, `SetProgress(${id})`, signal),
+        ]);
+        if (game?.GetEResult?.() !== 1 || user?.GetEResult?.() !== 1) {
+            out.log(`读取 ${id} 的成就集合失败：eresult-${game?.GetEResult?.() ?? 'none'}/${user?.GetEResult?.() ?? 'none'}`);
+            return null;
+        }
+        const schema = game.Body().toObject();
+        const own = user.Body().toObject();
+        if (!Array.isArray(schema?.achievements) || schema.achievements.length === 0) return null;
+        return {
+            groups: Array.isArray(schema.groups) ? schema.groups : [],
+            achievements: schema.achievements,
+            user: {
+                achievements: Array.isArray(own?.achievements) ? own.achievements : [],
+                groups: Array.isArray(own?.groups) ? own.groups : [],
+            },
+        };
+    } catch (err) {
+        if (!signal?.aborted) out.log(`读取 ${id} 的成就集合失败：${err?.message ?? err}`);
+        return null;
+    }
 }
 
 /** 该 API 在当前上下文里是否可用（供 selftest 报告） */

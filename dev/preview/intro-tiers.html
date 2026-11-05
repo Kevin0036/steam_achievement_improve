@@ -5,7 +5,8 @@
 <title>成就收藏册 · 入册动画</title>
 
 <!--
-  入册动画挑选页。下面的 iframe 是真实的 cardpack.html，动画和音效都是正式代码，
+  入册动画挑选页（最后一个按钮是徽章翻新：DLC 成就集合也打通后蓝徽章换成蓝紫徽章）。
+  下面的 iframe 是真实的 cardpack.html，动画和音效都是正式代码，
   按卡片真实的游玩时长分档，这里只是挑一张对应档位的卡在册子上重播。
   按钮的点击会解锁 iframe 里的音频，所以这里不用先点书页就有声音。
 -->
@@ -18,6 +19,7 @@
     .tier { flex: 1 1 190px; min-width: 190px; padding: 9px 12px; color: inherit; font: inherit; text-align: left; cursor: pointer; border: 1px solid #ffffff14; border-radius: 10px; background: #18181b; transition: border-color 120ms ease, background 120ms ease; }
     .tier:hover:not(:disabled) { border-color: #ffffff33; }
     .tier[aria-pressed="true"] { border-color: #d6b77a; background: #211e18; }
+    .tier--upgrade[aria-pressed="true"] { border-color: #b658c4; background: #1f1724; }
     .tier:disabled { cursor: wait; opacity: 0.6; }
     .tier:focus-visible { outline: 2px solid #d6b77a; outline-offset: 2px; }
     .tier b { display: block; font-size: 13.5px; font-weight: 600; }
@@ -41,6 +43,7 @@
         <button type="button" class="tier" data-tier="fast" data-style="fire"><b>火焰 · 15 小时以内</b><span data-role="card">—</span></button>
         <button type="button" class="tier" data-tier="standard"><b>标准 · 15～50 小时</b><span data-role="card">—</span></button>
         <button type="button" class="tier" data-tier="heavy"><b>厚重 · 超过 50 小时</b><span data-role="card">—</span></button>
+        <button type="button" class="tier tier--upgrade" data-tier="upgrade"><b>徽章翻新 · DLC 集合打通</b><span data-role="card">—</span></button>
         <div class="sweep">
             <button type="button" data-sweep="lightning">闪电 · 依次四个卡槽</button>
             <button type="button" data-sweep="fire">火焰 · 依次四个卡槽</button>
@@ -108,7 +111,8 @@ async function run(tier, style, source) {
     setBusy(true);
     for (const button of buttons) button.setAttribute('aria-pressed', String(button === source));
     try {
-        await target.__demoIntro(tier, style, chosenSlot());
+        if (tier === 'upgrade') await target.__demoUpgrade(chosenSlot());
+        else await target.__demoIntro(tier, style, chosenSlot());
     } finally {
         setBusy(false);
     }
@@ -141,9 +145,14 @@ frame.addEventListener('load', async () => {
     const target = frame.contentWindow;
     for (let i = 0; i < 40 && !target.__introCard; i += 1) await new Promise((resolve) => setTimeout(resolve, 100));
     for (const button of buttons) {
-        const card = target.__introCard?.(button.dataset.tier);
+        const upgrade = button.dataset.tier === 'upgrade';
+        const card = upgrade ? target.__upgradeCard?.() : target.__introCard?.(button.dataset.tier);
         const hours = card?.playtimeMin == null ? '' : ` · ${(card.playtimeMin / 60).toFixed(1)}h`;
-        button.querySelector('[data-role="card"]').textContent = card ? `${card.name}${hours}` : '册子里没有这一档的卡';
+        button.querySelector('[data-role="card"]').textContent = !card
+            ? '册子里没有这一档的卡'
+            : upgrade
+              ? `${card.name} · 假装又拿了 6 金 9 银`
+              : `${card.name}${hours}`;
         button.disabled = !card;
     }
     for (const button of sweeps) button.disabled = false;

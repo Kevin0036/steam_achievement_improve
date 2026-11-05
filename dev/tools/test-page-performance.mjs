@@ -4,15 +4,16 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import STR from '../../millennium/themes/AchievementCollection/src/js/ac/strings.js';
 import { createCardView, createYearSnapshot, sameYearSnapshot } from '../../millennium/themes/AchievementCollection/src/js/ac/view.js';
+import { cardBeforeUpgrade } from '../../millennium/themes/AchievementCollection/src/js/ac/model.js';
 
 const source = readFileSync(new URL('../../millennium/themes/AchievementCollection/src/js/ac/page.js', import.meta.url), 'utf8')
     .replace(/^import [\s\S]*?;\r?$/gm, '').replace(/^export /gm, '');
-function harness({ binding = 'newest', running = false, history = [1, 2], options: extraOptions = {},
+function harness({ binding = 'newest', running = false, options: extraOptions = {},
     reading = { tabs: true, tree: false, target: 15 }, treeFeature = true, guideDue = false } = {}) {
     let state = { phase: 'ready', cards: [{ appid: 1, name: 'A', completedAt: 2023 }, { appid: 2, name: 'B', completedAt: 2024 }],
-        dates: { running, unavailable: new Set() }, intro: { appids: [], ready: false }, manualRevision: 0, owner: {} };
-    let hooks = [], cursor = 0, effects = [], listener, yearReads = 0, sorts = 0, historyReads = 0, classes = [];
-    const books = [], introduced = [];
+        dates: { running, unavailable: new Set() }, intro: { appids: [], ready: false }, upgrade: { changes: [] }, manualRevision: 0, owner: {} };
+    let hooks = [], cursor = 0, effects = [], listener, yearReads = 0, sorts = 0, classes = [];
+    const books = [], introduced = [], upgraded = [];
     const options = { '卡册装订方式': binding, '年份特殊页': '开启', ...extraOptions };
     const listeners = new Map(), dispatched = [];
     const win = { addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener() {}, dispatchEvent(event) { dispatched.push(event.type); },
@@ -34,27 +35,29 @@ function harness({ binding = 'newest', running = false, history = [1, 2], option
         useEffect(fn, deps) { const i = cursor++; if (!hooks[i] || changed(hooks[i].deps, deps)) effects.push(() => { hooks[i]?.cleanup?.(); hooks[i] = { deps, cleanup: fn() }; }); },
         createElement(type, props) { if (props?.className) classes.push(props.className); if (props?.ref && props.className === 'ac-book-host') props.ref.current = host; return {}; },
     };
-    const writes = [];
-    const cache = { readPosition: () => null, readOrder: () => { historyReads++; return history; }, writeOrder(ids) { writes.push(ids); }, readYearSelections: () => ({}) };
+    const cache = { readPosition: () => null, readYearSelections: () => ({}) };
     const store = { getState: () => state, subscribe(fn) { listener = fn; return () => {}; }, load() {}, loadOwner() {}, pause() {}, ensureAccountScope() {},
-        markIntroduced(ids) { introduced.push(...ids); state = { ...state, intro: { ...state.intro, appids: state.intro.appids.filter(id => !ids.includes(id)) } }; listener?.(); } };
+        markIntroduced(ids) { introduced.push(...ids); state = { ...state, intro: { ...state.intro, appids: state.intro.appids.filter(id => !ids.includes(id)) } }; listener?.(); },
+        markUpgraded(ids) { upgraded.push(...ids); state = { ...state, upgrade: { changes: state.upgrade.changes.filter(c => !ids.includes(c.appid)) } }; listener?.(); } };
     const deps = { getReact: () => React, getReactDom() {}, getThemeOption: (key, fallback) => options[key] ?? fallback,
         isPluginMode: () => false, ensureNodeStyles() {}, store, cache,
         createBook(_host, opts) { const book = { opts, initialCards: opts.cards.slice(), cards: opts.cards.slice(), updates: [], replacements: [], intros: [], page: 0, position: {},
             destroy() { this.destroyed = true; }, updateCard(id, card, options) { this.updates.push({ id, options }); this.cards[this.cards.findIndex(c => c.appid === id)] = card; },
             replaceCards(cards) { this.replacements.push(cards); this.cards = cards.slice(); },
-            introduce(cards, ids) { this.cards = cards.slice(); this.intros.push(ids); return new Promise(resolve => { this.completeIntro = resolve; }); } }; books.push(book); return book; },
+            introduce(cards, ids) { this.cards = cards.slice(); this.intros.push(ids); return new Promise(resolve => { this.completeIntro = resolve; }); },
+            upgrades: [],
+            upgrade(cards, changes) { this.cards = cards.slice(); this.upgrades.push(changes.map(c => c.appid)); return new Promise(resolve => { this.completeUpgrade = resolve; }); } }; books.push(book); return book; },
         openExportDialog() {}, markOnboardingSeen() { seenGuide = true; }, shouldShowOnboarding: () => !seenGuide, showOnboarding() { return { destroy() {} }; },
         markTreeNoticeSeen() {}, shouldShowTreeNotice: () => false, showTreeNotice() {},
         readReading: () => ({ ...reading }), TREE_FEATURE: treeFeature, openReadingSettings() {},
         yearKeyOf: card => { yearReads++; return card.completedAt; },
         sortCards: cards => { sorts++; return [...cards].sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)); },
-        createCardView, createYearSnapshot, sameYearSnapshot, tagged: () => ({ log() {} }), STR };
+        createCardView, createYearSnapshot, sameYearSnapshot, cardBeforeUpgrade, tagged: () => ({ log() {} }), STR };
     const Page = new Function(...Object.keys(deps), source + '\nreturn Page;')(...Object.values(deps));
     function render(patch = {}) { state = { ...state, ...patch }; listener?.(); cursor = 0; effects = []; classes = []; Page(); for (const effect of effects) effect(); }
-    return { render, books, introduced, setOptions: patch => Object.assign(options, patch), get state() { return state; },
+    return { render, books, introduced, upgraded, setOptions: patch => Object.assign(options, patch), get state() { return state; },
         notify: detail => listeners.get('ac:update-notice')?.({ detail }), opens: () => dispatched.filter(type => type === 'ac:update-open').length,
-        reads: () => yearReads, sorts: () => sorts, historyReads: () => historyReads, writes: () => writes, classes: () => classes };
+        reads: () => yearReads, sorts: () => sorts, classes: () => classes };
 }
 
 test('the fill-in button counts zero recorded playtime as missing', () => {
@@ -155,32 +158,22 @@ test('manual playtime rebuilds year pages without resorting', () => {
     assert.equal(h.sorts(), sorts);
 });
 
-test('sequential binding self-heals legacy appid order once dates arrive', () => {
-    const h = harness({ binding: 'sequential', history: [], running: true });
+test('sequential binding sorts by completion date once dates arrive', () => {
+    const h = harness({ binding: 'sequential', running: true });
     h.render({ cards: [{ appid: 1, name: 'A', completedAt: null }, { appid: 2, name: 'B', completedAt: null }] });
     assert.deepEqual(h.books[0].initialCards.map(c => c.appid), [1, 2]);
-    assert.deepEqual(h.writes(), []);
     h.render({ cards: [{ appid: 1, name: 'A', completedAt: 2024 }, { appid: 2, name: 'B', completedAt: 2023 }] });
     assert.equal(h.books[0].replacements.length, 0, 'frozen while dates are still arriving');
     h.render({ dates: { ...h.state.dates, running: false } });
     assert.deepEqual(h.books[0].replacements.at(-1).map(c => c.appid), [2, 1]);
-    assert.deepEqual(h.writes(), [[2, 1]]);
 });
 
-test('each page mount reads its own sequential history', () => {
-    const a = harness({ binding: 'sequential', history: [1, 2] }); a.render();
-    const b = harness({ binding: 'sequential', history: [2, 1] }); b.render();
-    assert.deepEqual(a.books[0].cards.map(c => c.appid), [1, 2]);
-    assert.deepEqual(b.books[0].cards.map(c => c.appid), [2, 1]);
-    assert.equal(a.historyReads(), 1); assert.equal(b.historyReads(), 1);
-});
-
-test('metadata patches do not regroup years and sequential manual dates preserve order', () => {
+test('metadata patches do not regroup years and sequential manual dates reorder by date', () => {
     const h = harness({ binding: 'sequential', running: true }); h.render();
     h.render({ cards: [{ ...h.state.cards[0], rare: 7 }, h.state.cards[1]] });
     assert.equal(h.books[0].updates.length, 1); assert.equal(h.books[0].replacements.length, 0);
     h.render({ manualRevision: 1, cards: [{ ...h.state.cards[0], completedAt: 2025 }, h.state.cards[1]] });
-    assert.deepEqual(h.books[0].replacements.at(-1).map(c => c.appid), [1, 2]);
+    assert.deepEqual(h.books[0].replacements.at(-1).map(c => c.appid), [2, 1]);
     h.render({ dates: { ...h.state.dates, running: false } });
     assert.equal(h.books[0].replacements.length, 1);
 });
@@ -245,4 +238,61 @@ test('reading settings drive tabs, tree and target and rebuild only on change', 
     reading.tabs = false;
     h.render();
     assert.equal(h.books[3].opts.yearIndex, false);
+});
+
+/* ── 徽章翻新（DLC 成就集合也打通了） ───────────────────────────────────── */
+
+const purple = { appid: 2, name: 'B', completedAt: 2024, allSets: true, rare: 8, common: 12, total: 20, playtimeMin: 900 };
+const upgradeOf = (from = { rare: 5, common: 7, total: 12, playtimeMin: 600 }) => ({ changes: [{ appid: 2, from }] });
+
+test('a pending upgrade keeps the old blue card in the book until it plays', () => {
+    const h = harness();
+    h.render({ cards: [h.state.cards[0], purple], upgrade: upgradeOf(), fromCache: true });
+    const book = h.books[0];
+    const shown = book.initialCards.find(c => c.appid === 2);
+    assert.deepEqual([shown.allSets, shown.rare, shown.common, shown.total, shown.playtimeMin], [false, 5, 7, 12, 600], '册子里先摆翻新前的蓝徽章卡');
+    assert.equal(book.upgrades.length, 0, '首屏缓存阶段不播，等客户端数据');
+    // 稀有数之类逐张补上来时，也不能把蓝紫徽章提前换上去
+    h.render({ cards: [h.state.cards[0], { ...purple, rare: 9 }], fromCache: true });
+    assert.equal(book.updates.some(u => u.id === 2), false);
+});
+
+test('the upgrade plays once after client data, then is marked as seen', async () => {
+    const h = harness();
+    h.render({ cards: [h.state.cards[0], purple], upgrade: upgradeOf(), fromCache: false });
+    const book = h.books[0];
+    assert.deepEqual(book.upgrades, [[2]]);
+    assert.equal(book.cards.find(c => c.appid === 2).allSets, true, '交给动画的是蓝紫的新卡');
+    h.render();
+    assert.equal(book.upgrades.length, 1, '播放途中不会重复开播');
+    book.completeUpgrade(true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepEqual(h.upgraded, [2]);
+    h.render();
+    assert.equal(book.upgrades.length, 1);
+});
+
+test('the upgrade waits for the new-card intro', async () => {
+    const h = harness();
+    const fresh = { appid: 3, name: 'C', completedAt: 2026 };
+    h.render({ cards: [h.state.cards[0], purple, fresh], intro: { appids: [3], ready: true }, upgrade: upgradeOf(), fromCache: false });
+    const book = h.books[0];
+    assert.deepEqual(book.intros, [[3]]);
+    assert.equal(book.upgrades.length, 0, '入册动画还在播');
+    book.completeIntro(true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    h.render();
+    assert.deepEqual(book.upgrades, [[2]]);
+});
+
+test('update prompt waits for the badge upgrade too', async () => {
+    const h = harness();
+    h.render({ cards: [h.state.cards[0], purple], upgrade: upgradeOf(), fromCache: false });
+    h.notify({ latest: '1.2.3', restart: false, prompt: true });
+    h.render();
+    assert.equal(h.opens(), 0);
+    h.books[0].completeUpgrade(true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    h.render();
+    assert.equal(h.opens(), 1);
 });

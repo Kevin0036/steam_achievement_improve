@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就集合徽章</title>
+
+<!--
+  成就集合徽章选型页。
+  卡片是真实的 createCardFront（正式 cardpack.css + cardview.js），只把卡面中央徽章的图换掉；
+  徽章各配色由 tools/make-art.mjs 生成到 assets/badge-palettes.css，和正式 art.css 同一份画法。
+
+    蓝色（原版）：本体集合全成就，或者这款游戏没有成就集合
+    蓝紫渐变    ：本体集合 + 所有 DLC 集合都全成就（左蓝右紫；上一稿留着对比）
+-->
+
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/cardpack.css">
+<link rel="stylesheet" href="./assets/badge-palettes.css">
+
+<style>
+    html, body { margin: 0; background: rgb(17, 17, 17); color: #9aa3b2; font: 13px/1.6 "Be Vietnam Pro", "Microsoft YaHei UI", sans-serif; }
+    main { max-width: 1240px; margin: 0 auto; padding: 22px 24px 48px; }
+    h2 { margin: 30px 0 4px; font-size: 14px; font-weight: 600; color: #e6e1d6; letter-spacing: 0.02em; }
+    p.lead { margin: 0 0 16px; color: #7d838d; }
+    .tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .tools select { height: 30px; padding: 0 10px; font: inherit; color: #ebedf0; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: rgb(24,24,27); }
+
+    /* 四张真实卡面并排 */
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 300px)); gap: 34px; justify-content: center; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+    .col .ac-card { cursor: default; }
+    .tag { display: flex; align-items: baseline; gap: 8px; color: #e6e1d6; font-weight: 600; }
+    .tag small { font-weight: 400; color: #7d838d; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; align-self: center; }
+
+    /* 单独的徽章：各种尺寸 + 亮暗底 */
+    .sheet { display: grid; grid-template-columns: 120px repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid rgba(255,255,255,.07); border-radius: 10px; overflow: hidden; }
+    .sheet > div { display: flex; align-items: flex-end; justify-content: center; gap: 14px; padding: 16px 10px; border-top: 1px solid rgba(255,255,255,.05); }
+    .sheet > .head { align-items: center; padding: 10px; border-top: 0; color: #e6e1d6; font-weight: 600; background: rgba(255,255,255,.025); }
+    .sheet > .label { align-items: center; justify-content: flex-start; padding-left: 14px; color: #7d838d; }
+    .sheet > .light { background: #efe8da; }
+    .badge { aspect-ratio: 100 / 118; background: center / contain no-repeat; filter: drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+    .light .badge { filter: drop-shadow(0 2px 4px rgba(60,40,10,.25)); }
+    .bar { position: relative; width: 100%; max-width: 220px; height: 34px; border-radius: 0 0 6px 6px; background: linear-gradient(#4a86f0, #346ae0); }
+    .bar .badge { position: absolute; right: 8px; bottom: 3px; height: 44px; }
+
+    @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<main>
+    <div class="tools">
+        <label for="game">卡面游戏</label>
+        <select id="game"></select>
+        <span style="color:#6c7179">悬停卡片会播放宝珠上的那道光，和收藏册里一样</span>
+    </div>
+
+    <h2>卡面效果</h2>
+    <p class="lead">左一是现在的蓝徽章：本体集合全成就（没有成就集合的游戏也用它）。右边是「本体 + 所有 DLC 集合都全成就」的左蓝右紫：紫色改用 Steam 自己 DLC 集合奖章的颜色，过渡收窄，另外补了一层上亮下暗。中间是上一稿，方便对比。金色宝珠和奶金描边都不变。</p>
+    <div class="cards" id="cards"></div>
+
+    <h2>小尺寸与亮底</h2>
+    <p class="lead">四卡版式、年份页、展柜信息条里徽章会缩得很小，这里看蓝紫在小尺寸下还分不分得开。</p>
+    <div class="sheet" id="sheet"></div>
+</main>
+
+<script type="module">
+import { CARDS, OWNER } from './fixtures.js';
+import { createCardFront } from '/theme/src/js/ac/cardview.js';
+
+const VARIANTS = [
+    { id: 'base', name: '蓝色', note: '本体集合 · 原版', dot: 'linear-gradient(#5b9bff, #2b63dc)' },
+    { id: 'horizontalDraft', name: '上一稿', note: '紫色偏浅 · 过渡太宽', dot: 'linear-gradient(90deg, #4f8fff, #9a4ff0)' },
+    { id: 'horizontal', name: '全部集合', note: 'Steam DLC 奖章紫 #B658C4 → #8A3F97', dot: 'linear-gradient(90deg, #4f8fff 36%, #b658c4 64%)' },
+];
+const img = (id) => `var(--ac-badge-${id})`;
+
+const select = document.getElementById('game');
+const PREFERRED = 2060160; // 编程农场：11 月 2 日出了新的 DLC 成就集合
+for (const card of CARDS) select.append(new Option(card.name, String(card.appid)));
+select.value = String(CARDS.some((c) => c.appid === PREFERRED) ? PREFERRED : CARDS[0].appid);
+
+function renderCards() {
+    const card = CARDS.find((c) => String(c.appid) === select.value) ?? CARDS[0];
+    const host = document.getElementById('cards');
+    host.replaceChildren();
+    for (const v of VARIANTS) {
+        const col = document.createElement('div');
+        col.className = 'col';
+        const tag = document.createElement('div');
+        tag.className = 'tag';
+        tag.innerHTML = `<span class="dot" style="background:${v.dot}"></span>${v.name}<small>${v.note}</small>`;
+
+        const box = document.createElement('div');
+        box.className = 'ac-card';
+        const tilt = document.createElement('div');
+        tilt.className = 'ac-card__tilt';
+        tilt.append(createCardFront(document, card, { owner: OWNER }));
+        const shadow = document.createElement('div');
+        shadow.className = 'ac-card__shadow';
+        box.append(shadow, tilt);
+        box.querySelector('.ac-cf__badge').style.backgroundImage = img(v.id);
+        box.addEventListener('pointerenter', () => box.setAttribute('data-hover', ''));
+        box.addEventListener('pointerleave', () => box.removeAttribute('data-hover'));
+
+        col.append(tag, box);
+        host.append(col);
+    }
+}
+
+function renderSheet() {
+    const sheet = document.getElementById('sheet');
+    const cell = (cls, html = '') => {
+        const d = document.createElement('div');
+        d.className = cls;
+        d.innerHTML = html;
+        sheet.append(d);
+    };
+    const badge = (id, h) => `<div class="badge" style="height:${h}px;background-image:${img(id)}"></div>`;
+    cell('head');
+    for (const v of VARIANTS) cell('head', `<span class="dot" style="background:${v.dot}"></span>&nbsp;${v.name}`);
+    cell('label', '暗底');
+    for (const v of VARIANTS) cell('', [96, 46, 28].map((h) => badge(v.id, h)).join(''));
+    cell('label', '亮底');
+    for (const v of VARIANTS) cell('light', [96, 46, 28].map((h) => badge(v.id, h)).join(''));
+    cell('label', '展柜信息条');
+    for (const v of VARIANTS) cell('', `<div class="bar">${badge(v.id, 44)}</div>`);
+}
+
+select.addEventListener('change', renderCards);
+renderCards();
+renderSheet();
+</script>
+</body>
+</html>

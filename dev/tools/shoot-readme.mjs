@@ -7,6 +7,7 @@
  *   albums  四款册子的同一个跨页（album-*.webp）
  *   months  月份足迹：点开一个月再收回（year-months.webp，动图）
  *   intro   入册动画四段：闪电、火焰、标准、厚重（intro-*.webp）
+ *   sets    蓝紫徽章的成就卡（card-all-sets.webp）：本体和所有 DLC 成就集合都全成就
  *
  * 跑的是预览页（npm run preview 要先开着），昵称一律显示成 Player，不带真实账号名。
  * 动图用 CDP 抓真实运行的连续帧，再交给 ffmpeg 合成动态 WebP（比 GIF 小得多，GitHub 能直接播）。
@@ -201,8 +202,32 @@ async function shootMonthsClip() {
     await page.close();
 }
 
+/** 蓝紫徽章卡：预览的翻新演示把编程农场翻成蓝紫，翻完后只拍这一张卡 */
+async function shootSetsCard() {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 2 });
+    await page.goto(`${BASE}/preview/cardpack.html?binding=sequential&owner=Player&introSound=0`, { waitUntil: 'load' });
+    await page.waitForSelector('.ac-leaf[data-visible] .ac-card');
+    await page.mouse.move(2, 2);
+    const appid = await page.evaluate(async () => {
+        await window.__demoUpgrade();
+        return window.__upgradeCard().appid;
+    });
+    await imagesSettled(page);
+    // 落槽后那道掠光过去再拍
+    await page.waitForTimeout(1800);
+    const card = page.locator(`.ac-leaf[data-visible] .ac-slot .ac-card[data-appid="${appid}"]`).first();
+    const png = path.join(tmpdir(), 'ac-card-all-sets.png');
+    await card.screenshot({ path: png });
+    const file = path.join(OUT, 'card-all-sets.webp');
+    ffmpeg(['-i', png, '-vf', 'scale=420:-2:flags=lanczos', '-c:v', 'libwebp', '-quality', '90', file]);
+    rmSync(png);
+    console.log(`[sets] ${appid} -> ${path.basename(file)}`);
+    await page.close();
+}
+
 mkdirSync(OUT, { recursive: true });
 try {
+    if (want('sets')) await shootSetsCard();
     if (want('albums')) await shootAlbums();
     if (want('months')) await shootMonthsClip();
     if (want('intro')) for (const [name, tier, style] of INTROS) await shootIntro(name, tier, style);

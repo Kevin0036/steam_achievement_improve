@@ -55,6 +55,16 @@
     </section>
 
     <section class="case">
+        <h2>成就集合 · 左边本体和 DLC 集合都打通（蓝紫），右边只打通本体（蓝）</h2>
+        <div class="profile_customization">
+            <div class="profile_customization_header">完满主义者展柜</div>
+            <div class="profile_customization_block">
+                <div class="showcase_achievementscompletionist_slots" data-sets></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="case">
         <h2>锁区封面补救 · 第一个格子是坏图，第二个完全没有封面</h2>
         <div class="profile_customization">
             <div class="profile_customization_header">完满主义者展柜</div>
@@ -73,7 +83,11 @@ const byId = new Map(CARDS.map((c) => [c.appid, c]));
 document.querySelector('[data-card-count]').textContent = CARDS.length;
 
 /** Valve 的格子结构：<a> 里是封面 + 信息条（奖杯组 + 成就数 / 稀有数） */
-function slot(card, { cover = 'auto' } = {}) {
+/** Valve 的奖杯组：base = 已完成的本体集合，dlc = 已完成的 DLC 集合（没完成的集合不画） */
+const RIBBON_BASE = '<span class="showcase_completion_ribbon_group base"><span class="showcase_completion_ribbon"></span></span>';
+const RIBBON_DLC = '<span class="showcase_completion_ribbon_group dlc"><span class="showcase_completion_ribbon_count">1</span><span class="showcase_completion_ribbon"></span></span>';
+
+function slot(card, { cover = 'auto', href = null, ribbons = RIBBON_BASE } = {}) {
     const counts = Number.isFinite(card.total)
         ? `<div class="num_achievements">${card.total} 项成就</div>
            ${card.rare != null ? `<div class="num_rare">${card.rare} 项为稀有</div>` : ''}`
@@ -81,12 +95,10 @@ function slot(card, { cover = 'auto' } = {}) {
     const template = document.createElement('template');
     template.innerHTML = `
     <div class="showcase_slot showcase_achievementscompletionist_game">
-      <a href="https://steamcommunity.com/stats/${card.appid}/achievements/">
+      <a href="${href ?? `https://steamcommunity.com/stats/${card.appid}/achievements/`}">
         <div class="showcase_achievementscompletionist_game_bar">
           <div class="showcase_achievementscompletionist_game_ribbons">
-            <span class="showcase_completion_ribbons">
-              <span class="showcase_completion_ribbon_group"><span class="showcase_completion_ribbon"></span></span>
-            </span>
+            <span class="showcase_completion_ribbons">${ribbons}</span>
           </div>
           <div class="showcase_achievementscompletionist_game_counts">
             ${counts}
@@ -112,6 +124,20 @@ function slot(card, { cover = 'auto' } = {}) {
 for (const grid of document.querySelectorAll('[data-slots]')) {
     const cards = grid.dataset.slots.split(',').map(id => byId.get(Number(id))).filter(Boolean);
     grid.replaceChildren(...cards.map((card) => slot(card)));
+}
+
+// 成就集合用例：格子链到同域的成就页（预览里是 assets/achievements/<appid>，从真实成就页精简而来），
+// showcasesets.js 取来判定 DLC 集合是否全部打通。右边那款只有本体奖杯，不会去查。
+const OUTER_WILDS = {
+    appid: 753640, name: 'Outer Wilds', total: 31, rare: 11,
+    art: { header: ['https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/753640/header.jpg'] },
+};
+for (const grid of document.querySelectorAll('[data-sets]')) {
+    const plain = CARDS.find((card) => card.appid === 2358720) ?? CARDS[0];
+    grid.replaceChildren(
+        slot(OUTER_WILDS, { href: '/preview/assets/achievements/753640', ribbons: RIBBON_BASE + RIBBON_DLC }),
+        slot(plain),
+    );
 }
 
 // 锁区用例：真实 appid，但 Valve 的封面缺失 / 坏掉，交给 showcaseart.js 按 appid 重建

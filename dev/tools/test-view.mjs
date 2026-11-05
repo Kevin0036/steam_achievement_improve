@@ -3,16 +3,12 @@ import { test } from 'node:test';
 import { createCardView, createYearSnapshot, sameYearSnapshot } from '../../millennium/themes/AchievementCollection/src/js/ac/view.js';
 
 const compare = (a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0) || a.appid - b.appid;
-const makeView = (order = []) => {
-    let sorts = 0, writes = [];
-    const view = createCardView({
-        sortCards: cards => { sorts++; return [...cards].sort(compare); },
-        readOrder: () => order,
-        writeOrder: ids => { writes.push(ids); order = ids; },
-        orderKey: card => `${card.completedAt ?? 0}|${card.name ?? ''}`,
-    });
-    return { view, sorts: () => sorts, writes: () => writes };
+const makeView = () => {
+    let sorts = 0;
+    const view = createCardView({ sortCards: cards => { sorts++; return [...cards].sort(compare); } });
+    return { view, sorts: () => sorts };
 };
+const seq = (view, cards, options = {}) => view.select(cards, { binding: 'sequential', ...options }).ids;
 
 test('reuses sorted view for the same card array', () => {
     const { view, sorts } = makeView();
@@ -48,48 +44,42 @@ test('date backfill freezes page order but refreshes card references, then sorts
     assert.equal(sorts(), 2);
 });
 
-test('sequential binding appends newly seen cards and writes order only when permitted', () => {
-    const { view, sorts, writes } = makeView([1]);
-    const cards = [{ appid: 1, completedAt: 10 }, { appid: 2, completedAt: 20 }, { appid: 3, completedAt: 5 }];
-    assert.deepEqual(view.select(cards, { binding: 'sequential', persist: false }).cards.map(card => card.appid), [1, 3, 2]);
-    assert.equal(writes().length, 0);
-    view.select(cards, { binding: 'sequential', persist: true });
-    assert.deepEqual(writes(), [[1, 3, 2]]);
-    assert.equal(sorts(), 0);
+test('sequential binding is completion order: oldest first, undated last', () => {
+    const { view } = makeView();
+    const cards = [{ appid: 1, completedAt: 10 }, { appid: 2, completedAt: 20 }, { appid: 3, completedAt: 5 }, { appid: 4, completedAt: null }];
+    assert.deepEqual(seq(view, cards), [3, 1, 2, 4]);
 });
 
-test('sequential never persists provisional appid order before dates are known', () => {
-    const { view, writes } = makeView();
+test('sequential binding: an old completion that shows up late goes to its date, not to the end of the year', () => {
+    // 潜水员戴夫：2024-09 打完，之前被误判没收进来，修好后才露面
+    const { view } = makeView();
+    const old = [{ appid: 11, completedAt: 100 }, { appid: 12, completedAt: 200 }, { appid: 13, completedAt: 300 }, { appid: 14, completedAt: 400 }];
+    assert.deepEqual(seq(view, old), [11, 12, 13, 14]);
+    assert.deepEqual(seq(view, [...old, { appid: 99, completedAt: 250 }]), [11, 12, 99, 13, 14]);
+    // 真正新打完的接在最后
+    assert.deepEqual(seq(view, [...old, { appid: 99, completedAt: 250 }, { appid: 7, completedAt: 500 }]), [11, 12, 99, 13, 14, 7]);
+});
+
+test('sequential binding is always the exact reverse of newest first', () => {
+    const { view } = makeView();
+    const cards = Array.from({ length: 40 }, (_, i) => ({ appid: 1000 + i, completedAt: ((i * 7919) % 97) * 1000 + i }));
+    assert.deepEqual(seq(view, cards), [...view.select(cards).ids].reverse());
+});
+
+test('sequential: date backfill freezes the order, then sorts once dates are in', () => {
+    const { view } = makeView();
     const preview = [{ appid: 1, completedAt: null }, { appid: 2, completedAt: null }];
-    assert.deepEqual(view.select(preview, { binding: 'sequential' }).ids, [1, 2]);
-    assert.equal(writes().length, 0, 'undated cards must not be written as arrival order');
+    assert.deepEqual(seq(view, preview), [1, 2]);
     const dated = [{ ...preview[0], completedAt: 30 }, { ...preview[1], completedAt: 20 }];
-    assert.deepEqual(view.select(dated, { binding: 'sequential', freezeOrder: true }).ids, [1, 2],
-        'display stays stable while dates are still arriving');
-    assert.equal(writes().length, 0);
-    assert.deepEqual(view.select(dated, { binding: 'sequential' }).ids, [2, 1]);
-    assert.deepEqual(writes(), [[2, 1]], 'seeded once all dates are known, oldest first');
+    assert.deepEqual(seq(view, dated, { freezeOrder: true }), [1, 2], 'display stays stable while dates are still arriving');
+    assert.deepEqual(seq(view, dated), [2, 1]);
 });
 
-test('sequential appends new cards only after their dates arrive', () => {
-    const { view, writes } = makeView([2, 1]);
-    const base = [{ appid: 1, completedAt: 10 }, { appid: 2, completedAt: 20 }];
-    view.select(base, { binding: 'sequential' });
-    const fresh = [{ appid: 3, completedAt: null }, { appid: 4, completedAt: null }];
-    assert.deepEqual(view.select([...base, ...fresh], { binding: 'sequential' }).ids, [2, 1, 3, 4]);
-    assert.equal(writes().length, 0, 'fresh cards wait for their dates');
-    const dated = [...base, { ...fresh[0], completedAt: 40 }, { ...fresh[1], completedAt: 30 }];
-    assert.deepEqual(view.select(dated, { binding: 'sequential' }).ids, [2, 1, 4, 3]);
-    assert.deepEqual(writes(), [[2, 1, 4, 3]]);
-});
-
-test('seeded sequential history keeps old positions when later dates change', () => {
-    const { view, writes } = makeView();
+test('sequential: a corrected date moves the card', () => {
+    const { view } = makeView();
     const cards = [{ appid: 1, completedAt: 10 }, { appid: 2, completedAt: 20 }];
-    view.select(cards, { binding: 'sequential' });
-    const corrected = [{ ...cards[0], completedAt: 50 }, cards[1]];
-    assert.deepEqual(view.select(corrected, { binding: 'sequential' }).ids, [1, 2]);
-    assert.equal(writes().length, 1, 'no rewrite for already shelved cards');
+    assert.deepEqual(seq(view, cards), [1, 2]);
+    assert.deepEqual(seq(view, [{ ...cards[0], completedAt: 50 }, cards[1]]), [2, 1]);
 });
 
 test('year snapshot avoids rebuilding strings and detects only changed years or membership', () => {
@@ -103,7 +93,7 @@ test('year snapshot avoids rebuilding strings and detects only changed years or 
 });
 
 test('switching from sequential binding to newest recalculates even if dates are unchanged', () => {
-    const { view } = makeView([1, 2]);
+    const { view } = makeView();
     const cards = [{ appid: 1, completedAt: 10 }, { appid: 2, completedAt: 20 }];
     view.select(cards, { binding: 'sequential' });
     assert.deepEqual(view.select(cards).cards.map(card => card.appid), [2, 1]);
@@ -136,20 +126,25 @@ test('order token is stable after metadata patches and sorting that leaves IDs u
     assert.strictEqual(changed.ids, first.ids);
 });
 
-test('client cards replace provisional sequential ordering before it is persisted', () => {
-    const { view, writes } = makeView();
-    const cached = [{ appid: 1, completedAt: 10 }, { appid: 2, completedAt: 20 }];
-    view.select(cached, { binding: 'sequential', persist: false });
-    const client = [{ ...cached[0], completedAt: 30 }, cached[1]];
-    assert.deepEqual(view.select(client, { binding: 'sequential', persist: true }).cards.map(card => card.appid), [2, 1]);
-    assert.deepEqual(writes(), [[2, 1]]);
-});
-
 test('repeated binding switches always restore the selected ordering', () => {
-    const { view } = makeView([1, 2]);
+    const { view } = makeView();
     const cards = [{ appid: 1, completedAt: 10 }, { appid: 2, completedAt: 20 }];
     for (let i = 0; i < 3; i++) {
         assert.deepEqual(view.select(cards).ids, [2, 1]);
         assert.deepEqual(view.select(cards, { binding: 'sequential' }).ids, [1, 2]);
     }
+});
+
+test('real data: Dave the Diver sits at 2024-09-15 in sequential binding', async () => {
+    const { readFileSync, existsSync } = await import('node:fs');
+    const file = process.env.AC_REAL_ORDER;
+    if (!file || !existsSync(file)) return;
+    const { state } = JSON.parse(readFileSync(file, 'utf8'));
+    const { view } = makeView();
+    const ids = seq(view, state.cards);
+    const at = ids.indexOf(1868140);
+    const by = new Map(state.cards.map(c => [c.appid, c]));
+    console.log('Dave at', at, 'between', by.get(ids[at - 1])?.name, 'and', by.get(ids[at + 1])?.name);
+    assert.ok(by.get(ids[at - 1]).completedAt <= by.get(1868140).completedAt);
+    assert.ok(by.get(ids[at + 1]).completedAt >= by.get(1868140).completedAt);
 });

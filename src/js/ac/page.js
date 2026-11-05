@@ -9,7 +9,7 @@
  *   · 状态页（读取中 / 等待数据 / 空 / 出错）画成一本合上的册子；
  *   · 把卡片交给 book 装订：
  *       最新优先按**完成时间倒序**（book 从 No.001 开始正序装订，最近完成的在最后）；
- *       顺序入册按**入册先后正序**（旧卡位置不变，新卡接在最后一页的空位）；
+ *       顺序入册按**完成时间正序**（新打完的接在最后一页的空位；以前打完、后来才露面的插回它的日期）；
  *   · 完成日期是逐张补上来的：补的过程中只就地换那一张卡，
  *     全部补完后再重新装订一次，并把当前正在看的那张留在原处；
  *   · 新全成就的游戏先不放进册子，等它的完成日期到了，交给 book.introduce() 播入册动画，
@@ -34,12 +34,17 @@ import {
 import { readReading, TREE_FEATURE } from './reading.js';
 import { openReadingSettings } from './readingpanel.js';
 import { yearKeyOf } from './yearpages.js';
-import { sortCards } from './model.js';
+import { cardBeforeUpgrade, sortCards } from './model.js';
+import { debugState, mountDebugPanel } from './debugpanel.js';
 import { createCardView, createYearSnapshot, sameYearSnapshot } from './view.js';
 import { tagged } from './utils.js';
 import { STR } from './strings.js';
 
 const out = tagged('page');
+/** 调试版（build-plugin.mjs --debug）才有的「动画重播」面板；正式版和主题版这里都是 false */
+const DEBUG_BUILD = typeof __AC_DEBUG__ !== 'undefined' && __AC_DEBUG__ === true;
+/** 没有要翻新的卡时用同一个空数组：shownRef 的缓存按引用比较 */
+const NO_UPGRADES = Object.freeze([]);
 
 /* ── 订阅 store ─────────────────────────────────────────────────────────── */
 
@@ -506,8 +511,6 @@ export function Page({ onClose } = {}) {
     const viewRef = React.useRef(null);
     if (!viewRef.current) viewRef.current = createCardView({
         sortCards: cards => sortCards(cards, 'completed'),
-        readOrder: () => cache.readOrder(),
-        writeOrder: appids => cache.writeOrder(appids),
     });
     const shownRef = React.useRef(null);
     const appliedRef = React.useRef(null);
@@ -531,6 +534,22 @@ export function Page({ onClose } = {}) {
     });
     /** 正在播的入册动画（一个令牌，防止旧书的回调影响新书） */
     const introRef = React.useRef(null);
+    /** 正在播的徽章翻新（同上；appids 是这一批翻新的卡） */
+    const upgradeRef = React.useRef(null);
+    /** 当前装订顺序的整册卡（调试面板挑卡用） */
+    const orderedRef = React.useRef([]);
+
+    // 调试版：卡包左上角挂一个「动画重播」面板，在真实 Steam 里挑着重放入册动画和徽章翻新
+    React.useEffect(() => {
+        if (!DEBUG_BUILD) return undefined;
+        const container = hostRef.current?.parentElement;
+        if (!container) return undefined;
+        return mountDebugPanel(container, {
+            getBook: () => bookRef.current,
+            getCards: () => orderedRef.current,
+            version: typeof __AC_PLUGIN_VERSION__ !== 'undefined' ? __AC_PLUGIN_VERSION__ : '',
+        });
+    }, []);
     /** 上次离开时翻到哪一页；首次挂载从缓存读，之后每次翻页就地更新 */
     const positionRef = React.useRef(undefined);
     if (positionRef.current === undefined) {
@@ -629,11 +648,11 @@ export function Page({ onClose } = {}) {
         const binding = currentBinding();
         const orderedView = viewRef.current.select(state.cards, {
             binding,
-            persist: !state.fromCache,
             freezeOrder: state.dates.running,
             manualRevision: state.manualRevision,
         });
         const ordered = orderedView.cards;
+        orderedRef.current = ordered;
         const phase = state.phase === 'ready' && ordered.length === 0 ? 'empty' : state.phase;
         const perPage = currentPerPage();
 
@@ -641,6 +660,7 @@ export function Page({ onClose } = {}) {
             bookRef.current?.destroy();
             bookRef.current = null;
             introRef.current = null;
+            upgradeRef.current = null;
             appliedRef.current = null;
             appliedCardsRef.current = new Map();
             builtRef.current = {
@@ -698,17 +718,23 @@ export function Page({ onClose } = {}) {
 
         // 设置重建可能中止正在播放的入册动画；按重建后的令牌重新隐藏待入册卡。
         const pendingIds = introRef.current ? null : state.intro.appids;
+        // 等着翻新的卡先按翻新前的样子摆（蓝徽章、只算本体的杯数），蓝紫徽章留给动画揭晓
+        const upgrades = upgradeRef.current ? null : (state.upgrade?.changes ?? NO_UPGRADES);
         let filtered = shownRef.current;
-        if (!filtered || filtered.view !== orderedView || filtered.pendingIds !== pendingIds) {
+        if (!filtered || filtered.view !== orderedView || filtered.pendingIds !== pendingIds || filtered.upgrades !== upgrades) {
             const pending = new Set(pendingIds ?? []);
             const ids = pending.size ? orderedView.ids.filter(id => !pending.has(id)) : orderedView.ids;
             const previousIds = filtered?.ids;
-            filtered = { view: orderedView, pendingIds, pending,
-                cards: pending.size ? ordered.filter(card => !pending.has(card.appid)) : ordered,
+            const before = new Map((upgrades ?? []).map(change => [change.appid, change.from]));
+            let cards = pending.size ? ordered.filter(card => !pending.has(card.appid)) : ordered;
+            if (before.size) cards = cards.map(card => (before.has(card.appid) ? cardBeforeUpgrade(card, before.get(card.appid)) : card));
+            filtered = { view: orderedView, pendingIds, pending, upgrades, cards,
                 ids: previousIds && ids.length === previousIds.length && ids.every((id, i) => id === previousIds[i]) ? previousIds : ids };
             shownRef.current = filtered;
         }
         const { cards: shown, pending, ids: orderKey } = filtered;
+        /** 翻新还没播完的卡：日期、杯数逐张补上来时不去动它，免得蓝紫徽章提前露出来 */
+        const upgradeHeld = new Set([...(upgrades ?? []).map(change => change.appid), ...(upgradeRef.current?.appids ?? [])]);
         const manualChanged = state.manualRevision !== builtRef.current.manualRevision;
         const deferYearRegroup = state.dates.running && !manualChanged;
         const yearChanged = bookRef.current && yearPages && !deferYearRegroup
@@ -731,6 +757,7 @@ export function Page({ onClose } = {}) {
                 yearIndex,
                 yearSelections: cache.readYearSelections(),
                 introSound: () => readReading().introSound !== false,
+                introFastStyle: DEBUG_BUILD ? () => debugState.fastStyle : null,
                 onYearChange: (yearKey, selection) => {
                     const all = cache.readYearSelections();
                     all[yearKey] = selection;
@@ -783,6 +810,7 @@ export function Page({ onClose } = {}) {
             const book = bookRef.current;
             const current = appliedCardsRef.current;
             for (const card of ordered) {
+                if (upgradeHeld.has(card.appid)) continue;
                 const before = current.get(card.appid);
                 if (before && before !== card) {
                     book.updateCard(card.appid, card, { deferYearRegroup });
@@ -814,6 +842,22 @@ export function Page({ onClose } = {}) {
                 if (done) store.markIntroduced(appids);
             });
         }
+
+        // DLC 成就集合也打通了：入册动画播完（或者本来就没有新卡）、客户端数据到了，再播徽章翻新
+        const changes = state.upgrade?.changes ?? NO_UPGRADES;
+        if (changes.length > 0 && !introRef.current && pending.size === 0 && !upgradeRef.current && !state.fromCache) {
+            const book = bookRef.current;
+            const token = { appids: new Set(changes.map(change => change.appid)) };
+            upgradeRef.current = token;
+            appliedRef.current = ordered;
+            appliedCardsRef.current = new Map(ordered.map(card => [card.appid, card]));
+            out.log(`徽章翻新：${[...token.appids].join(', ')}`);
+            book.upgrade(ordered, changes).then((done) => {
+                if (upgradeRef.current !== token) return;
+                upgradeRef.current = null;
+                if (done) store.markUpgraded([...token.appids]);
+            });
+        }
     });
 
     React.useEffect(
@@ -825,7 +869,8 @@ export function Page({ onClose } = {}) {
     );
 
     // 第一次进入：等册子摊开、新卡入册播完，再把引导盖上去
-    const introPending = state.intro.appids.length > 0;
+    // 徽章翻新和入册一样：引导、更新提醒都等它播完
+    const introPending = state.intro.appids.length > 0 || (state.upgrade?.changes.length ?? 0) > 0;
     React.useEffect(() => {
         if (state.phase !== 'ready' || state.cards.length === 0 || introPending) return undefined;
         if (!shouldShowOnboarding()) return undefined;

@@ -30,6 +30,7 @@ const posix = (value) => value.split(path.sep).join('/');
 /** [来源根, 来源相对路径, 仓库里的目标, 排除规则] */
 const MAP = [
     [THEME, 'README.md', 'README.md'],
+    [THEME, 'README.en.md', 'README.en.md'],
     [THEME, 'LICENSE', 'LICENSE'],
     [THEME, '.gitignore', '.gitignore'],
     [THEME, 'skin.json', 'skin.json'],

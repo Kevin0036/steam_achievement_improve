@@ -3,7 +3,7 @@
   "name": "AchievementCollection",
   "common_name": "成就收藏册",
   "description": "把完美通关的游戏装订成一本收藏册：库内翻页卡包、扉页统计、顺序入册，兼容原版 Steam 与其他主题。",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "useBackend": true,
   "backendType": "lua"
 }

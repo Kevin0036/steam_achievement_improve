@@ -9,7 +9,7 @@
  *     没有记忆页码时直接摊在最新一页。
  *
  *   · 顺序入册（默认，左开本）：扉页在左、第 1 页正面在右，翻页时右页绕书脊向左转过去。
- *     卡片按**入册先后**编号（旧卡的编号和位置永远不变，新卡接在最后）。
+ *     卡片按**完成时间先后**编号（新打完的接在最后；以前打完、后来才露面的插回它的日期，后面的编号顺延）。
  *     没有记忆页码时从扉页 / 第 1 页打开。
  *
  * 结构：每一「页」占一叶（leaf），一页放 1 张或 4 张卡（主题设置「单页卡片数量」）。
@@ -20,7 +20,7 @@
  *         · 顺序入册：未翻的叶叠在右边，已翻的叶叠在左边；
  *           最底下左边垫扉页、右边垫「未完待续」。
  *       k 是**页码**，不是卡片数组下标。store 给的卡片在最新优先下按完成时间倒序（新的在前），
- *       在顺序入册下按入册先后正序（旧的在前）。
+ *       在顺序入册下按完成时间正序（旧的在前）。
  *
  * 交互：
  *   · 鼠标悬停在卡片上 → 3D 检视（跟随指针倾斜 + 反光），离开回正；
@@ -39,7 +39,7 @@
  */
 
 import STR from './strings.js';
-import { artImage, createCardBack, createCardFront, formatSerial, formatSerialRange } from './cardview.js';
+import { artImage, createCardBack, createCardFront, createCardStats, createSetsRule, formatSerial, formatSerialRange, setCardStats } from './cardview.js';
 import { applyCoverEdit, flushCoverEdits, getBack, getFront, resetCover, setBack, setCoverOverrides, setFront } from './coveredit.js';
 import { getTone, peekTone, toneToCss } from './tone.js';
 import { createYearPage, normalizeSelection, openYearPicker, yearKeyOf, yearLabel } from './yearpages.js';
@@ -47,6 +47,8 @@ import { createTreePage, treeTypeName } from './treepage.js';
 import { createYearIndex, createYearMonths } from './yearfill.js';
 import { FIRE, HEAVY_LAND_AT, introTierOf, LIGHTNING, nextFastAct, playFireIntro, playHeavyIntro, playLightningIntro } from './introfx.js';
 import { createIntroSound } from './introsound.js';
+import { playUpgrade, upgradeOrbCount, upgradeSteps, upgradeTimeline } from './upgradefx.js';
+import { cardBeforeUpgrade } from './model.js';
 import { createPetHouse } from './pethouse.js';
 
 const TURN_MS = 1000; // 与 book.css 里的 --ac-turn 保持一致
@@ -120,7 +122,7 @@ function depthLevel(count) {
 /**
  * @param {HTMLElement} container
  * @param {object} options
- * @param {Array}  options.cards  最新优先：按**完成时间倒序**；顺序入册：按**入册先后正序**
+ * @param {Array}  options.cards  最新优先：按**完成时间倒序**；顺序入册：按**完成时间正序**
  * @param {object} [options.owner] { persona, avatar }
  * @param {number} [options.perPage] 每页卡片数：1（默认）或 4
  * @param {'newest'|'sequential'} [options.binding] 装订方式，默认 sequential（顺序入册）
@@ -210,7 +212,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
             });
             for (const key of keys) {
                 const bucket = buckets.get(key);
-                // 最新优先的 list 是完成时间倒序，页内再倒回来才是正序；顺序入册保持入册先后
+                // 最新优先的 list 是完成时间倒序，页内再倒回来才是正序；顺序入册本来就是正序
                 order.push({ key, known: key !== 'unknown', indices: sequential ? bucket : [...bucket].reverse() });
             }
         }
@@ -2086,7 +2088,8 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         const face = el(doc, 'div', `ac-intro__face ac-intro__face--${side}`);
         const node = el(doc, 'div', 'ac-card');
         const tilt = el(doc, 'div', 'ac-card__tilt');
-        tilt.append(side === 'front' ? createCardFront(doc, card, { owner }) : createCardBack(doc, card));
+        // 背面只在翻面前露出半秒：用本机缓存里的 1 倍图，开演前不用等 2 倍图下载
+        tilt.append(side === 'front' ? createCardFront(doc, card, { owner }) : createCardBack(doc, card, { hiRes: false }));
         node.append(tilt);
         face.append(node);
         return face;
@@ -2320,6 +2323,251 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         for (const node of [veil, burst, ...extras, stage]) node.remove();
     }
 
+    /** 只换掉第 i 张卡的完整卡面（封面那一面不受徽章和杯数影响，不动它，免得图片重新加载闪一下） */
+    function refreshFullFace(i) {
+        for (const [li, leaf] of leaves) {
+            const spec = leafPlan[li];
+            for (const side of ['front', 'back']) {
+                const face = spec[side];
+                if (face.kind !== 'cards' || face.view !== 'full' || !face.page.cards.includes(i)) continue;
+                const node = leaf.querySelector(`.ac-leaf__face--${side} .ac-card[data-index="${i}"]`);
+                if (!node) continue;
+                const fresh = buildCard(i, side, 'full');
+                node.replaceWith(fresh);
+                applyTone(fresh.parentElement, list[i]);
+            }
+        }
+    }
+
+    /**
+     * 徽章翻新（时间轴见 upgradefx.js）：DLC 成就集合也打通了，这张卡从卡槽里再拿起来一次。
+     * 进来时卡槽里还是旧样子（蓝徽章、只算本体的杯数）；替身卡被拿起的同一帧，
+     * 卡槽里的卡悄悄换成新样子藏着，等替身放回去时再露出来，落槽那一刻严丝合缝。
+     * @param {number} i      这张卡在 list 里的下标（此刻 list[i] 还是旧样子）
+     * @param {object} after  翻新之后的卡（allSets: true，杯数算上 DLC）
+     */
+    async function refit(i, after) {
+        const before = list[i];
+        const finish = () => {
+            hidden.delete(after.appid);
+            list[i] = after;
+            refreshFullFace(i);
+        };
+        const location = locateFullFace(i);
+        const leaf = leaves.get(location?.leafIndex);
+        const side = location?.side;
+        const slot = leaf?.querySelector(`.ac-leaf__face--${side} .ac-slot[data-index="${i}"]`);
+        const box = book.getBoundingClientRect();
+        const at = slot?.getBoundingClientRect();
+        if (!at?.width || !box.width) return finish();
+
+        const x = at.left - box.left;
+        const y = at.top - box.top;
+        // 拿在手里时在书的正中（书脊正上方）
+        const cx = box.width / 2 - (x + at.width / 2);
+        const cy = box.height / 2 - (y + at.height / 2);
+        const u = at.height / SLOT_HEIGHT_CQH;
+
+        const veil = el(doc, 'div', 'ac-intro-veil', { 'aria-hidden': 'true' });
+        const burst = el(doc, 'div', 'ac-intro-burst', { 'aria-hidden': 'true' });
+        burst.style.width = `${128 * u}px`;
+        const stage = el(doc, 'div', 'ac-intro', { 'aria-hidden': 'true' });
+        stage.style.cssText = `left:${x}px;top:${y}px;width:${at.width}px;height:${at.height}px`;
+        const mover = el(doc, 'div', 'ac-intro__card');
+        const shadow = el(doc, 'div', 'ac-intro__shadow');
+        shadow.style.filter = `blur(${2.6 * u}px)`;
+        shadow.style.borderRadius = `${3 * u}px`;
+        const flipper = el(doc, 'div', 'ac-intro__flip');
+        // 替身就是旧卡：拿起来的那一刻和卡槽里的一模一样
+        const front = ghostFace(before, 'front');
+        const ghost = front.firstChild;
+        const sheen = el(doc, 'div', 'ac-intro__sheen');
+        sheen.append(el(doc, 'i'));
+        ghost.append(sheen);
+        const badge = front.querySelector('.ac-cf__badge');
+        const fill = el(doc, 'div', 'ac-upgrade__fill');
+        badge?.append(fill);
+        // 「全集合 日期」那一行先叠在细线上藏着（净高为 0，替身和卡槽里的旧卡一样高），光球汇入的同时从中间展开
+        const rule = front.querySelector('.ac-cf__rule');
+        const setsRule = rule ? createSetsRule(doc, after) : null;
+        if (setsRule) {
+            setsRule.style.marginTop = 'calc(-1px - 5.45cqw)';
+            // 开演前先藏好（字和两侧的蓝紫线都透明），怎么展开见 upgradefx.js revealSetsRule
+            for (const node of setsRule.children) node.style.opacity = '0';
+            rule.after(setsRule);
+        }
+        flipper.append(front);
+        mover.append(shadow, flipper);
+        mover.style.opacity = '0'; // 图还没加载好之前先藏着
+        stage.append(mover);
+        applyTone(front, before);
+        book.append(stage);
+
+        await imagesReady(stage);
+        if (disposed || !badge) {
+            stage.remove();
+            if (!disposed) finish();
+            return;
+        }
+
+        // 宝珠中心离卡槽中心多远（还没开演，替身正压在卡槽上，量出来的就是原尺寸）
+        const stageBox = stage.getBoundingClientRect();
+        const badgeBox = badge.getBoundingClientRect();
+        const orb = {
+            dx: badgeBox.left + badgeBox.width / 2 - (stageBox.left + stageBox.width / 2),
+            dy: badgeBox.top + (badgeBox.height * 47) / 118 - (stageBox.top + stageBox.height / 2),
+            r: badgeBox.width * 0.19,
+        };
+
+        // 统计栏换成新卡的版式（第一次拿到稀有成就时会多出金杯那一格），数字先停在旧的上面
+        const oldStats = front.querySelector('.ac-cf__stats');
+        const stats = createCardStats(doc, after);
+        setCardStats(stats, before);
+        const gain =
+            (Number(after.rare) || 0) - (Number(before.rare) || 0) + (Number(after.common) || 0) - (Number(before.common) || 0);
+        const timeline = upgradeTimeline(upgradeOrbCount(gain));
+        const steps = upgradeSteps(before, after, timeline.count);
+
+        const extras = [];
+        book.insertBefore(veil, stage);
+        book.insertBefore(burst, stage);
+        const pose = (dx, dy, scale, rotate = 0) => `translate(${dx}px, ${dy}px) rotate(${rotate}deg) scale(${scale})`;
+
+        // 音效先排上：它要同步渲染几十毫秒，这时候卡还压在卡槽里没动，卡顿看不出来
+        if (introSound?.()) {
+            introAudio ??= createIntroSound(win);
+            introAudio.playUpgrade(timeline);
+        }
+
+        // 拿起的同一帧：卡位空出来泛着紫光；里面已经悄悄换成新卡藏着，图片趁这几秒加载好
+        hidden.add(after.appid);
+        slot.setAttribute('data-incoming', '');
+        slot.setAttribute('data-upgrade', '');
+        list[i] = after;
+        refreshFullFace(i);
+
+        const landed = playUpgrade({
+            doc,
+            book,
+            play,
+            pose,
+            stage,
+            mover,
+            shadow,
+            flipper,
+            sheen,
+            veil,
+            burst,
+            addExtra: (...nodes) => extras.push(...nodes),
+            size: { width: box.width, height: box.height },
+            target: { x: x + at.width / 2, y: y + at.height / 2 },
+            slot: { width: at.width, height: at.height },
+            cx,
+            cy,
+            u,
+            badge,
+            fill,
+            ghost,
+            orb,
+            rule,
+            setsRule,
+            timeline,
+            onAbsorb: (k) => {
+                if (k === 0 && oldStats?.isConnected) oldStats.replaceWith(stats);
+                return setCardStats(stats, steps[k]);
+            },
+        });
+
+        await landed;
+        if (disposed) return;
+
+        // 放回：真卡现身、替身撤走（同一帧），卡位亮一圈紫光，新徽章的宝珠上再掠过一道光
+        hidden.delete(after.appid);
+        // 演出途中书可能重建过（比如窗口缩放），卡位节点换了：按下标找，正面和封面的卡位都放行
+        for (const node of book.querySelectorAll(`.ac-slot[data-index="${i}"]`)) {
+            node.removeAttribute('data-incoming');
+            node.removeAttribute('data-upgrade');
+        }
+        const liveSlot = slot.isConnected
+            ? slot
+            : (() => {
+                  const where = locateFullFace(i);
+                  return leaves.get(where?.leafIndex)?.querySelector(`.ac-leaf__face--${where?.side} .ac-slot[data-index="${i}"]`) ?? slot;
+              })();
+        const ring = el(doc, 'i', 'ac-intro-ring', { 'aria-hidden': 'true' });
+        ring.style.borderRadius = `${3 * u}px`;
+        ring.style.boxShadow = `0 0 0 ${0.45 * u}px rgba(232, 176, 246, 0.9), 0 0 ${5 * u}px ${1 * u}px rgba(196, 104, 216, 0.45)`;
+        liveSlot.append(ring);
+        play(ring, [{ opacity: 0.95, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.08)' }], {
+            duration: 1300,
+            easing: 'cubic-bezier(.2,.8,.2,1)',
+        }).then(() => ring.remove());
+        const real = liveSlot.querySelector('.ac-card');
+        real?.setAttribute('data-shine', '');
+        later(() => real?.removeAttribute('data-shine'), 1600);
+
+        await new Promise((resolve) => win.requestAnimationFrame(resolve));
+        for (const node of [veil, burst, ...extras, stage]) node.remove();
+    }
+
+    /**
+     * 一批卡翻新：先按旧样子摆好整册，翻到第一张，逐张拿起来翻新。
+     * changes：[{ appid, from: { rare, common, total, playtimeMin } }]，from 是只算本体时的数字。
+     */
+    async function runUpgrade(newCards, changes) {
+        const byId = new Map(changes.map((change) => [change.appid, change.from ?? {}]));
+        const after = newCards.slice();
+        list = after.map((card) => (byId.has(card.appid) ? cardBeforeUpgrade(card, byId.get(card.appid)) : card));
+        n = list.length;
+        buildPagination();
+        renderTitleStats();
+
+        // 和入册一样从编号小的开始，最后停在最新的那一张上
+        const targets = list
+            .map((c, i) => (byId.has(c.appid) ? i : -1))
+            .filter((i) => i >= 0)
+            .sort((a, b) => (sequential ? a - b : b - a));
+        const limit = perPage === 1 ? MAX_INTRO : perPage;
+        const animated = reduceMotion?.matches ? [] : targets.slice(-limit);
+        // 超出上限的、或者系统设置了减少动态效果的，直接换成新样子
+        for (const i of targets) if (!animated.includes(i)) list[i] = after[i];
+
+        let currentSpread = spreadOfIndex(animated[0] ?? targets.at(-1) ?? 0);
+        k = clampLeaf(currentSpread);
+        rebuild();
+
+        for (let s = 0; s < animated.length; s += 1) {
+            const i = animated[s];
+            const targetSpread = spreadOfIndex(i);
+            if (targetSpread !== currentSpread) {
+                if (targetSpread === currentSpread + 1) await flip(1);
+                else {
+                    k = clampLeaf(targetSpread);
+                    rebuild();
+                }
+                currentSpread = k;
+            }
+            if (disposed) return false;
+            // 先让人看清卡槽里还是那枚蓝徽章，再拿起来
+            await wait(s === 0 ? 520 : 200);
+            if (disposed) return false;
+            await refit(i, after[i]);
+            if (disposed) return false;
+        }
+
+        list = after;
+        hidden.clear();
+        for (const slot of book.querySelectorAll('.ac-slot[data-incoming], .ac-slot[data-upgrade]')) {
+            slot.removeAttribute('data-incoming');
+            slot.removeAttribute('data-upgrade');
+        }
+        renderTitleStats();
+        if (targets.length) live.textContent = STR.book.upgraded(targets.map((i) => list[i].name).reverse());
+        house?.refresh(list);
+        notifyPage();
+        return true;
+    }
+
     async function runIntro(newCards, appids) {
         const ids = new Set(appids);
         list = newCards.slice();
@@ -2375,6 +2623,37 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
      * @returns {Promise<boolean>} 播完为 true；书在中途被销毁为 false
      */
     function introduce(newCards, appids) {
+        return perform(
+            () => runIntro(newCards, appids),
+            () => {
+                hidden.clear();
+                rebuild();
+            },
+        );
+    }
+
+    /**
+     * 徽章翻新：本体早已全成就的卡，DLC 成就集合也打通了。newCards 是翻新后的整册（这几张 allSets: true、
+     * 杯数算上 DLC），changes 列出是哪几张、翻新前只算本体时的数字（见 runUpgrade）。
+     * @returns {Promise<boolean>} 播完为 true；书在中途被销毁为 false
+     */
+    function upgrade(newCards, changes) {
+        return perform(
+            () => runUpgrade(newCards, changes),
+            () => {
+                hidden.clear();
+                list = newCards.slice();
+                n = list.length;
+                buildPagination();
+                k = clampLeaf(k);
+                renderTitleStats();
+                rebuild();
+            },
+        );
+    }
+
+    /** 入册和翻新共用：等翻页停下再开演，演出期间书页不接收指针，演完了再处理排在后面的重排 */
+    function perform(run, recover) {
         return new Promise((resolve) => {
             const settle = (done) => {
                 if (finishIntro !== settle) return;
@@ -2389,7 +2668,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                 introducing = true;
                 book.dataset.intro = '';
                 resetTilt();
-                runIntro(newCards, appids).then(
+                run().then(
                     (done) => {
                         settle(done);
                         if (done && deferredCards) {
@@ -2399,8 +2678,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
                         }
                     },
                     () => {
-                        hidden.clear();
-                        rebuild();
+                        recover();
                         settle(true);
                     },
                 );
@@ -2436,6 +2714,7 @@ export function createBook(container, { cards, owner = {}, perPage: requestedPer
         },
         turn,
         introduce,
+        upgrade,
         /** 册子里有没有月份足迹（开了年份特殊页、至少有一年有完成日期才有） */
         get hasYearMonths() {
             return yearEntries.some((entry) => entry.months != null);

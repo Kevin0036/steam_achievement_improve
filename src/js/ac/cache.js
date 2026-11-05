@@ -16,7 +16,12 @@
  *               失败名单独存，区分长期缺失与短暂错误。
  *   shelved  —— 已经收进册子的 appid。和当前全成就列表一比，多出来的就是「新收录」，
  *               首次进入卡包时播放入册动画（见 book.js introduce）。
- *   order    —— 「顺序入册」的稳定次序（只追加）。旧卡的编号与位置不随新卡变化。
+ *   sets     —— 用了成就集合的游戏，上次查到的本体 / DLC 成绩单（见 model.js summarizeSets）。
+ *               按进度指纹作废：买了 DLC、打通一个集合、游戏加了集合，指纹都会变，下次打开就重查。
+ *   upgraded —— 已经以蓝紫徽章（本体 + 所有 DLC 集合）给你看过的 appid。和当前判定一比，
+ *               新变成蓝紫的、又早就在册子里的，就播徽章翻新动画（见 book.js upgrade）。
+ *   order    —— 已停用。「顺序入册」以前另记的入册先后，现在两种装订都直接按完成时间排（见 view.js）；
+ *               键名还留在旧键迁移清单里，老数据跟着账号走，不再读写。
  *   position —— 上次离开时翻到哪一页。记 appid（该页第一张卡）和页码，回来时优先按 appid
  *               锚定，卡片重排 / 每页数量改了也不会飘走。
  *   manual   —— 用户手动填的完成日期（appid → 秒级时间戳）。优先级高于成就接口：
@@ -42,6 +47,8 @@ const KEY_MANUAL = `${NS}:v${CACHE_VERSION}:manual`;
 const KEY_MANUAL_TIME = `${NS}:v${CACHE_VERSION}:manual-time`;
 const KEY_EXTRA = `${NS}:v${CACHE_VERSION}:extra`;
 const KEY_FAILURES = `${NS}:v${CACHE_VERSION}:failures`;
+const KEY_SETS = `${NS}:v${CACHE_VERSION}:sets`;
+const KEY_UPGRADED = `${NS}:v${CACHE_VERSION}:upgraded`;
 const RARE_CACHE_VERSION = 4;
 // 完成日期缓存换过两次格式：:dates 是在成就接口还没接通时写下的（失败名单不可信），
 // :completion 整份共用一个 30 天期限。两者都直接弃用，见 readDates()。
@@ -104,7 +111,7 @@ export function setAccountScope(scope) {
 
 const TTL_STATE_MS = 24 * 60 * 60 * 1000;
 const COALESCE_MS = 1000;
-const COALESCED_KEYS = new Set([KEY_STATE, KEY_DATES, KEY_FAILURES]);
+const COALESCED_KEYS = new Set([KEY_STATE, KEY_DATES, KEY_FAILURES, KEY_SETS]);
 let pendingWrites = new Map();
 let writeTimer = null;
 
@@ -315,32 +322,41 @@ export function writeShelved(appids) {
     writeJson(KEY_SHELVED, { appids: [...appids] });
 }
 
-/* ── 顺序入册的稳定次序 ─────────────────────────────────────────────────── */
-
-const ORDER_FORMAT = 2;
+/* ── 成就集合的成绩单 ───────────────────────────────────────────────────── */
 
 /**
- * 「顺序入册」的 appid 次序 = 入册先后。
- * 只追加、不重排、不删除：旧卡的编号和位置因此永远不变；
- * 中间的游戏暂时读不到时也不会把后面的卡往前挤。
- *
- * 第 2 版起带格式版本：第 1 版是在完成日期还没取到时写下的，存进去的其实是 appid 次序，
- * 直接丢弃重建（完成日期缓存、手动日期等都不受影响）。
- *
- * @returns {number[]}
+ * @typedef {{sig:string, checkedAt:number, sets:object}} SetsEntry  sets 是 summarizeSets 的结果去掉 groups 明细
+ * @returns {Map<number, SetsEntry>}
  */
-export function readOrder() {
-    const parsed = readJson(KEY_ORDER);
-    if (parsed?.orderFormat !== ORDER_FORMAT) return [];
-    if (!Array.isArray(parsed.appids)) return [];
-    return [...new Set(parsed.appids.filter(Number.isFinite))];
+export function readSets() {
+    const result = new Map();
+    const parsed = readJson(KEY_SETS);
+    for (const row of Array.isArray(parsed?.entries) ? parsed.entries : []) {
+        const [appid, entry] = Array.isArray(row) ? row : [];
+        if (!Number.isFinite(appid) || typeof entry?.sig !== 'string' || !Number.isFinite(entry?.checkedAt)) continue;
+        const sets = entry.sets;
+        if (!sets || typeof sets.allSets !== 'boolean' || !sets.base || !sets.all) continue;
+        result.set(appid, entry);
+    }
+    return result;
 }
 
-/** @param {number[]} appids */
-export function writeOrder(appids) {
-    const clean = [...new Set(appids.filter(Number.isFinite))];
-    if (clean.length === 0) return;
-    writeJson(KEY_ORDER, { orderFormat: ORDER_FORMAT, appids: clean });
+/** @param {Map<number, SetsEntry>} sets */
+export function writeSets(sets) {
+    writeJson(KEY_SETS, () => ({ entries: [...sets] }));
+}
+
+/* ── 已经看过的蓝紫徽章 ─────────────────────────────────────────────────── */
+
+/** @returns {Set<number> | null}  null = 从来没记录过（升级到这一版后第一次打开） */
+export function readUpgraded() {
+    const parsed = readJson(KEY_UPGRADED);
+    if (!Array.isArray(parsed?.appids)) return null;
+    return new Set(parsed.appids.filter(Number.isFinite));
+}
+
+export function writeUpgraded(appids) {
+    writeJson(KEY_UPGRADED, { appids: [...appids] });
 }
 
 /* ── 上次翻到的位置 ─────────────────────────────────────────────────────── */
@@ -528,4 +544,6 @@ export const CACHE_KEYS = {
     get KEY_MANUAL_TIME() { return resolveKey(KEY_MANUAL_TIME); },
     get KEY_EXTRA() { return KEY_EXTRA; },
     get KEY_FAILURES() { return resolveKey(KEY_FAILURES); },
+    get KEY_SETS() { return resolveKey(KEY_SETS); },
+    get KEY_UPGRADED() { return resolveKey(KEY_UPGRADED); },
 };

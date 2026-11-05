@@ -11,7 +11,8 @@
  *   · 封面与信息条是**同一张圆角卡片**：圆角、裁切、阴影、悬停抬升都挂在格子容器上，
  *     封面不单独缩放 —— 二者永远一起移动，不会再出现上下错位。
  *   · 信息条是一条实色徽章蓝，左侧「99 项成就」，右侧徽章略高出信息条上沿。
- *   · 去掉「X 项为稀有」、去掉组计数，所有全成就游戏统一一枚徽章。
+ *   · 去掉「X 项为稀有」、去掉组计数，所有全成就游戏统一一枚徽章；
+ *     本体和所有 DLC 成就集合都打通的（showcasesets.js 打 data-ac-sets="all"）换成蓝紫徽章，信息条左蓝右紫。
  *   · 悬停时一道流光从左到右扫过整张卡片，只播一次；移开再悬停才会重播。
  *
  * 所有选择器都带 `html body.profile_page` 前缀，把特异性抬过
@@ -133,6 +134,14 @@ html body.profile_page .showcase_achievementscompletionist_game_bar {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
+/* 蓝紫：本体 + 所有 DLC 集合都打通。左蓝右紫，紫色和徽章一样取 Steam 的 DLC 集合奖章色；
+   上面叠一层和蓝色信息条同样的上亮下暗，两种信息条的立体感一致 */
+html body.profile_page .showcase_achievementscompletionist_game[data-ac-sets="all"] .showcase_achievementscompletionist_game_bar {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.12) 100%),
+        linear-gradient(90deg, var(--ac-blue) 0%, var(--ac-blue) 30%, #8a5fd6 52%, #a856c2 72%, #b658c4 100%);
+}
+
 html body.profile_page .showcase_achievementscompletionist_game_counts {
     order: 1;
     flex: 1 1 auto;
@@ -154,10 +163,7 @@ html body.profile_page .showcase_achievementscompletionist_game_counts .num_achi
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
 }
 
-/* 「X 项为稀有」不显示 —— 信息条只说一件事 */
-html body.profile_page .showcase_achievementscompletionist_game_counts .num_rare {
-    display: none;
-}
+/* 「X 项为稀有」保留 Valve 原样显示（2026-11 起它的类名从 .num_rare 改成了 .subtitle） */
 
 /* ── 徽章：Valve 的奖杯整组撤掉，换成统一的一枚 ─────────────────────────── */
 
@@ -187,6 +193,10 @@ html body.profile_page .showcase_achievementscompletionist_game_ribbons::before 
 
 html body.profile_page .showcase_achievementscompletionist_game:hover .showcase_achievementscompletionist_game_ribbons::before {
     transform: translateY(-1px) scale(1.05);
+}
+
+html body.profile_page .showcase_achievementscompletionist_game[data-ac-sets="all"] .showcase_achievementscompletionist_game_ribbons::before {
+    background-image: var(--ac-badge-img-all);
 }
 
 /* ── 统计行：沿用 Valve 的细体白字，只处理文案与下划线 ───────────────────── */

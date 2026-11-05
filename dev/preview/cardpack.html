@@ -17,6 +17,7 @@
     ?stats=0              隐藏扉页的收藏卡 / 金杯 / 银杯统计
     ?owner=Player         替换昵称（公开素材用）
     ?intro=1              演示新卡入册
+    ?upgrade=1            演示徽章翻新（编程农场的 DLC 成就集合也打通了：蓝徽章 → 蓝紫徽章，杯数跟着涨）
     ?resume=1             恢复上次翻到的位置
     ?at=N                 直接摊开到第 N 张
     ?years=1              开启年份特殊页（完成年份分组 + 徽章 / 横幅手账）
@@ -276,6 +277,44 @@ const book = createBook(host, {
     },
 });
 if (fresh.length > 0) setTimeout(() => book.introduce(ALL, fresh), 700);
+
+// 预览专用：徽章翻新（DLC 成就集合也打通了：蓝徽章 → 蓝紫徽章）。
+// 预览数据里没有真的 DLC 集合，这里假装这款又多拿了 6 个稀有、9 个普通成就，多玩了 6.2 小时。
+// ?upgrade=1 进来就演一次；preview/intro-tiers.html 用 window.__demoUpgrade 在已有的册子上重播。
+const UPGRADE_DEMO_APPID = 2060160; // 编程农场：11 月 2 日出了新的 DLC 成就集合
+function upgradeDemo(card) {
+    const after = {
+        ...card,
+        allSets: true,
+        rare: (card.rare ?? 0) + 6,
+        common: (card.common ?? 0) + 9,
+        total: (card.total ?? 0) + 15,
+        playtimeMin: Number.isFinite(card.playtimeMin) ? card.playtimeMin + 372 : card.playtimeMin,
+        // DLC 集合全部打满就是今天：卡面杯数上方那条细线换成「全集合 日期」
+        sets: { ...(card.sets ?? {}), allCompletedAt: Math.floor(Date.now() / 1000) },
+    };
+    const from = { rare: card.rare, common: card.common, total: card.total, playtimeMin: card.playtimeMin };
+    return { after, change: { appid: card.appid, from } };
+}
+let upgradeRunning = false;
+window.__demoUpgrade = async (slot = null) => {
+    if (upgradeRunning) return null;
+    const card = ALL.find((item) => item.appid === UPGRADE_DEMO_APPID) ?? ALL[0];
+    if (!card) return null;
+    upgradeRunning = true;
+    const { after, change } = upgradeDemo(card);
+    // 指定卡槽：把这张卡换到第一页的那个位置（四卡时 0～3 依次是左上、右上、左下、右下）
+    const order = ALL.filter((item) => item !== card);
+    order.splice(Number.isInteger(slot) ? slot : ALL.indexOf(card), 0, after);
+    try {
+        await book.upgrade(order, [change]);
+    } finally {
+        upgradeRunning = false;
+    }
+    return card;
+};
+window.__upgradeCard = () => ALL.find((item) => item.appid === UPGRADE_DEMO_APPID) ?? ALL[0] ?? null;
+if (params.get('upgrade') === '1' && fresh.length === 0) setTimeout(() => window.__demoUpgrade(), 700);
 
 // 预览专用：摆上和 page.js 一样的两条工具条。平时不显示，引导和更新提醒要照到它们
 function mountToolbars() {

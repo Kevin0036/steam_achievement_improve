@@ -4,7 +4,8 @@
  * 数据来源（只读，不修改任何文件）：
  *   userdata/<id>/config/librarycache/achievement_progress.json
  *   —— 这就是客户端里 window.appAchievementProgressCache 的磁盘镜像，
- *      结构是 { nVersion: 3, mapCache: [[appid, {...}], ...] }。
+ *      结构是 { nVersion, mapCache: [[appid, {...}], ...] }。2026-10 Steam 加了成就集合，
+ *      nVersion 从 3 升到 4，每条多了 groups_* / base_game_total 字段（见 model.js classify）。
  *
  * 用法：node tools/validate-real-data.mjs
  */
@@ -43,8 +44,8 @@ console.log(`数据文件：${cachePath}`);
 
 const raw = JSON.parse(readFileSync(cachePath, 'utf8'));
 
-if (raw.nVersion !== 3) {
-    console.error(`✘ nVersion = ${raw.nVersion}，与客户端期望的 3 不符`);
+if (raw.nVersion !== 3 && raw.nVersion !== 4) {
+    console.error(`✘ nVersion = ${raw.nVersion}，客户端已知的只有 3（旧版）和 4（成就集合）`);
     process.exit(1);
 }
 

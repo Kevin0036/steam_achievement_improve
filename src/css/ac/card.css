@@ -255,6 +255,12 @@
     filter: drop-shadow(0 1.4cqw 1.8cqw rgba(0, 0, 0, 0.35));
 }
 
+/* 本体和所有 DLC 成就集合都全成就：换成左蓝右紫的那一枚（图在 art.css，由 make-art.mjs 生成）。
+   改的是变量，卡片里凡是用到徽章图的地方一起跟着换 */
+.ac-cf[data-sets="all"] {
+    --ac-badge-img: var(--ac-badge-img-all);
+}
+
 /* 宝珠上掠过的一道光：悬停时播放一次 */
 .ac-cf__badge::after {
     content: "";
@@ -387,6 +393,50 @@
     height: 1px;
     margin-bottom: 3.8cqw;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2) 14%, rgba(255, 255, 255, 0.2) 86%, transparent);
+}
+
+/* 蓝紫卡：细线中间嵌一行「全集合 日期」（DLC 成就集合全部打满的那天）。
+   占的高度和细线完全一样（-1.65 + 3.3 + 2.15 = 3.8cqw，再加细线那 1px），字的中线正落在细线原来的位置，
+   徽章翻新时细线从中间分开、露出这一行，卡面不会跳。颜色和徽章一样左蓝右紫 */
+.ac-cf__sets {
+    display: flex;
+    align-items: center;
+    gap: 2cqw;
+    width: 100%;
+    height: 3.3cqw;
+    margin: -1.65cqw 0 calc(2.15cqw + 1px);
+    font-size: 3.3cqw;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+.ac-cf__sets-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(143, 182, 255, 0.45));
+}
+
+.ac-cf__sets-line--r {
+    background: linear-gradient(90deg, rgba(207, 141, 226, 0.45), transparent);
+}
+
+.ac-cf__sets-text {
+    display: flex;
+    align-items: baseline;
+    gap: 1.2cqw;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(90deg, #8fb6ff 0%, #c58be6 55%, #d98fe4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+
+/* 渐变是父元素按文字裁出来的，子元素的 opacity 不起作用，标签只靠字重区分 */
+.ac-cf__sets-text b {
+    font-weight: 500;
 }
 
 .ac-cf__stats {

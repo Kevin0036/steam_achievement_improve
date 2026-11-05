@@ -152,12 +152,14 @@ function stat(doc, kind, value, denominator, label) {
 
 /**
  * @param {Document} doc
- * @param {object} card   { appid, name, total, rare, common, unrated, playtimeMin, completedAt, art: {hero, capsule, header} }
+ * @param {object} card   { appid, name, total, rare, common, unrated, playtimeMin, completedAt, allSets, art: {hero, capsule, header} }
+ *   allSets：本体和所有 DLC 成就集合都全成就，徽章换成蓝紫渐变那一枚（只完成本体时照旧是蓝色）
  * @param {object} ctx    { owner: {persona, avatar}, lite }
  *   lite：书签翻阅时飞过的卡。封面、文字都保留，只省掉星星和高光这些一闪而过看不出来的效果
  */
 export function createCardFront(doc, card, ctx = {}) {
     const root = el(doc, 'div', 'ac-cf');
+    if (card.allSets === true) root.dataset.sets = 'all';
     const inner = el(doc, 'div', 'ac-cf__inner');
     root.append(inner);
 
@@ -171,7 +173,7 @@ export function createCardFront(doc, card, ctx = {}) {
     inner.append(frame);
     inner.append(el(doc, 'div', 'ac-cf__rays', { 'aria-hidden': 'true' }));
     if (!ctx.lite) inner.append(sparkles(doc, card.appid));
-    inner.append(el(doc, 'div', 'ac-cf__badge', { role: 'img', 'aria-label': STR.card.badge }));
+    inner.append(el(doc, 'div', 'ac-cf__badge', { role: 'img', 'aria-label': card.allSets === true ? STR.card.badgeAll : STR.card.badge }));
 
     const body = el(doc, 'div', 'ac-cf__body');
     body.append(el(doc, 'div', 'ac-cf__title', { text: `“${card.name}”` }));
@@ -192,8 +194,35 @@ export function createCardFront(doc, card, ctx = {}) {
         body.append(row);
     }
 
-    body.append(el(doc, 'div', 'ac-cf__rule', { 'aria-hidden': 'true' }));
+    // 本体和所有 DLC 集合都打满了：分割线中间嵌一行「全集合 日期」，占的高度和细线一样
+    body.append(createSetsRule(doc, card) ?? el(doc, 'div', 'ac-cf__rule', { 'aria-hidden': 'true' }));
+    body.append(createCardStats(doc, card));
 
+    inner.append(body);
+
+    // 悬停时跟随指针的反光（pointer-events: none）
+    if (!ctx.lite) root.append(el(doc, 'div', 'ac-card__glare', { 'aria-hidden': 'true' }));
+    applyCoverEdit(root, card.appid);
+    return root;
+}
+
+/**
+ * 蓝紫卡上「全集合 2026.11.04」那一行（DLC 成就集合全部打满的那天），顶替杯数上方的细线。
+ * 不是蓝紫卡、或者还不知道日期时返回 null，照旧画细线。徽章翻新时 book.js 也用它。
+ */
+export function createSetsRule(doc, card) {
+    const date = card?.allSets === true ? formatCardDate(card.sets?.allCompletedAt) : null;
+    if (!date) return null;
+    const row = el(doc, 'div', 'ac-cf__sets');
+    row.append(el(doc, 'i', 'ac-cf__sets-line', { 'aria-hidden': 'true' }));
+    const text = el(doc, 'span', 'ac-cf__sets-text', { title: STR.card.setsDateTitle });
+    text.append(el(doc, 'b', null, { text: STR.card.setsLabel }), el(doc, 'time', null, { text: date }));
+    row.append(text, el(doc, 'i', 'ac-cf__sets-line ac-cf__sets-line--r', { 'aria-hidden': 'true' }));
+    return row;
+}
+
+/** 卡面底部的金杯 / 银杯 / 时长一栏。徽章翻新时整栏换成新的，再让数字一格格涨上去 */
+export function createCardStats(doc, card) {
     const stats = el(doc, 'div', 'ac-cf__stats');
     const total = card.total;
     const rare = Number.isFinite(card.rare) ? card.rare : 0;
@@ -207,22 +236,63 @@ export function createCardFront(doc, card, ctx = {}) {
     const hours = formatHours(card.playtimeMin);
     if (hours) stats.append(stat(doc, 'time', hours, null, STR.card.playtime(hours)));
     stats.dataset.count = String(stats.children.length);
-    body.append(stats);
+    return stats;
+}
 
-    inner.append(body);
-
-    // 悬停时跟随指针的反光（pointer-events: none）
-    if (!ctx.lite) root.append(el(doc, 'div', 'ac-card__glare', { 'aria-hidden': 'true' }));
-    applyCoverEdit(root, card.appid);
-    return root;
+/**
+ * 就地改写统计栏里的数字（不重建节点，数字跳动时卡面不闪）。
+ * values 里没给的项不动；返回这次真的变了的那几格，方便调用方给它们做个跳动。
+ */
+export function setCardStats(stats, { rare, common, playtimeMin } = {}) {
+    const changed = [];
+    const write = (kind, text) => {
+        const node = stats.querySelector(`.ac-cf__stat--${kind}`);
+        const b = node?.querySelector('.ac-cf__num b');
+        if (!b || b.textContent === text) return;
+        b.textContent = text;
+        const span = b.nextElementSibling;
+        if (span && kind !== 'time') span.textContent = `/${text}`;
+        changed.push(node);
+    };
+    if (Number.isFinite(rare)) write('gold', String(rare));
+    if (Number.isFinite(common)) write('silver', String(common));
+    if (Number.isFinite(playtimeMin)) {
+        const hours = formatHours(playtimeMin);
+        if (hours) write('time', hours);
+    }
+    return changed;
 }
 
 /* ── 背面 ────────────────────────────────────────────────────────────── */
 
-export function createCardBack(doc, card, { lite = false } = {}) {
+/**
+ * 竖版封面的 2 倍图：Valve CDN 上同一目录、扩展名前加 `_2x`
+ * （library_600x900.jpg → library_600x900_2x.jpg，library_capsule_schinese.jpg → library_capsule_schinese_2x.jpg）。
+ * 客户端本地缓存里只有 1 倍图，所以只从 CDN 地址推，排在原来的候选链前面；取不到就照旧退回 1 倍图。
+ */
+export function hiResCapsules(urls) {
+    const out = [];
+    for (const url of urls) {
+        if (typeof url !== 'string' || !url.includes('/store_item_assets/') || /_2x\.\w+(\?|$)/.test(url)) continue;
+        const next = url.replace(/(\.(?:jpg|jpeg|png|webp))(\?|$)/i, '_2x$1$2');
+        if (next !== url && !out.includes(next)) out.push(next);
+    }
+    return out;
+}
+
+/**
+ * @param {{lite?: boolean, hiRes?: boolean}} [options]
+ *   lite   书签翻阅时飞过的简化叶：去掉高光，也不用 2 倍图
+ *   hiRes  用不用 2 倍图（默认跟着 lite 反过来）。入册动画的替身卡背只露半秒，
+ *          用本机缓存里的 1 倍图，开演前不用等网络
+ */
+export function createCardBack(doc, card, { lite = false, hiRes = !lite } = {}) {
     const root = el(doc, 'div', 'ac-cb');
     const inner = el(doc, 'div', 'ac-cb__inner');
-    const capsule = card.art?.capsule ?? [];
+    // 卡背用 2 倍图，大卡面上更清晰。书签翻阅时一闪而过的简化叶照旧用 1 倍图：
+    // 那时空中叠着很多叶，2 倍图的解码量是 4 倍，核显会掉帧
+    const base = card.art?.capsule ?? [];
+    const capsule = hiRes ? [...hiResCapsules(base), ...base] : base;
     const rest = [...(card.art?.hero ?? []), ...(card.art?.header ?? [])];
     inner.append(capsuleImage(doc, capsule, rest, card.name));
     if (!lite) inner.append(el(doc, 'div', 'ac-cb__gloss', { 'aria-hidden': 'true' }));
