@@ -48,6 +48,12 @@ node tools/sync-repo.mjs <仓库克隆目录>        # 把本机源码同步到�
 
 ## 测试
 
+Windows 懒人包安装器的回归测试无需 npm 依赖，在 64 位 Windows 上用系统 PowerShell 5.1 和隔离目录验证，不会启动或关闭本机 Steam：
+
+```powershell
+node --test tools/test-lazy-install.mjs
+```
+
 浏览器测试用本机 Edge，需要 Playwright：把 `AC_PLAYWRIGHT_MODULE` 指向 Playwright 所在目录。
 
 ```powershell

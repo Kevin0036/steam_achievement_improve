@@ -122,6 +122,35 @@ function Get-SteamPath([string]$Hint) {
     Stop-Installer '未找到有效的 Steam 安装目录。'
 }
 
+function Assert-SteamArchitecture([string]$Root) {
+    # A 64-bit OS can still run 32-bit Steam. An AMD64 wsock32.dll would then
+    # prevent Windows from starting steam.exe (ERROR_BAD_EXE_FORMAT / 193).
+    $stream = $null
+    $reader = $null
+    try {
+        $stream = [IO.File]::Open((Join-Path $Root 'steam.exe'), [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+        $reader = New-Object IO.BinaryReader($stream)
+        if ($stream.Length -lt 64 -or $reader.ReadUInt16() -ne 0x5A4D) {
+            throw 'Invalid DOS header'
+        }
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadInt32()
+        if ($peOffset -lt 64 -or $peOffset -gt ($stream.Length - 6)) {
+            throw 'Invalid PE header offset'
+        }
+        $stream.Position = $peOffset
+        if ($reader.ReadUInt32() -ne 0x00004550) { throw 'Invalid PE signature' }
+        $machine = $reader.ReadUInt16()
+    } catch {
+        Stop-Installer '无法识别 steam.exe 的架构，未安装 Millennium。请先更新或修复 Steam，或使用 Millennium 官方 Installer。'
+    } finally {
+        if ($reader) { $reader.Dispose() } elseif ($stream) { $stream.Dispose() }
+    }
+    if ($machine -ne 0x8664) {
+        Stop-Installer ("steam.exe 的架构为 0x{0:X4}，与内置的 x64 Millennium 不兼容。64 位 Windows 也可能运行 32 位 Steam；继续安装会导致 Steam 无法启动。请先更新为 x64 Steam，或使用 Millennium 官方 Installer。" -f $machine)
+    }
+}
+
 function Invoke-Elevated([string]$Root) {
     $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SteamPath `"$Root`""
     if ($NoLaunch) { $arguments += ' -NoLaunch' }
@@ -356,6 +385,15 @@ function Main {
     $root = Get-SteamPath $SteamPath
     Write-Ok "Steam 目录：$root"
 
+    $hasMillennium = Test-Path -LiteralPath (Join-Path $root 'millennium\lib\millennium.dll') -PathType Leaf
+    $hasWsock = Test-Path -LiteralPath (Join-Path $root 'wsock32.dll') -PathType Leaf
+    if ($hasWsock -and -not $hasMillennium) {
+        Stop-Installer 'Steam 目录里已有 wsock32.dll，但没有找到 Millennium。这个文件可能来自其它模组，为避免覆盖，安装已停止。请先备份并移除它，或改用 Millennium 官方 Installer。'
+    }
+    # Check before even probing write access or stopping Steam. Existing-core
+    # installs only update the plugin and never introduce this x64 loader.
+    if (-not $hasMillennium) { Assert-SteamArchitecture $root }
+
     if (-not (Test-Writable $root)) {
         if (Test-Admin) { Stop-Installer 'Steam 目录不可写，请检查目录权限。' }
         if ($InternalNoElevate) { Stop-Installer '没有写入 Steam 目录的权限。' }
@@ -363,13 +401,7 @@ function Main {
         return
     }
 
-    $hasMillennium = Test-Path -LiteralPath (Join-Path $root 'millennium\lib\millennium.dll') -PathType Leaf
-    $hasWsock = Test-Path -LiteralPath (Join-Path $root 'wsock32.dll') -PathType Leaf
     $pluginOnly = $false
-
-    if ($hasWsock -and -not $hasMillennium) {
-        Stop-Installer 'Steam 目录里已有 wsock32.dll，但没有找到 Millennium。这个文件可能来自其它模组，为避免覆盖，安装已停止。请先备份并移除它，或改用 Millennium 官方 Installer。'
-    }
 
     if ($hasMillennium) {
         Write-Note '检测到已经安装 Millennium。'
