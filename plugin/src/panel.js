@@ -350,6 +350,18 @@ function buildPanelComponent(React) {
                 ),
                 row(
                     React,
+                    '徽章立体内线',
+                    '徽章星形里沿着金边的那道细斜面线。关闭后彩色直接贴着金边，更简洁。',
+                    toggle(
+                        React,
+                        '徽章立体内线',
+                        options[OPTIONS.badgeLine] === '开启',
+                        (checked) => patch(OPTIONS.badgeLine, checked ? '开启' : '关闭'),
+                        themeActive,
+                    ),
+                ),
+                row(
+                    React,
                     '读取完成日期',
                     '关闭后不补全每张卡的完成日期，打开卡包更快。',
                     toggle(

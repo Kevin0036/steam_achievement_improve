@@ -36,6 +36,8 @@ export const SHOWCASE = {
     slot: '.showcase_achievementscompletionist_game',
     slotLink: 'a[href*="/achievements/"]',
     cover: 'img.game_capsule',
+    /** 2026-11 Valve 新增：特色集合的封面缩在「已完成集合图标」边框里 */
+    frame: '.showcase_achievementscompletionist_capsule_frame',
     bar: '.showcase_achievementscompletionist_game_bar',
     ribbons: '.showcase_achievementscompletionist_game_ribbons',
     counts: '.showcase_achievementscompletionist_game_counts',
@@ -58,6 +60,14 @@ export const REGISTRY = [
         required: true,
         feature: 'showcase',
         note: '同上',
+    },
+    {
+        key: 'showcase.frame',
+        selector: SHOWCASE.frame,
+        required: false,
+        feature: 'showcase',
+        fallback: null,
+        note: '2026-11 新增的特色集合封面框；没有它时封面直接挂在信息条前',
     },
     {
         key: 'showcase.bar',

@@ -10,11 +10,16 @@
 
 import { PLUGIN_VERSION, PLUGIN_NAME } from './mode.js';
 import './styles.js';
+import { installLibraryWindowHook, refreshLibraryStyles } from './librarystyle.js';
 import { waitForGlobal } from '../../src/js/ac/env.js';
 import { buildPanel, buildPanelContent } from './panel.js';
+import { syncShowcaseCovers } from './showcasecovers.js';
 import { maybeCheckOnOpen, openUpdateDialog } from './update.js';
 
 const GUARD = Symbol.for('ac.plugin.runtime');
+
+/* 越早注册越好：Steam 主窗口随时可能出现，钩子只能收到注册之后的窗口 */
+installLibraryWindowHook();
 
 function log(...args) {
     try {
@@ -46,6 +51,10 @@ function startBackendHeartbeat() {
     const signal = () => {
         last = Date.now();
         signalFrontendReady();
+        // Steam UI 重载会丢掉注入的 <style>，每次心跳补一次库内信息条样式
+        refreshLibraryStyles();
+        // 卡册数据变了（新完成、换账号）时顺手把展柜封面列表也同步过去
+        syncShowcaseCovers();
     };
     window.setInterval(signal, HEARTBEAT_MS);
     window.addEventListener('focus', () => {
@@ -98,6 +107,8 @@ function openPluginSettings() {
 async function bootstrap() {
     signalFrontendReady();
     startBackendHeartbeat();
+    refreshLibraryStyles();
+    syncShowcaseCovers();
 
     const React = await waitForGlobal('SP_REACT', { timeout: 20000 });
     if (!React) {
@@ -109,6 +120,7 @@ async function bootstrap() {
     window.addEventListener('ac:open-settings', openPluginSettings);
     window.addEventListener('ac:cardpack-opened', (event) => {
         maybeCheckOnOpen(event?.detail?.host ?? null);
+        syncShowcaseCovers();
     });
     window.addEventListener('ac:update-open', (event) => {
         openUpdateDialog(event?.detail?.host ?? null);

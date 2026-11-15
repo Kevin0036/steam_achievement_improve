@@ -123,7 +123,7 @@ function firstLine(message) {
  * 打开借阅室。返回 { destroy, close }：destroy 立即拆掉（页面卸载时用），
  * close 走淡出并允许触发 onClosed（页面用它重装主册，清掉只读册留下的取景覆盖）。
  */
-export function openBorrowRoom({ doc, trigger = null, onClosed = null, musicSrc = ROOM_MUSIC_URL } = {}) {
+export function openBorrowRoom({ doc, trigger = null, onClosed = null, onError = null, musicSrc = ROOM_MUSIC_URL } = {}) {
     if (!doc?.body) throw new Error('借阅室需要一个可挂载的文档');
     const win = doc.defaultView ?? window;
     const reduceMotion = win.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
@@ -138,6 +138,13 @@ export function openBorrowRoom({ doc, trigger = null, onClosed = null, musicSrc 
     root.innerHTML = BORROW_ROOM_HTML;
     doc.body.append(root);
     ensureNodeStyles(root);
+    // 样式没进到这个窗口时，房间会变成一堆没排版的元素落在页面最底下，看起来就是「点了没反应」。
+    // 这种情况直接报错，交给卡包页弹出报错卡片
+    const position = win.getComputedStyle?.(root)?.position;
+    if (position && position !== 'fixed') {
+        root.remove();
+        throw new Error(`借阅室的样式没有加载（.rm-root position=${position}）`);
+    }
 
     const $ = (id) => root.querySelector(`#${id}`);
     const stage = root.querySelector('.rm-stage');
@@ -1429,7 +1436,11 @@ export function openBorrowRoom({ doc, trigger = null, onClosed = null, musicSrc 
         activeTab?.focus({ preventScroll: true });
     });
     sound.enter();
-    prepareSend();
+    prepareSend().catch((err) => {
+        if (destroyed) return;
+        tip(`准备寄信时出错：${firstLine(err?.message ?? err) || '未知错误'}`);
+        onError?.(err);
+    });
 
     return {
         destroy,

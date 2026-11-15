@@ -108,6 +108,11 @@ function markMissing(doc, slot, img) {
     const note = doc.createElement('div');
     note.className = 'ac-showcase-cover-missing';
     note.textContent = SHOWCASE_STR.coverMissing;
+    const frame = slot.querySelector(SHOWCASE.frame);
+    if (frame) {
+        frame.append(note);
+        return;
+    }
     const bar = slot.querySelector(SHOWCASE.bar);
     if (bar) bar.before(note);
     else slot.querySelector('a')?.append(note);
@@ -120,9 +125,13 @@ function placeCover(doc, slot, url, existing) {
         img.className = 'game_capsule';
         img.alt = '';
         img.decoding = 'async';
-        const bar = slot.querySelector(SHOWCASE.bar);
-        if (bar) bar.before(img);
-        else slot.querySelector('a')?.prepend(img);
+        const frame = slot.querySelector(SHOWCASE.frame);
+        if (frame) frame.append(img);
+        else {
+            const bar = slot.querySelector(SHOWCASE.bar);
+            if (bar) bar.before(img);
+            else slot.querySelector('a')?.prepend(img);
+        }
     }
     // 探测已经成功过一次；这里再失败通常说明 CDN 状态刚变了，退回占位块
     img.addEventListener('error', () => markMissing(doc, slot, img), { once: true });

@@ -121,6 +121,71 @@ html body.profile_page .ac-showcase-cover-missing {
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
+/* 新版特色集合的封面框：占位块缩到和框内封面一样的 80%，让出四周的图标边框 */
+html body.profile_page .showcase_achievementscompletionist_capsule_frame .ac-showcase-cover-missing {
+    width: var(--capsule-scale, 80%);
+    box-shadow:
+        0 0 12px rgba(0, 0, 0, 0.6),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* ── 锁区封面：CSS 兜底 ───────────────────────────────────────────────────
+ * 社区页的 CSP 不给 millennium.host 放行脚本，所以封面修复改由插件后端生成一份
+ * 只含 --ac-cover 变量的样式表（appid → 语言回退链），这里把变量画出来。
+ * 变量挂在展柜格子上（不是 <a>），格子里任何结构都能继承到：
+ *   · 有 <img> 且是真封面：背景被图片整个盖住，一个像素都看不到；
+ *   · <img> 是坏图：浏览器把背景画进空出来的图片框（Valve 的 <img> 没有 alt，不会出现破图图标）；
+ *   · <img> 是占位图（src 不是游戏封面）：在封面区域盖一层同尺寸封面，正常游戏不触发；
+ *   · 连 <img> 都没有：<a>::before 撑出同比例的封面框；
+ *   · 特色集合的框里没有可用封面：按 80% 画进框内，和正常封面位置一致。
+ */
+html body.profile_page .showcase_achievementscompletionist_game img.game_capsule {
+    aspect-ratio: 460 / 215;
+    background-image: var(--ac-cover, none);
+    background-position: center;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}
+
+html body.profile_page .showcase_achievementscompletionist_game > a {
+    position: relative;
+}
+
+/* 占位图：锁区等情况下 Valve 会渲染一张能正常加载的灰色占位图，背景会被它盖住。
+   --ac-cover 是多层图片回退链，这里必须用长写：background 简写里的
+   position/size 只作用于最后一层，前面的层会退回原始尺寸、左上对齐。 */
+html body.profile_page .showcase_achievementscompletionist_game > a:not(:has(.showcase_achievementscompletionist_capsule_frame)):has(img.game_capsule:not([src*="/steam/apps/"]))::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    aspect-ratio: 460 / 215;
+    background-image: var(--ac-cover, none);
+    background-position: center;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    pointer-events: none;
+}
+
+html body.profile_page .showcase_achievementscompletionist_game > a:not(:has(img.game_capsule)):not(:has(.showcase_achievementscompletionist_capsule_frame))::before {
+    content: "";
+    display: block;
+    width: 100%;
+    aspect-ratio: 460 / 215;
+    background-image: var(--ac-cover, none);
+    background-position: center;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}
+
+html body.profile_page .showcase_achievementscompletionist_game > a:has(.showcase_achievementscompletionist_capsule_frame):not(:has(img.game_capsule[src*="/steam/apps/"])) .showcase_achievementscompletionist_capsule_frame {
+    background-image: var(--ac-cover, none);
+    background-position: center;
+    background-size: var(--capsule-scale, 80%) auto;
+    background-repeat: no-repeat;
+}
+
 /* ── 信息条：实色徽章蓝 ────────────────────────────────────────────────── */
 
 html body.profile_page .showcase_achievementscompletionist_game_bar {

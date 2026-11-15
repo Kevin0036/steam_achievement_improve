@@ -1,0 +1,77 @@
+/*
+ * 库内游戏卡片底部的成就信息条（Valve 的 LibraryItemBoxSubscript）。
+ *
+ * 三种状态，按 Valve 自己挂在信息条上的勋章类名判定：
+ *   · 本体成就集合未打通    —— 暗色条，只显示百分比，不显示徽章；
+ *   · 本体集合 100%         —— 徽章蓝条 + 金勋章；
+ *   · 本体 + 所有 DLC 集合  —— 蓝紫条 + 蓝紫勋章（和展柜口径一致）。
+ *
+ * 这些规则原先只活在主题的 libHome.css 里；主题不启用时插件 CSS 收不到，
+ * 所以搬到这里，由插件包和主题共用同一份。--st-* 变量是主题才有的，
+ * 插件模式下给回退值（颜色用主题的默认值 17,17,17）。
+ */
+
+/* Playtime/Date etc. */
+._1LJqx_qFOC8199RBQO5kU8 {
+    width: calc(100% - 12px);
+    margin: 6px;
+    margin-top: -30px;
+    padding: 4px;
+    border-radius: var(--st-border-radius, 8px);
+    background-color: rgba(var(--st-color-1, 17, 17, 17), 60%);
+    box-shadow: 0px 0px 3px 2px rgb(0 0 0 / 50%);
+}
+/* Achievements：勋章与百分比整体居中，Valve 的奖杯不再显示 */
+/* 没有完成任何集合时 Valve 不加 CompletedGroups，也就没有 flex，这里自己补上 */
+._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #fff;
+    background: linear-gradient(180deg, #3a475d 0%, #333f54 55%, #2b3547 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 2px 6px rgba(0, 0, 0, 0.35);
+}
+/* 本体成就集合已打通：徽章蓝条 + 金勋章 */
+/* DLCFrom1 全是 DLC 勋章，说明本体还没打通；DLCFrom2/3 的第一枚是本体勋章 */
+._1LJqx_qFOC8199RBQO5kU8:has(.-zN46pB8pmZXuCZhPxSMN),
+._1LJqx_qFOC8199RBQO5kU8:has(.ZIGP3oO2DN1MGwxWyf54t) {
+    background: linear-gradient(180deg, var(--ac-blue-hi) 0%, var(--ac-blue) 55%, var(--ac-blue-lo) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.16),
+        0 2px 6px rgba(0, 0, 0, 0.35);
+}
+._1LJqx_qFOC8199RBQO5kU8:has(.-zN46pB8pmZXuCZhPxSMN)::before,
+._1LJqx_qFOC8199RBQO5kU8:has(.ZIGP3oO2DN1MGwxWyf54t)::before,
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw)::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 12px;
+    height: 14px;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+}
+._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) ._1p4OC0BKEjB8LT2BlRyxO-,
+._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) ._4yfj5N2soD6vkHQDBDaOw,
+._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) .-zN46pB8pmZXuCZhPxSMN,
+._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) .ZIGP3oO2DN1MGwxWyf54t {
+    display: none;
+}
+/* 本体和 DLC 成就集合全部打通：蓝紫条 + 蓝紫勋章，与展柜一致 */
+/* AllAchieved 只代表成就 100%；老游戏只有一个本体集合，不能算「全集合」，
+   所以还要看到 DLC 勋章：DLCFrom1 全是 DLC；DLCFrom2 的第 2 枚起是 DLC；
+   DLCFrom3 的第 3 枚是 DLC（只有 2 枚时是多个本体集合，没有 DLC） */
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw),
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3)) {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.12) 100%),
+        linear-gradient(90deg, var(--ac-blue) 0%, var(--ac-blue) 30%, #8a5fd6 52%, #a856c2 72%, #b658c4 100%);
+}
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw)::before,
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2))::before,
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))::before {
+    background-image: var(--ac-badge-img-all);
+}

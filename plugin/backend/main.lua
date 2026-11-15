@@ -29,6 +29,20 @@ local SHOWCASE_MARKER = "showcase_achievementscompletionist"
 -- themes 下的私有资产目录：不是主题（没有 skin.json），不会出现在主题列表里
 local ASSET_DIR = "__ac_showcase"
 
+-- 锁区封面：社区页 CSP 不放行 millennium.host 的脚本，只能注入 CSS。
+-- 匹配整站：客户端里的「我的资料」页不一定是 /id/ 或 /profiles/ 开头，
+-- 而这份样式只在展柜格子上写变量，挂在别的页面也无副作用。
+local COVERS_DIR = "__ac_covers"
+local COVERS_PATTERN = "https://steamcommunity\\.com(/.*)?"
+local COVERS_FILE = "showcase-covers.txt"
+--- 库内样式：showcase.css 里也拼了 library.css，再按客户端文档地址注入一次。
+--- 这样 Steam 一启动游戏库就有进度条样式，不必先打开卡包。
+local LIBRARY_PATTERN = "https://steamloopback\\.host(/.*)?"
+local COVERS_HOST = "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/"
+local COVERS_FILES = { "header_schinese.jpg", "header_tchinese.jpg", "header_japanese.jpg", "header.jpg" }
+--- 上限只防极端账号把每张社区页都撑成几百 KB；正常全成就数量远低于它
+local COVERS_MAX = 800
+
 -- ---------------------------------------------------------------------------
 -- 小工具
 -- ---------------------------------------------------------------------------
@@ -113,9 +127,12 @@ local showcase = {
     css_path = nil,
     js_id = nil,
     css_id = nil,
+    covers_css_path = nil,
+    covers_css_id = nil,
+    library_css_id = nil,
 }
 
---- 撤掉自己注册的两个钩子（已被 Millennium 清掉的会返回 false，无副作用）
+--- 撤掉自己注册的钩子（已被 Millennium 清掉的会返回 false，无副作用）
 local function release_showcase_hooks()
     if showcase.js_id ~= nil then
         pcall(millennium.remove_browser_module, showcase.js_id)
@@ -125,32 +142,62 @@ local function release_showcase_hooks()
         pcall(millennium.remove_browser_module, showcase.css_id)
         showcase.css_id = nil
     end
+    if showcase.covers_css_id ~= nil then
+        pcall(millennium.remove_browser_module, showcase.covers_css_id)
+        showcase.covers_css_id = nil
+    end
+    if showcase.library_css_id ~= nil then
+        pcall(millennium.remove_browser_module, showcase.library_css_id)
+        showcase.library_css_id = nil
+    end
 end
 
 --- 幂等注册：先撤旧钩子再挂新的，避免重复注入。
 --- 钩子 id 从 0 开始，0 是合法值（主题没有钩子时插件拿到的就是 0/1），不能当成失败。
 local function register_showcase_hooks()
-    if not showcase.js_path or not showcase.css_path then return false end
     release_showcase_hooks()
 
-    local ok_js, js_id = pcall(millennium.add_browser_js, showcase.js_path, SHOWCASE_PATTERN)
-    if ok_js and type(js_id) == "number" and js_id >= 0 then
-        showcase.js_id = js_id
-    else
-        log_error("展柜脚本注入失败：" .. tostring(js_id))
+    if showcase.js_path then
+        local ok_js, js_id = pcall(millennium.add_browser_js, showcase.js_path, SHOWCASE_PATTERN)
+        if ok_js and type(js_id) == "number" and js_id >= 0 then
+            showcase.js_id = js_id
+        else
+            log_error("展柜脚本注入失败：" .. tostring(js_id))
+        end
     end
 
-    local ok_css, css_id = pcall(millennium.add_browser_css, showcase.css_path, SHOWCASE_PATTERN)
-    if ok_css and type(css_id) == "number" and css_id >= 0 then
-        showcase.css_id = css_id
-    else
-        log_error("展柜样式注入失败：" .. tostring(css_id))
+    if showcase.css_path then
+        local ok_css, css_id = pcall(millennium.add_browser_css, showcase.css_path, SHOWCASE_PATTERN)
+        if ok_css and type(css_id) == "number" and css_id >= 0 then
+            showcase.css_id = css_id
+        else
+            log_error("展柜样式注入失败：" .. tostring(css_id))
+        end
+
+        local ok_lib, lib_id = pcall(millennium.add_browser_css, showcase.css_path, LIBRARY_PATTERN)
+        if ok_lib and type(lib_id) == "number" and lib_id >= 0 then
+            showcase.library_css_id = lib_id
+        else
+            log_error("库内样式注入失败：" .. tostring(lib_id))
+        end
+    end
+
+    if showcase.covers_css_path then
+        local ok_covers, covers_id = pcall(millennium.add_browser_css, showcase.covers_css_path, COVERS_PATTERN)
+        if ok_covers and type(covers_id) == "number" and covers_id >= 0 then
+            showcase.covers_css_id = covers_id
+        else
+            log_error("展柜封面样式注入失败：" .. tostring(covers_id))
+        end
     end
 
     if showcase.js_id ~= nil and showcase.css_id ~= nil then
         log_info(string.format(
-            "社区展柜已注入：steamcommunity.com（js #%d · css #%d · %s）",
-            showcase.js_id, showcase.css_id, showcase.js_path
+            "社区展柜已注入：steamcommunity.com（js #%d · css #%d · covers %s · library %s · %s）",
+            showcase.js_id, showcase.css_id,
+            showcase.covers_css_id ~= nil and ("#" .. showcase.covers_css_id) or "—",
+            showcase.library_css_id ~= nil and ("#" .. showcase.library_css_id) or "—",
+            showcase.js_path
         ))
         return true
     end
@@ -197,8 +244,129 @@ local function uninstall_showcase()
     release_showcase_hooks()
     showcase.js_path = nil
     showcase.css_path = nil
+    showcase.covers_css_path = nil
     -- 钩子已撤掉，磁盘上的副本没有用了；下次加载会按内容指纹重新生成
     pcall(fs.remove_all, themes_root() .. "/" .. ASSET_DIR)
+end
+
+-- ---------------------------------------------------------------------------
+-- 展柜锁区封面：运行时生成 CSS（社区页 CSP 不放行我们的脚本）
+-- ---------------------------------------------------------------------------
+
+local function normalize_appids(list)
+    local seen, out = {}, {}
+    for i = 1, #list do
+        local value = tonumber(list[i])
+        if value and value > 0 and value < 4294967296 and value % 1 == 0 then
+            local id = math.floor(value)
+            if not seen[id] then
+                seen[id] = true
+                out[#out + 1] = id
+            end
+        end
+    end
+    table.sort(out)
+    return out
+end
+
+--- 每个 appid 只写一条自定义属性，挂在展柜格子上（变量会继承给格子里所有元素）；
+--- 画法在 showcase.css 里（插件与主题共用）。
+--- appid 的来源同时匹配成就链接和封面图地址：客户端某些资料页的链接不带 appid。
+local function covers_css(appids)
+    local chunks = { "/* " .. SHOWCASE_MARKER .. " covers */\n" }
+    for _, appid in ipairs(appids) do
+        local base = COVERS_HOST .. appid .. "/"
+        local layers = {}
+        for _, name in ipairs(COVERS_FILES) do
+            layers[#layers + 1] = "url(" .. base .. name .. ")"
+        end
+        chunks[#chunks + 1] = string.format(
+            '.showcase_achievementscompletionist_game:has(a[href$="/achievements/%d"]),' ..
+            '.showcase_achievementscompletionist_game:has(a[href$="/achievements/%d/"]),' ..
+            '.showcase_achievementscompletionist_game:has(a[href*="/stats/%d/achievements"]),' ..
+            '.showcase_achievementscompletionist_game:has(a[href$="/app/%d"]),' ..
+            '.showcase_achievementscompletionist_game:has(a[href*="/app/%d/"]),' ..
+            '.showcase_achievementscompletionist_game:has(img[src*="/steam/apps/%d/"])' ..
+            "{--ac-cover:%s}\n",
+            appid, appid, appid, appid, appid, appid, table.concat(layers, ",")
+        )
+    end
+    return table.concat(chunks)
+end
+
+local function write_covers_css(appids)
+    local asset_root = themes_root() .. "/" .. COVERS_DIR
+    pcall(fs.remove_all, asset_root)
+    showcase.covers_css_path = nil
+    if #appids == 0 then return false end
+
+    local ok_dir, dir_err = fs.create_directories(asset_root)
+    if ok_dir == nil then
+        log_error("无法创建展柜封面目录：" .. tostring(dir_err))
+        return false
+    end
+
+    local css = covers_css(appids)
+    local name = "covers-" .. content_tag(css) .. ".css"
+    local ok, err = write_file(asset_root .. "/" .. name, css)
+    if not ok then
+        log_error("写入展柜封面样式失败：" .. tostring(err))
+        return false
+    end
+    showcase.covers_css_path = COVERS_DIR .. "/" .. name
+    return true
+end
+
+local function save_covers_list(appids)
+    local path = plugin_root() .. "/" .. COVERS_FILE
+    if #appids == 0 then
+        pcall(os.remove, path)
+        return
+    end
+    local ok, err = write_file(path, table.concat(appids, "\n"))
+    if not ok then log_error("保存展柜封面列表失败：" .. tostring(err)) end
+end
+
+local function load_covers_list()
+    local data = read_file(plugin_root() .. "/" .. COVERS_FILE)
+    if not data then return {} end
+    local ids = {}
+    for line in data:gmatch("[\r\n]+") do
+        local value = tonumber(line)
+        if value and value > 0 and value < 4294967296 and value % 1 == 0 then
+            ids[#ids + 1] = math.floor(value)
+        end
+    end
+    return normalize_appids(ids)
+end
+
+--- 从磁盘恢复上次的封面列表：Steam 刚启动、前端还没报到时也能立刻生效
+local function install_persisted_covers()
+    local ok, appids = pcall(load_covers_list)
+    if not ok or #appids == 0 then return false end
+    return write_covers_css(appids)
+end
+
+--- 前端把卡册里出现过的 appid 发过来，生成「appid → 语言回退链」的 CSS。
+function PublishShowcaseCovers(payload)
+    if type(payload) ~= "table" or type(payload.appids) ~= "table" then
+        return { success = false, error = "封面列表格式错误" }
+    end
+    local appids = normalize_appids(payload.appids)
+    if #appids > COVERS_MAX then
+        local trimmed = {}
+        for i = 1, COVERS_MAX do trimmed[i] = appids[i] end
+        log_info(string.format("展柜封面列表有 %d 个 appid，只取前 %d 个", #appids, COVERS_MAX))
+        appids = trimmed
+    end
+
+    save_covers_list(appids)
+    local generated = write_covers_css(appids)
+    register_showcase_hooks()
+    if generated then
+        log_info(string.format("展柜封面样式已更新：%d 个 appid", #appids))
+    end
+    return { success = true, count = generated and #appids or 0 }
 end
 
 -- ---------------------------------------------------------------------------
@@ -527,6 +695,9 @@ end
 local function on_load()
     log_info("后端已加载 · 当前版本 " .. read_local_version())
     install_showcase()
+    if install_persisted_covers() then
+        register_showcase_hooks()
+    end
     millennium.ready()
 end
 
@@ -539,11 +710,16 @@ local function on_frontend_loaded()
         install_showcase()
         return
     end
+    if not showcase.covers_css_path and install_persisted_covers() then
+        register_showcase_hooks()
+        return
+    end
     register_showcase_hooks()
 end
 
 local function on_unload()
     uninstall_showcase()
+    pcall(fs.remove_all, themes_root() .. "/" .. COVERS_DIR)
     log_info("后端已卸载")
 end
 

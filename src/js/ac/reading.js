@@ -66,7 +66,19 @@ export function readReading() {
     const target = normalizeTarget(saved.target ?? getThemeOption('年度目标款数', TARGET_DEFAULT));
     const album = normalizeAlbum(saved.album ?? getThemeOption('册子风格', ALBUM_DEFAULT));
     const introSound = asBool(saved.introSound) ?? asBool(getThemeOption('入册音效', '开启')) ?? true;
-    return { tabs, tree, target, album, introSound };
+    const badgeLine = asBool(saved.badgeLine) ?? asBool(getThemeOption('徽章立体内线', '开启')) ?? true;
+    return { tabs, tree, target, album, introSound, badgeLine };
+}
+
+/**
+ * 「徽章立体内线」：关闭时在根节点上挂 data-ac-badge-line="off"，art.css 把徽章换成去掉内线的那枚。
+ * 挂在根节点而不是卡包上，是因为导出、引导这些弹层里的徽章也要一起换
+ */
+export function applyBadgeLine(doc, on = readReading().badgeLine) {
+    const root = doc?.documentElement;
+    if (!root) return;
+    if (on === false) root.setAttribute('data-ac-badge-line', 'off');
+    else root.removeAttribute('data-ac-badge-line');
 }
 
 /** 只写用户明确改的项；写完通知 page.js 重建册子 */
@@ -78,6 +90,7 @@ export function writeReading(patch) {
         target: patch.target === undefined ? current.target : normalizeTarget(patch.target, current.target),
         album: patch.album === undefined ? current.album : normalizeAlbum(patch.album),
         introSound: asBool(patch.introSound) ?? current.introSound,
+        badgeLine: asBool(patch.badgeLine) ?? current.badgeLine,
     };
     try {
         localStorage.setItem(KEY, JSON.stringify(next));

@@ -1,5 +1,5 @@
-﻿成就收藏册 · Windows 懒人包 v1.1.8-beta
-=========================================
+﻿成就收藏册 · Windows 懒人包 v1.2.4
+===================================
 
 这是给「不想折腾 GitHub、也没有安装过 Millennium」的 Steam 用户准备的完整包。
 下载这一个压缩包、解压、双击 Install.bat，就会自动装好 Millennium 和成就收藏册插件。
@@ -7,15 +7,15 @@
 
 版本说明
 --------
-- 成就收藏册插件：v1.1.8-beta
-- Millennium：v3.6.2（官方发布包，原样内置，未修改）
+- 成就收藏册插件：v1.2.4
+- Millennium：v3.6.3（官方发布包，原样内置，未修改）
 - 这个包只安装插件，不安装任何主题，不会覆盖你现有的主题或插件。
 
 包里有什么
 ----------
 - plugin\AchievementCollection\   成就收藏册插件
-- millennium-v3.6.2-windows-x86_64.zip
-                                  官方 Millennium v3.6.2 Windows 64 位发布包
+- millennium-v3.6.3-windows-x86_64.zip
+                                  官方 Millennium v3.6.3 Windows 64 位发布包
 - install.ps1 / Install.bat       安装脚本
 - uninstall.ps1 / Uninstall.bat   卸载脚本
 - LICENSE                          许可（SpaceTheme, MIT）
@@ -56,7 +56,7 @@
 - 插件：进入卡包时会自动检查 GitHub 上的新版本，也可以在插件设置里手动检查。
   更新只替换插件文件，设置和卡册缓存不会丢。
 - Millennium：在 Millennium 设置里检查更新，或使用官方 Installer。
-- 懒人包内置的 Millennium 固定在 v3.6.2，不会跟随官方自动升级。
+- 懒人包内置的 Millennium 固定在 v3.6.3，不会跟随官方自动升级。
 - 不要用旧版懒人包覆盖新版插件；需要重装时请下载最新懒人包。
 
 卸载
@@ -74,9 +74,9 @@
 
 安全说明
 --------
-- 安装器不会联网下载 Millennium，内置的就是官方 v3.6.2 发布包。
+- 安装器不会联网下载 Millennium，内置的就是官方 v3.6.3 发布包。
 - 官方包 SHA256：
-  cd78cf680563491d24f58a4fc948dcfc7cb3b38523ac80162845e52b06151cc2
+  d0363f4aa5bfa44aecf4643fe5af8fc35055d126a940fb46ef9158a4c261463d
 - 安装前会重新计算并比对，不一致会直接停止。
 - Millennium 通过 wsock32.dll 注入 Steam，部分杀毒软件可能提示；
   如不放心，请改用 Millennium 官方 Installer 安装，再手动安装插件版。

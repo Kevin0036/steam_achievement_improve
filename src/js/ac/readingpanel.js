@@ -87,6 +87,14 @@ export function openReadingSettings(host, { onClose = null, diagnostics = null, 
         ),
     );
 
+    rows.append(
+        row(
+            STR.reading.badgeLineLabel,
+            STR.reading.badgeLineDesc,
+            makeSwitch(STR.reading.badgeLineLabel, prefs.badgeLine, (next) => writeReading({ badgeLine: next })),
+        ),
+    );
+
     // 册子风格：换款只改宿主的 data-album，不用重建册子
     const chips = el(doc, 'div', 'ac-set__chips', { attrs: { role: 'group', 'aria-label': STR.reading.albumLabel } });
     for (const item of ALBUM_STYLES) {

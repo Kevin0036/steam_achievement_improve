@@ -98,6 +98,8 @@ export const STR = {
         tabsDesc: '书口露出一列年份标签，点一下直接翻到那一年的年份页。',
         introSoundLabel: '入册音效',
         introSoundDesc: '新卡落进卡槽时的轻声提示。',
+        badgeLineLabel: '徽章立体内线',
+        badgeLineDesc: '徽章星形里沿着金边的那道细斜面线。关闭后彩色直接贴着金边，更简洁。',
         albumLabel: '册子风格',
         albumDesc: '换一本册子的纸张、书皮和边框，立即生效。',
         treeLabel: '年度之树',
@@ -166,6 +168,17 @@ export const STR = {
         open: '去设置开启',
         later: '以后再说',
         close: '关闭提示',
+    },
+
+    /* ── 借阅室打不开时的报错卡片（borrowerror.js） ─────────────────────── */
+    borrowError: {
+        title: '借阅室没能打开',
+        hint: '点「复制报错」，把内容发给作者，就能帮忙查原因。',
+        copy: '复制报错',
+        dismiss: '知道了',
+        copied: '已复制',
+        copyFailed: '复制失败，已展开完整报错，可以截图',
+        unknown: '未知错误',
     },
 
     /* ── 印刷素材导出（export.js） ──────────────────────────────────────── */

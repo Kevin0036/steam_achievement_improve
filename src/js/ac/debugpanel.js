@@ -26,7 +26,7 @@ const ACTS = [
 ];
 
 const STYLE = `
-.ac-debug { position: absolute; top: 12px; left: 12px; z-index: 2147483000; width: 236px; padding: 10px 12px 12px;
+.ac-debug { position: absolute; bottom: 12px; left: 12px; z-index: 2147483000; width: 236px; padding: 10px 12px 12px;
   font: 12px/1.45 "Be Vietnam Pro", "Microsoft YaHei UI", sans-serif; color: #e8e2d4; background: rgba(16, 15, 18, .92);
   border: 1px solid rgba(214, 183, 122, .35); border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .45); }
 .ac-debug[data-collapsed] { width: auto; padding: 6px 10px; }

@@ -1,7 +1,7 @@
 ﻿#requires -Version 5.1
 <#
   成就收藏册 · Windows 懒人包安装器（插件版）
-  内置官方 Millennium v3.6.2 原版发布包（未修改），只负责解压、复制插件和写入安装记录。
+  内置官方 Millennium v3.6.3 原版发布包（未修改），只负责解压、复制插件和写入安装记录。
   本脚本不会修改 Steam 的登录信息或游戏文件，也不会安装任何主题。
 #>
 [CmdletBinding()]
@@ -19,8 +19,8 @@ try {
     [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
     $global:OutputEncoding = New-Object Text.UTF8Encoding($false)
 } catch { }
-$script:PluginVersion = '1.1.8-beta'
-$script:MillenniumVersion = '3.6.2'
+$script:PluginVersion = '1.2.4'
+$script:MillenniumVersion = '3.6.3'
 $script:PluginFolderName = 'AchievementCollection'
 $script:PackageDir = $PSScriptRoot
 $script:AutoYes = [bool]$InternalYes

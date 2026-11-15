@@ -1,10 +1,10 @@
 # 第三方组件
 
-## Millennium v3.6.2
+## Millennium v3.6.3
 
 - 项目：https://github.com/SteamClientHomebrew/Millennium
-- 发布页：https://github.com/SteamClientHomebrew/Millennium/releases/tag/v3.6.2
-- 文件：`millennium-v3.6.2-windows-x86_64.zip`
+- 发布页：https://github.com/SteamClientHomebrew/Millennium/releases/tag/v3.6.3
+- 文件：`millennium-v3.6.3-windows-x86_64.zip`
 - SHA256：`cd78cf680563491d24f58a4fc948dcfc7cb3b38523ac80162845e52b06151cc2`
 - 许可证：MIT，见 `LICENSE-Millennium.md`
 

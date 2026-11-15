@@ -16,6 +16,7 @@ export const OPTIONS = {
     yearTree: '年度之树',
     yearTarget: '年度目标款数',
     introSound: '入册音效',
+    badgeLine: '徽章立体内线',
     dates: '成就卡包：读取完成日期',
 };
 
@@ -33,6 +34,7 @@ export const DEFAULTS = {
     [OPTIONS.yearTree]: '关闭',
     [OPTIONS.yearTarget]: '15',
     [OPTIONS.introSound]: '开启',
+    [OPTIONS.badgeLine]: '开启',
     [OPTIONS.dates]: 'yes',
 };
 

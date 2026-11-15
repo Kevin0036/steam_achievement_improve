@@ -83,6 +83,135 @@
     outline: none;
 }
 
+/* 借阅室打不开时的报错卡片（borrowerror.js）：挂在左上角工具条里，落在「借阅室」按钮正下方 */
+.ac-borrow-error-host {
+    display: contents;
+}
+
+.ac-borrow-error {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    width: min(340px, calc(100vw - 48px));
+    padding: 14px 16px 12px;
+    box-sizing: border-box;
+    color: var(--ac-text);
+    font: 400 12px/1.6 var(--ac-font);
+    text-align: left;
+    border: 1px solid rgba(232, 116, 104, 0.45);
+    border-radius: 10px;
+    background: rgba(28, 18, 20, 0.94);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    animation: ac-borrow-error-in 220ms var(--ac-ease-out) both;
+}
+
+.ac-borrow-error__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #ffd2cb;
+}
+
+.ac-borrow-error__title::before {
+    content: "";
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f08a7c;
+    box-shadow: 0 0 8px rgba(240, 138, 124, 0.7);
+}
+
+.ac-borrow-error__detail {
+    display: block;
+    margin: 8px 0 6px;
+    padding: 7px 9px;
+    overflow: hidden;
+    color: #f3c2ba;
+    font: 11px/1.5 Consolas, "Cascadia Mono", monospace;
+    /* 最多折三行：截图里能看清整句报错，又不会把卡片撑得太高 */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    word-break: break-word;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.32);
+    user-select: text;
+}
+
+/* 复制失败时把完整报错摊开，方便截图 */
+.ac-borrow-error__detail.is-full {
+    display: block;
+    -webkit-line-clamp: none;
+    max-height: 180px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.ac-borrow-error__hint {
+    margin: 0;
+    color: var(--ac-text-dim);
+}
+
+.ac-borrow-error__foot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.ac-borrow-error__status {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: #bfe6c9;
+    font-size: 11px;
+}
+
+.ac-borrow-error__foot > button {
+    height: 26px;
+    padding: 0 12px;
+    color: var(--ac-text-dim);
+    font: 600 12px/1 var(--ac-font);
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    border: 1px solid var(--ac-line-strong);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    transition: color 140ms var(--ac-ease-out), border-color 140ms var(--ac-ease-out), background 140ms var(--ac-ease-out);
+}
+
+.ac-borrow-error__foot > .ac-borrow-error__copy {
+    color: #ffe1dc;
+    border-color: rgba(240, 138, 124, 0.55);
+    background: rgba(240, 138, 124, 0.14);
+}
+
+.ac-borrow-error__foot > button:hover,
+.ac-borrow-error__foot > button:focus-visible {
+    color: #fff;
+    border-color: rgba(240, 138, 124, 0.85);
+    outline: none;
+}
+
+@keyframes ac-borrow-error-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ac-borrow-error {
+        animation: none;
+    }
+}
+
 /* 模态打开时没有 Steam 自带的关闭按钮可用，这一个必须始终可见 */
 .ac-page-toolbar > .ac-modal-close {
     color: #cfe6f5;

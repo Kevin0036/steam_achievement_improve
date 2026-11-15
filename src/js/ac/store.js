@@ -479,9 +479,11 @@ async function judgeSets(appid, progress, setsCache, { force = false } = {}) {
     }
     const { groups, ...sets } = summary;
     setsCache.set(appid, { sig, checkedAt: Date.now(), sets });
+    // 两个日期都打出来：卡上的金色日期取本体那天，排查「金色日期和全集合日期是同一天」这类反馈时直接看日志
+    const day = (seconds) => (Number.isFinite(seconds) ? new Date(seconds * 1000).toISOString().slice(0, 10) : '—');
     out.log(
-        `成就集合 ${appid}：本体 ${sets.base.achieved}/${sets.base.total}${sets.base.complete ? '（完成）' : ''}`
-        + ` · DLC 集合 ${sets.dlcCompleted}/${sets.dlcSets}${sets.allSets ? ' → 蓝紫徽章' : ''}`,
+        `成就集合 ${appid}：本体 ${sets.base.achieved}/${sets.base.total}${sets.base.complete ? `（${day(sets.base.completedAt)} 完成）` : ''}`
+        + ` · DLC 集合 ${sets.dlcCompleted}/${sets.dlcSets}${sets.allSets ? ` → 蓝紫徽章（全集合 ${day(sets.all.completedAt)}）` : ''}`,
     );
     return { sets };
 }

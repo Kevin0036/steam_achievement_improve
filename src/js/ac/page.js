@@ -22,6 +22,7 @@ import * as store from './store.js';
 import * as cache from './cache.js';
 import { createBook } from './book.js';
 import { openBorrowRoom } from './borrowroom.js';
+import { borrowErrorSummary, showBorrowError } from './borrowerror.js';
 import { openExportDialog } from './export.js';
 import {
     markOnboardingSeen,
@@ -31,7 +32,7 @@ import {
     showOnboarding,
     showTreeNotice,
 } from './onboarding.js';
-import { readReading, TREE_FEATURE } from './reading.js';
+import { applyBadgeLine, readReading, TREE_FEATURE } from './reading.js';
 import { openReadingSettings } from './readingpanel.js';
 import { yearKeyOf } from './yearpages.js';
 import { cardBeforeUpgrade, sortCards } from './model.js';
@@ -503,6 +504,11 @@ export function Page({ onClose } = {}) {
     const borrowOpenRef = React.useRef(false);
     const borrowRef = React.useRef(null);
     const borrowButtonRef = React.useRef(null);
+    /** 借阅室打不开时的报错卡片挂在这里（左上角工具条里，紧挨着「借阅室」按钮） */
+    const borrowErrorHostRef = React.useRef(null);
+    const borrowErrorRef = React.useRef(null);
+    /** 最近一次借阅室报错：设置面板里「复制诊断信息」会带上它 */
+    const lastBorrowErrorRef = React.useRef(null);
     /** 挂载时是否还是第一次进入：新用户先看完整引导，不叠加「年度之树」尝鲜提示 */
     const newUserRef = React.useRef(null);
     if (newUserRef.current === null) newUserRef.current = shouldShowOnboarding();
@@ -944,7 +950,11 @@ export function Page({ onClose } = {}) {
         if (!host) return undefined;
         const panel = openReadingSettings(host, {
             onClose: () => setSettingsOpen(false),
-            diagnostics: store.getDiagnostics,
+            diagnostics: () => {
+                const line = store.getDiagnostics();
+                const error = lastBorrowErrorRef.current;
+                return error ? `${line} · 借阅室报错：${borrowErrorSummary(error)}` : line;
+            },
             onExtraScan: () => {
                 setDateAutoScan(true);
                 setDateOpen(true);
@@ -1067,10 +1077,16 @@ export function Page({ onClose } = {}) {
     React.useEffect(() => {
         if (!borrowOpen) return undefined;
         const doc = hostRef.current?.ownerDocument ?? document;
+        borrowErrorRef.current?.destroy();
         try {
             borrowRef.current = openBorrowRoom({
                 doc,
                 trigger: borrowButtonRef.current,
+                // 房间已经开着时的出错：房间里自己会提示，这里只记下来供诊断信息带上
+                onError: (error) => {
+                    lastBorrowErrorRef.current = error;
+                    out.warn(`借阅室出错：${borrowErrorSummary(error)}`, error);
+                },
                 onClosed: ({ borrowed } = {}) => {
                     borrowOpenRef.current = false;
                     if (borrowed) {
@@ -1083,9 +1099,21 @@ export function Page({ onClose } = {}) {
                 },
             });
         } catch (error) {
-            out.log(`借阅室打开失败：${error?.message ?? error}`);
+            out.warn(`借阅室打开失败：${error?.message ?? error}`, error);
+            lastBorrowErrorRef.current = error;
+            borrowRef.current = null;
             borrowOpenRef.current = false;
             setBorrowOpen(false);
+            // 以前只打在控制台里，用户看到的是「点了没反应」：现在在按钮下面弹出报错卡片
+            const errorHost = borrowErrorHostRef.current;
+            if (errorHost) {
+                borrowErrorRef.current = showBorrowError(errorHost, {
+                    error,
+                    onClose: () => {
+                        borrowErrorRef.current = null;
+                    },
+                });
+            }
         }
         return () => {
             borrowRef.current?.destroy();
@@ -1100,6 +1128,8 @@ export function Page({ onClose } = {}) {
         setBorrowOpen(false);
     }, [state.phase, borrowOpen]);
 
+    React.useEffect(() => () => borrowErrorRef.current?.destroy(), []);
+
     const openBorrow = React.useCallback(() => {
         if (borrowRef.current) return;
         borrowOpenRef.current = true;
@@ -1107,7 +1137,11 @@ export function Page({ onClose } = {}) {
     }, []);
 
     // 册子风格挂在 .ac-cardpack 上：设置一改就重新渲染到这里，换款不用重建册子
-    const { album } = readReading();
+    const { album, badgeLine } = readReading();
+    // 徽章立体内线：挂在根节点上（导出、引导这些弹层里的徽章也要跟着换）
+    React.useEffect(() => {
+        applyBadgeLine(hostRef.current?.ownerDocument ?? document, badgeLine);
+    }, [badgeLine]);
 
     return React.createElement(
         'div',
@@ -1130,6 +1164,7 @@ export function Page({ onClose } = {}) {
                       '借阅室',
                   )
                 : null,
+            React.createElement('div', { className: 'ac-borrow-error-host', ref: borrowErrorHostRef }),
         ),
         React.createElement(
             'div',
