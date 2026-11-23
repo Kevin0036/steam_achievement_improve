@@ -345,6 +345,22 @@ console.log('\n── 第二次打开：成绩单缓存 ────────
     eq('第二次打开：还是没有翻新', store.getState().upgrade.changes, []);
 }
 
+console.log('\n── 从 1.2.2 升级：日期缓存里还是最后一个（DLC）成就那天 ──');
+{
+    // 1.2.2 不认成就集合，按整张成就表算日期，写下的是 DLC 打满那天（地平线 5 的反馈）
+    const dates = cache.readDates();
+    dates.set(3003, { completedAt: DLC_DONE, rare: 4, common: 3, unrated: 0, total: 7, fetchedAt: Date.now() });
+    cache.writeDates(dates);
+    cache.writeSets(new Map());
+    cache.flushWrites();
+    store.dispose();
+    await store.load({ silent: false });
+    const card = cardOf(3003);
+    eq('升级后：金色日期换成本体打满那天', card?.completedAt, BASE_DONE);
+    eq('升级后：全集合日期是 DLC 打满那天', card?.sets?.allCompletedAt, DLC_DONE);
+    eq('升级后：日期缓存也改写成本体那天', cache.readDates().get(3003)?.completedAt, BASE_DONE);
+}
+
 console.log('\n── DLC 打通了：徽章翻新 ──────────────────────────────');
 {
     const game = GAMES[3002];

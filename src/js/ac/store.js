@@ -638,7 +638,17 @@ async function confirmCompletions(cards, isCurrent) {
         }
     }
 
-    if (JSON.stringify([...setsCache]) !== setsBefore) cache.writeSets(setsCache);
+    if (JSON.stringify([...setsCache]) !== setsBefore) {
+        cache.writeSets(setsCache);
+        try {
+            const allSets = [...setsCache]
+                .filter(([, entry]) => entry?.sets?.allSets === true)
+                .map(([appid]) => appid);
+            globalThis.dispatchEvent?.(new CustomEvent('ac:sets-updated', { detail: { allSets } }));
+        } catch {
+            /* Node 测试环境没有 CustomEvent 时忽略 */
+        }
+    }
     completionReport = { checked, rejected, unverified, sets: judgedBySets };
     if (judgedBySets > 0) {
         const purple = kept.filter((card) => card.allSets === true).length;

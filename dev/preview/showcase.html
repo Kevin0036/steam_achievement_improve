@@ -73,6 +73,16 @@
             </div>
         </div>
     </section>
+
+    <section class="case">
+        <h2>新版特色集合框（capsule_frame）· 锁区封面同样补进框内</h2>
+        <div class="profile_customization">
+            <div class="profile_customization_header">完满主义者展柜</div>
+            <div class="profile_customization_block">
+                <div class="showcase_achievementscompletionist_slots" data-framed="2458860,1149550"></div>
+            </div>
+        </div>
+    </section>
 </div>
 
 <script type="module">
@@ -87,7 +97,7 @@ document.querySelector('[data-card-count]').textContent = CARDS.length;
 const RIBBON_BASE = '<span class="showcase_completion_ribbon_group base"><span class="showcase_completion_ribbon"></span></span>';
 const RIBBON_DLC = '<span class="showcase_completion_ribbon_group dlc"><span class="showcase_completion_ribbon_count">1</span><span class="showcase_completion_ribbon"></span></span>';
 
-function slot(card, { cover = 'auto', href = null, ribbons = RIBBON_BASE } = {}) {
+function slot(card, { cover = 'auto', href = null, ribbons = RIBBON_BASE, framed = false } = {}) {
     const counts = Number.isFinite(card.total)
         ? `<div class="num_achievements">${card.total} 项成就</div>
            ${card.rare != null ? `<div class="num_rare">${card.rare} 项为稀有</div>` : ''}`
@@ -109,14 +119,31 @@ function slot(card, { cover = 'auto', href = null, ribbons = RIBBON_BASE } = {})
     const node = template.content.firstElementChild;
     const link = node.querySelector('a');
 
+    // 2026-11 Valve 新版：特色集合的封面缩在「已完成集合图标」边框里
+    let host = link;
+    if (framed) {
+        const frame = document.createElement('div');
+        frame.className = 'showcase_achievementscompletionist_capsule_frame';
+        frame.innerHTML = `
+            <div class="showcase_completion_icons_bg">
+                <div class="showcase_completion_icons">
+                    <svg viewBox="0 0 100 100" aria-hidden="true">
+                        <circle cx="50" cy="50" r="34" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2"/>
+                    </svg>
+                </div>
+            </div>`;
+        link.prepend(frame);
+        host = frame;
+    }
+
     if (cover === 'auto') {
-        link.prepend(artImage(document, card.art.header, 'game_capsule', card.name));
+        host.prepend(artImage(document, card.art.header, 'game_capsule', card.name));
     } else if (cover === 'broken') {
         const img = document.createElement('img');
         img.className = 'game_capsule';
         img.alt = card.name;
         img.src = '/definitely-missing-cover.jpg';
-        link.prepend(img);
+        host.prepend(img);
     }
     return node;
 }
@@ -148,6 +175,13 @@ const LOCKED = [
 for (const grid of document.querySelectorAll('[data-locked]')) {
     grid.replaceChildren(
         ...LOCKED.map((card, i) => slot(card, { cover: i === 0 ? 'broken' : 'none' })),
+    );
+}
+const MISSING_EVERYWHERE = { appid: 999999999, name: '不存在的游戏', total: null, rare: null };
+for (const grid of document.querySelectorAll('[data-framed]')) {
+    grid.replaceChildren(
+        ...LOCKED.map((card, i) => slot(card, { cover: i === 0 ? 'broken' : 'none', framed: true })),
+        slot(MISSING_EVERYWHERE, { cover: 'none', framed: true }),
     );
 }
 

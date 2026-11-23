@@ -49,7 +49,7 @@ function harness({ binding = 'newest', running = false, options: extraOptions = 
             upgrade(cards, changes) { this.cards = cards.slice(); this.upgrades.push(changes.map(c => c.appid)); return new Promise(resolve => { this.completeUpgrade = resolve; }); } }; books.push(book); return book; },
         openExportDialog() {}, markOnboardingSeen() { seenGuide = true; }, shouldShowOnboarding: () => !seenGuide, showOnboarding() { return { destroy() {} }; },
         markTreeNoticeSeen() {}, shouldShowTreeNotice: () => false, showTreeNotice() {},
-        readReading: () => ({ ...reading }), TREE_FEATURE: treeFeature, openReadingSettings() {},
+        readReading: () => ({ ...reading }), applyBadgeLine() {}, TREE_FEATURE: treeFeature, openReadingSettings() {},
         yearKeyOf: card => { yearReads++; return card.completedAt; },
         sortCards: cards => { sorts++; return [...cards].sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)); },
         createCardView, createYearSnapshot, sameYearSnapshot, cardBeforeUpgrade, tagged: () => ({ log() {} }), STR };

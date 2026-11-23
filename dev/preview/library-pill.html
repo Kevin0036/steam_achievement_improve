@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>库内成就进度条 · 三种集合状态</title>
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/tokens.css">
+<link rel="stylesheet" href="/theme/src/css/steam/libHome.css">
+<style>
+    :root { --st-border-radius: 8px; --st-color-1: 17, 17, 17; }
+    html, body { margin: 0; }
+    body {
+        background: rgb(10, 10, 10);
+        color: var(--ac-text);
+        font-family: var(--ac-font);
+        font-size: 13px;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+    h1 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+    .hint { margin: 0 0 26px; color: var(--ac-text-faint); font-size: 12px; line-height: 1.7; }
+    .row { display: flex; flex-wrap: wrap; gap: 28px; margin-bottom: 16px; }
+    h2 { margin: 0 0 14px; font-size: 13px; font-weight: 500; color: var(--ac-text-dim); }
+    h2 b { color: var(--ac-gold-soft); font-weight: 600; }
+    .cards { display: flex; flex-wrap: wrap; gap: 22px; }
+    .card { width: 232px; }
+    .cover {
+        position: relative;
+        aspect-ratio: 600 / 900;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #16181d;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, .45);
+    }
+    .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .cover::after {
+        content: "";
+        position: absolute; inset: 0;
+        background: linear-gradient(180deg, transparent 55%, rgba(0, 0, 0, .35));
+    }
+    .note { margin: 10px 2px 0; color: var(--ac-text-faint); font-size: 12px; line-height: 1.6; }
+    .note b { color: var(--ac-text-dim); font-weight: 500; }
+
+    /* 现状：主题通用样式 */
+    .pill {
+        position: relative;
+        z-index: 2;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: calc(100% - 12px);
+        margin: -34px 6px 0;
+        padding: 4px;
+        border-radius: var(--st-border-radius);
+        background-color: rgba(17, 17, 17, .6);
+        box-shadow: 0 0 3px 2px rgba(0, 0, 0, .5);
+        color: #fff;
+        font-size: 12px;
+        line-height: 16px;
+        text-align: center;
+    }
+    .pill .award {
+        flex: 0 0 auto;
+        width: 12px; height: 12px;
+        -webkit-mask: var(--ac-trophy) center / contain no-repeat;
+        mask: var(--ac-trophy) center / contain no-repeat;
+        background: #4fa3ff;
+    }
+    .pill .award.dlc { background: #b658c4; }
+
+    /* 定稿：真实 Steam 类名，样式全部来自生产 libHome.css */
+    .real-pill { position: relative; z-index: 2; font-size: 12px; line-height: 16px; }
+    .real-pill .LTPd1K0p7pbPS9nEgQGLs { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>库内成就进度条 · 三种集合状态</h1>
+    <p class="hint">
+        按 Steamworks 的成就集合（Achievement Sets）分档：老游戏只有本体一个集合；新游戏可以另有 DLC 集合。<br>
+        下面的定稿卡片使用 Steam 客户端的真实类名，样式直接读主题的 <code>src/css/steam/libHome.css</code>。
+    </p>
+
+    <div class="row">
+        <section>
+            <h2>现状 · 深色半透明（Valve 结构 + 主题通用样式）</h2>
+            <div class="cards" data-variant="current"></div>
+        </section>
+    </div>
+
+    <div class="row">
+        <section>
+            <h2>方案 A（定稿）· 集合未完成 = 暗蓝条、无勋章；本体集合完成 = 蓝条 + 金勋章；本体 + DLC 全完成 = 蓝紫条 + 蓝紫勋章</h2>
+            <div class="cards" data-variant="final"></div>
+        </section>
+    </div>
+</div>
+
+<script type="module">
+import { CARDS } from './fixtures.js';
+import { artImage } from '/theme/src/js/ac/cardview.js';
+
+const picks = CARDS.filter(c => c.art?.capsule?.[0]).slice(0, 4);
+const PILL = '_1LJqx_qFOC8199RBQO5kU8';
+const GROUPS = '_1Z1AifHmEdIUbvNWXmJ1hK';
+const ALL = '_1fddiVOLgn9nNxAEDjyV4k';
+const AWARD = '_1p4OC0BKEjB8LT2BlRyxO-';
+const DLC_FROM_1 = '_4yfj5N2soD6vkHQDBDaOw';
+const DLC_FROM_2 = '-zN46pB8pmZXuCZhPxSMN';
+
+function cover(card) {
+    const node = document.createElement('div');
+    node.className = 'cover';
+    node.append(artImage(document, card.art.capsule, 'ac-mock-capsule', card.name));
+    return node;
+}
+
+function awards(containerClass, count) {
+    const container = document.createElement('div');
+    container.className = containerClass;
+    const stack = document.createElement('span');
+    for (let i = 0; i < count; i += 1) {
+        const icon = document.createElement('span');
+        icon.className = AWARD;
+        stack.append(icon);
+    }
+    container.append(stack);
+    return container;
+}
+
+function currentPill(percent, all) {
+    const pill = document.createElement('div');
+    pill.className = 'pill';
+    pill.innerHTML = `
+        <span class="award"></span>
+        ${all ? '<span class="award dlc"></span>' : ''}
+        <span>已完成 ${percent}%</span>`;
+    return pill;
+}
+
+/**
+ * state:
+ *   pending     集合未完成：没有完成任何集合
+ *   base        只有本体集合完成（含只有一个集合的老游戏打满）
+ *   all         本体 + DLC 集合全部完成（AllAchieved 只给 100%，还要有 DLC 勋章才算）
+ */
+function realPill(state, percent) {
+    const pill = document.createElement('div');
+    pill.className = `real-pill ${PILL}`;
+    if (state !== 'pending') pill.classList.add(GROUPS);
+    if (state === 'all' || state === 'legacy') pill.classList.add(ALL);
+
+    if (state === 'base' || state === 'legacy') pill.append(awards(DLC_FROM_2, 1));
+    if (state === 'all') pill.append(awards(DLC_FROM_2, 2));
+
+    const full = document.createElement('span');
+    full.className = '_2EqIgCcLt4h8d4NKik-VAp';
+    full.textContent = `已完成 ${percent}%`;
+    const short = document.createElement('span');
+    short.className = 'LTPd1K0p7pbPS9nEgQGLs';
+    short.textContent = `${percent}%`;
+    pill.append(full, short);
+    return pill;
+}
+
+const notes = {
+    current: null,
+    pending: '<b>集合未完成</b>（本体集合还没打通）：暗蓝条，不显示勋章。',
+    base: '<b>只有本体集合完成</b>：蓝条 + 金勋章。DLC 集合未完成也保持这一档。',
+    legacy: '<b>老游戏打满</b>（只有一个本体集合）：同样走蓝条，不算「全集合」。',
+    all: '<b>本体 + DLC 集合全部完成</b>：蓝紫条 + 蓝紫勋章。',
+};
+
+function card(card, variant, state, percent) {
+    const node = document.createElement('div');
+    node.className = 'card';
+    node.append(cover(card));
+    if (variant === 'current') {
+        node.append(currentPill(percent, state === 'all'));
+    } else {
+        node.append(realPill(state, percent));
+        const note = document.createElement('div');
+        note.className = 'note';
+        note.innerHTML = notes[state];
+        node.append(note);
+    }
+    return node;
+}
+
+const current = document.querySelector('[data-variant="current"]');
+current.replaceChildren(
+    card(picks[0], 'current', 'base', 68),
+    card(picks[1], 'current', 'all', 100),
+);
+
+const final = document.querySelector('[data-variant="final"]');
+final.replaceChildren(
+    card(picks[0], 'final', 'pending', 68),
+    card(picks[1], 'final', 'base', 100),
+    card(picks[2], 'final', 'legacy', 100),
+    card(picks[3], 'final', 'all', 100),
+);
+</script>
+</body>
+</html>

@@ -3,6 +3,8 @@
  *
  *   --ac-badge-img     「完美通关」徽章（彩色，直接当 background-image 用）
  *   --ac-badge-img-all 同一枚徽章的蓝紫渐变版：本体和所有 DLC 成就集合都全成就
+ *   --ac-badge-img-flat / --ac-badge-img-all-flat  去掉立体内线的两枚（设置「徽章立体内线」关闭时，
+ *                      根节点带 data-ac-badge-line="off"，把上面两个变量换成这两枚）
  *   --ac-laurel        月桂枝（左侧；右侧用 scaleX(-1) 镜像）   ┐
  *   --ac-trophy        奖杯                                      │ 单色蒙版：
  *   --ac-stopwatch     秒表                                      │ 用 mask-image + 渐变背景上色，
@@ -93,8 +95,18 @@ const PALETTES = {
         tail: { dir: DOWN, stops: [['0', '#2459cf'], ['.55', '#3a7cf2'], ['1', '#2a62de']] },
         tailRight: { dir: DOWN, stops: [['0', '#7a3689'], ['.55', '#b658c4'], ['1', '#8a3f97']] },
         bevelEdge: '#3a2c8c',
+        // 贴合画法（A）的斜面线：左半深蓝、右半深紫，过渡和星形本身的蓝紫过渡对齐
+        bevelEdgeSplit: { dir: [0, 0, 1, 0], stops: [['0', '#1a43ad'], ['.36', '#1d45b2'], ['.64', '#5a2670'], ['1', '#5e2875']] },
         bevelHighlight: '#7fb2ff',
         shade: true,
+    },
+    // 独立 DLC 集合奖章（Steam 客户端游戏页 / 详情页中与本体分开显示的紫色 DLC 奖章）
+    dlc: {
+        star: { dir: DOWN, stops: [['0', '#cf72e0'], ['1', '#8a3f97']] },
+        bevel: { dir: DOWN, stops: [['0', '#c468d4'], ['1', '#843892']] },
+        tail: { dir: DOWN, stops: [['0', '#7a3689'], ['.55', '#b658c4'], ['1', '#8a3f97']] },
+        bevelEdge: '#58236e',
+        bevelHighlight: '#e6a6f5',
     },
     // 上一稿（2026-11-04 用户选了左右走向，但嫌紫色太浅、渐变不明显），只给预览页对比用
     horizontalDraft: {
@@ -110,7 +122,51 @@ const PALETTES = {
 /** 正式使用的「全部集合」配色；用户在预览页挑定后改这里 */
 const ALL_SETS = 'horizontal';
 
-function makeBadge(p) {
+/**
+ * 星形里面的彩色区域怎么画（金边、暗边、宝珠、绶带各版都一样）：
+ *   legacy：原来的画法。深色斜面是把外框缩小成 star(32.5) 画的，凹角是尖的；金边内侧在凹角却是圆的，
+ *           两者之间露出一小块浅色三角。蓝紫版的明暗层还盖亮了金边内侧那道暗线
+ *   A / B：彩色区域直接用金边那条轮廓 star(40) 填色，斜面线从这条轮廓等距往里收（同一路径、圆角描边、
+ *           裁在星形里面），所以凹角、尖角处的宽度处处一样；明暗层压在暗线下面，不碰它
+ *     A：保留原来那道细斜面线（左上亮、其余深）；蓝紫版的深色线左蓝右紫，跟着星形的渐变走
+ *     B：去掉斜面线，彩色直接贴着暗线，和绶带同一种画法
+ *   （两段斜面的 C 版用户 2026-11-05 否了）
+ */
+const FITS = ['legacy', 'A', 'B'];
+
+/** 金边内侧往里收 inset 的一圈（圆角，裁在星形里面）：stroke 宽 2·inset，外半边被裁掉 */
+const insetRing = (inset, attrs) =>
+    `<path d="${star(40)}" fill="none" stroke-width="${f(inset * 2)}" stroke-linejoin="round" clip-path="url(#inside)" ${attrs}/>`;
+
+/** 暗边在金边里面露出的那道线：暗边 9.5 宽、金边 7 宽，各取一半 → 从 3.5 到 4.75 */
+const DARK_INNER = 9.5 / 2;
+
+function fittedStar(p, fit) {
+    const parts = [`<path d="${star(40)}" fill="url(#blueIn)"/>`];
+    if (fit === 'A') {
+        // 原来那道斜面线大约 1 个单位宽：深色描一圈（蓝紫版左蓝右紫），左上再叠一道浅色高光
+        const edge = p.bevelEdgeSplit ? 'url(#edge)' : p.bevelEdge;
+        parts.push(insetRing(DARK_INNER + 1.05, `stroke="${edge}" opacity=".95"`));
+        parts.push(`<g clip-path="url(#tl)">${insetRing(DARK_INNER + 1, `stroke="${p.bevelHighlight}" opacity=".45"`)}</g>`);
+    }
+    if (p.shade) parts.push(`<path d="${star(40)}" fill="url(#shade)"/>`);
+    parts.push(`<path d="${star(40)}" fill="none" stroke="${OUTLINE}" stroke-width="9.5" stroke-linejoin="round"/>`);
+    parts.push(`<path d="${star(40)}" fill="none" stroke="url(#rim)" stroke-width="7" stroke-linejoin="round"/>`);
+    return parts;
+}
+
+function legacyStar(p) {
+    return [
+        `<path d="${star(40)}" fill="url(#blue)" stroke="${OUTLINE}" stroke-width="9.5" stroke-linejoin="round"/>`,
+        p.shade ? `<path d="${star(40)}" fill="url(#shade)"/>` : '',
+        `<path d="${star(40)}" fill="none" stroke="url(#rim)" stroke-width="7" stroke-linejoin="round"/>`,
+        `<path d="${star(32.5)}" fill="url(#blueIn)" stroke="${p.bevelEdge}" stroke-width="1" stroke-linejoin="round" opacity=".95"/>`,
+        p.shade ? `<path d="${star(32.5)}" fill="url(#shade)"/>` : '',
+        `<path d="${star(32.5)}" fill="none" stroke="${p.bevelHighlight}" stroke-width=".9" stroke-linejoin="round" opacity=".45" clip-path="url(#tl)"/>`,
+    ];
+}
+
+function makeBadge(p, fit = 'legacy') {
     return [
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 118">',
         '<defs>',
@@ -131,6 +187,8 @@ function makeBadge(p) {
         '</linearGradient>',
         `<clipPath id="orbClip"><circle cx="${CX}" cy="${CY}" r="15.2"/></clipPath>`,
         `<clipPath id="tl"><rect width="${CX}" height="${CY}"/></clipPath>`,
+        fit === 'legacy' ? '' : `<clipPath id="inside"><path d="${star(40)}"/></clipPath>`,
+        fit === 'A' && p.bevelEdgeSplit ? gradient('edge', p.bevelEdgeSplit) : '',
         '</defs>',
 
         // 绶带（先画，压在星形下面）：暗边 → 金边 → 蓝
@@ -143,13 +201,8 @@ function makeBadge(p) {
             );
         }),
 
-        // 八角星：暗边 → 奶金描边 → 蓝主体 → 内斜面
-        `<path d="${star(40)}" fill="url(#blue)" stroke="${OUTLINE}" stroke-width="9.5" stroke-linejoin="round"/>`,
-        p.shade ? `<path d="${star(40)}" fill="url(#shade)"/>` : '',
-        `<path d="${star(40)}" fill="none" stroke="url(#rim)" stroke-width="7" stroke-linejoin="round"/>`,
-        `<path d="${star(32.5)}" fill="url(#blueIn)" stroke="${p.bevelEdge}" stroke-width="1" stroke-linejoin="round" opacity=".95"/>`,
-        p.shade ? `<path d="${star(32.5)}" fill="url(#shade)"/>` : '',
-        `<path d="${star(32.5)}" fill="none" stroke="${p.bevelHighlight}" stroke-width=".9" stroke-linejoin="round" opacity=".45" clip-path="url(#tl)"/>`,
+        // 八角星：彩色区域、暗边、奶金描边（画法见 FITS）
+        ...(fit === 'legacy' ? legacyStar(p) : fittedStar(p, fit)),
 
         // 宝珠
         `<circle cx="${CX}" cy="${CY}" r="19.6" fill="${OUTLINE}" opacity=".55"/>`,
@@ -163,8 +216,68 @@ function makeBadge(p) {
     ].join('');
 }
 
-const badge = makeBadge(PALETTES.base);
-const badgeAll = makeBadge(PALETTES[ALL_SETS]);
+/**
+ * 未达成 / 进行中灰态徽章（精铸暗银胚 · 空宝珠槽）：
+ * 沿用 badge.svg 完全一致的八角星、双燕尾与宝珠环几何，换用冷暗银灰与深凹空宝珠槽，
+ * 用于游戏页顶部概览条（MiniBar）、个人资料最近游玩及未完成成就集合；达成 100% 时在原地无缝点亮。
+ */
+function makeEmptyBadge(fit = 'A') {
+    const s40 = star(40);
+    const emptyOutline = '#181c24';
+    const starParts = [`<path d="${s40}" fill="url(#body)"/>`];
+    if (fit === 'A') {
+        starParts.push(insetRing(DARK_INNER + 1.05, 'stroke="#232936" opacity=".95"'));
+        starParts.push(`<g clip-path="url(#tl)">${insetRing(DARK_INNER + 1, 'stroke="#96a3ba" opacity=".38"')}</g>`);
+    }
+    starParts.push(`<path d="${s40}" fill="none" stroke="${emptyOutline}" stroke-width="9.5" stroke-linejoin="round" stroke-opacity=".85"/>`);
+    starParts.push(`<path d="${s40}" fill="none" stroke="url(#rim)" stroke-width="6.8" stroke-linejoin="round"/>`);
+
+    return [
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 118">',
+        '<defs>',
+        '<linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">',
+        '<stop offset="0" stop-color="#a8b4c8"/><stop offset=".5" stop-color="#7c879b"/><stop offset="1" stop-color="#535c6e"/>',
+        '</linearGradient>',
+        '<linearGradient id="body" x1="0" y1="0" x2="0" y2="1">',
+        '<stop offset="0" stop-color="#4d5769"/><stop offset="1" stop-color="#313846"/>',
+        '</linearGradient>',
+        '<linearGradient id="tail" x1="0" y1="0" x2="0" y2="1">',
+        '<stop offset="0" stop-color="#333b4a"/><stop offset=".55" stop-color="#495365"/><stop offset="1" stop-color="#2e3542"/>',
+        '</linearGradient>',
+        '<linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">',
+        '<stop offset="0" stop-color="#9ca8bc"/><stop offset=".6" stop-color="#6e798d"/><stop offset="1" stop-color="#4a5364"/>',
+        '</linearGradient>',
+        '<radialGradient id="socket" cx=".5" cy=".58" r=".62">',
+        '<stop offset="0" stop-color="#171b24"/><stop offset=".68" stop-color="#202633"/><stop offset="1" stop-color="#303849"/>',
+        '</radialGradient>',
+        `<clipPath id="tl"><rect width="${CX}" height="${CY}"/></clipPath>`,
+        `<clipPath id="inside"><path d="${s40}"/></clipPath>`,
+        '</defs>',
+        ...[false, true].map((mirror) => {
+            const d = tail(mirror);
+            return (
+                `<path d="${d}" fill="url(#tail)" stroke="${emptyOutline}" stroke-width="7" stroke-linejoin="round" stroke-opacity=".85"/>` +
+                `<path d="${d}" fill="none" stroke="url(#rim)" stroke-width="4.4" stroke-linejoin="round"/>`
+            );
+        }),
+        ...starParts,
+        `<circle cx="${CX}" cy="${CY}" r="19.5" fill="${emptyOutline}" opacity=".6"/>`,
+        `<circle cx="${CX}" cy="${CY}" r="18.8" fill="url(#ring)"/>`,
+        `<circle cx="${CX}" cy="${CY}" r="15.2" fill="url(#socket)"/>`,
+        `<path d="M${CX - 10.5} ${CY + 8.5}A13.5 13.5 0 0 0 ${CX + 10.5} ${CY + 8.5}" fill="none" stroke="#8592a8" stroke-width="1.4" stroke-linecap="round" opacity=".32"/>`,
+        '</svg>',
+    ].join('');
+}
+
+/** 正式徽章的画法：A 带立体内线（默认），B 去掉内线（2026-11-05 用户定的，设置里可切换） */
+const badge = makeBadge(PALETTES.base, 'A');
+const badgeDlc = makeBadge(PALETTES.dlc, 'A');
+const badgeAll = makeBadge(PALETTES[ALL_SETS], 'A');
+const badgeEmpty = makeEmptyBadge('A');
+const badgeFlat = makeBadge(PALETTES.base, 'B');
+const badgeDlcFlat = makeBadge(PALETTES.dlc, 'B');
+const badgeAllFlat = makeBadge(PALETTES[ALL_SETS], 'B');
+const badgeEmptyFlat = makeEmptyBadge('B');
 
 /* ══ 月桂枝（左侧，开口朝右，像一只「（」） ═══════════════════════════ */
 
@@ -247,6 +360,39 @@ const sparkle =
     '<path d="M10 0C10.9 6.2 13.8 9.1 20 10C13.8 10.9 10.9 13.8 10 20C9.1 13.8 6.2 10.9 0 10C6.2 9.1 9.1 6.2 10 0Z" fill="#fff"/>' +
     '</svg>';
 
+/* ══ 库内卡片：穹光地平线星仪菱钻徽印（本体 / 全集合） ═══════════════ */
+
+const hzCrestBase =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">' +
+    '<defs><linearGradient id="g" x1="4" y1="3" x2="32" y2="33" gradientUnits="userSpaceOnUse">' +
+    '<stop offset="0" stop-color="#fff8d6"/><stop offset="0.52" stop-color="#f5ca64"/><stop offset="1" stop-color="#c98e26"/>' +
+    '</linearGradient></defs>' +
+    '<circle cx="18" cy="18" r="13.5" stroke="url(#g)" stroke-width="1" stroke-dasharray="16 6" opacity="0.78"/>' +
+    '<path d="M18 2.2V5.4M18 30.6V33.8M2.2 18H5.4M30.6 18H33.8" stroke="#f7d582" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>' +
+    '<path d="M18 7.5L20.5 15.5L28.5 18L20.5 20.5L18 28.5L15.5 20.5L7.5 18L15.5 15.5Z" fill="url(#g)"/>' +
+    '<circle cx="18" cy="18" r="2.3" fill="#fffdf2"/>' +
+    '</svg>';
+
+const hzCrestAll =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">' +
+    '<defs>' +
+    '<linearGradient id="g" x1="2" y1="2" x2="34" y2="34" gradientUnits="userSpaceOnUse">' +
+    '<stop offset="0" stop-color="#ffe784"/><stop offset="0.45" stop-color="#74f2ca"/>' +
+    '<stop offset="0.75" stop-color="#7eb8ff"/><stop offset="1" stop-color="#d886ff"/>' +
+    '</linearGradient>' +
+    '<radialGradient id="r" cx="50%" cy="50%" r="50%">' +
+    '<stop offset="0" stop-color="#ffffff"/><stop offset="0.55" stop-color="#b4e8ff"/>' +
+    '<stop offset="1" stop-color="#c884ff" stop-opacity="0"/>' +
+    '</radialGradient>' +
+    '</defs>' +
+    '<circle cx="18" cy="18" r="14.5" stroke="url(#g)" stroke-width="1" stroke-dasharray="17 5 11 5" opacity="0.82"/>' +
+    '<circle cx="18" cy="18" r="10.2" stroke="url(#g)" stroke-width="0.9" opacity="0.58"/>' +
+    '<path d="M18 1.5V5M18 31V34.5M1.5 18H5M31 18H34.5" stroke="url(#g)" stroke-width="1.2" stroke-linecap="round"/>' +
+    '<circle cx="18" cy="18" r="7.5" fill="url(#r)" opacity="0.5"/>' +
+    '<path d="M18 6.8L20.4 15.6L29.2 18L20.4 20.4L18 29.2L15.6 20.4L6.8 18L15.6 15.6Z" fill="url(#g)"/>' +
+    '<path d="M18 12.2L19.4 16.6L23.8 18L19.4 19.4L18 23.8L16.6 19.4L12.2 18L16.6 16.6Z" fill="#ffffff"/>' +
+    '</svg>';
+
 /* ══ 纹理：细噪点（纸张纤维 / 皮面颗粒） ═══════════════════════════════ */
 
 const grain =
@@ -262,12 +408,28 @@ const css = [
     '/* 由 achievement_improve/tools/make-art.mjs 生成，勿手改。 */',
     ':root {',
     `    --ac-badge-img: ${uri(badge)};`,
+    `    --ac-badge-img-dlc: ${uri(badgeDlc)};`,
     `    --ac-badge-img-all: ${uri(badgeAll)};`,
+    `    --ac-badge-img-empty: ${uri(badgeEmpty)};`,
+    `    --ac-badge-img-flat: ${uri(badgeFlat)};`,
+    `    --ac-badge-img-dlc-flat: ${uri(badgeDlcFlat)};`,
+    `    --ac-badge-img-all-flat: ${uri(badgeAllFlat)};`,
+    `    --ac-badge-img-empty-flat: ${uri(badgeEmptyFlat)};`,
     `    --ac-laurel: ${uri(laurel())};`,
     `    --ac-trophy: ${uri(trophy)};`,
     `    --ac-stopwatch: ${uri(stopwatch)};`,
     `    --ac-sparkle: ${uri(sparkle)};`,
     `    --ac-grain: ${uri(grain)};`,
+    `    --ac-hz-crest-base: ${uri(hzCrestBase)};`,
+    `    --ac-hz-crest-all: ${uri(hzCrestAll)};`,
+    '}',
+    '',
+    '/* 设置「徽章立体内线」关闭：换成去掉内线的两枚（属性挂在根节点上，卡片、导出、引导里的徽章一起换） */',
+    '[data-ac-badge-line="off"] {',
+    "    --ac-badge-img: var(--ac-badge-img-flat);",
+    "    --ac-badge-img-dlc: var(--ac-badge-img-dlc-flat);",
+    "    --ac-badge-img-all: var(--ac-badge-img-all-flat);",
+    "    --ac-badge-img-empty: var(--ac-badge-img-empty-flat);",
     '}',
     '',
 ].join('\n');
@@ -283,6 +445,8 @@ writeFileSync(
         '/* 由 tools/make-art.mjs 生成，勿手改。徽章各配色，只给预览选型页用。 */',
         ':root {',
         ...Object.keys(PALETTES).map((name) => `    --ac-badge-${name}: ${uri(makeBadge(PALETTES[name]))};`),
+        // 贴合修正的几种画法，给 preview/badge-sets.html 对比用
+        ...['base', 'horizontal'].flatMap((name) => FITS.filter((fit) => fit !== 'legacy').map((fit) => `    --ac-badge-${name}-${fit}: ${uri(makeBadge(PALETTES[name], fit))};`)),
         '}',
         '',
     ].join('\n'),

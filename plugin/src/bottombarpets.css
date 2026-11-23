@@ -1,0 +1,123 @@
+/* ============================================================================
+ * 成就收藏册 · 底部栏像素桌宠彩蛋（原创 MIT 双像素桌宠引擎）
+ * ----------------------------------------------------------------------------
+ * 悬浮定位在 Steam 底部「管理下载」长条上缘，完全不介入 React DOM，
+ * 舞台容器穿透指针，仅宠物本体响应点击、拖拽、投喂与叠叠乐。
+ * ==========================================================================*/
+
+.ac-bb-pets {
+    position: fixed;
+    left: 0;
+    bottom: 41px;
+    width: 100%;
+    height: 84px;
+    z-index: 45;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+    overflow: visible;
+    contain: layout style;
+}
+
+.ac-bb-pets .ag-v2-mascot-actor {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 96px;
+    height: 84px;
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+    cursor: grab;
+    touch-action: none;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    outline: none;
+}
+
+.ac-bb-pets .ag-v2-mascot-actor::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    width: 44px;
+    height: 7px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: radial-gradient(
+        50% 50% at 50% 50%,
+        rgba(0, 0, 0, 0.46) 0%,
+        rgba(0, 0, 0, 0.18) 58%,
+        transparent
+    );
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.ac-bb-pets .ag-v2-mascot-actor[data-air="1"]::after {
+    opacity: 0;
+    transform: translateX(-50%) scaleX(0.5);
+}
+
+.ac-bb-pets .ag-v2-mascot-actor:active,
+.ac-bb-pets .ag-v2-mascot-actor[data-direct="1"] {
+    transition: none !important;
+    will-change: transform;
+}
+
+.ac-bb-pets .ag-v2-mascot-actor:active,
+.ac-bb-pets .ag-v2-mascot-actor[data-dragging="1"] {
+    cursor: grabbing !important;
+}
+
+.ac-bb-pets .ag-v2-mascot-canvas {
+    position: relative;
+    z-index: 1;
+    width: 96px;
+    height: 84px;
+    display: block;
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+
+.ac-bb-pets .ag-v2-mini-pile {
+    position: absolute;
+    left: 12px;
+    bottom: 1px;
+    height: 32px;
+    display: none;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 20;
+}
+
+.ac-bb-pets .ag-v2-mini-crab-canvas {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 40px;
+    height: 32px;
+    image-rendering: pixelated;
+    pointer-events: none;
+    -webkit-app-region: no-drag;
+    transition: transform 160ms steps(2, end);
+}
+
+.ac-bb-pets .ag-v2-mini-crab-canvas:active,
+.ac-bb-pets .ag-v2-mini-crab-canvas[data-direct="1"] {
+    transition: none !important;
+    will-change: transform;
+}
+
+.ac-bb-pets .ag-v2-mini-crab-canvas:active,
+.ac-bb-pets .ag-v2-mini-crab-canvas[data-dragging="1"] {
+    cursor: grabbing !important;
+}
+
+.ac-bb-pets .ag-v2-habitat-prop {
+    display: none !important;
+}
+
+.ac-bb-pets .ag-v2-chroma-fx {
+    pointer-events: none;
+    image-rendering: pixelated;
+}

@@ -374,6 +374,19 @@ function buildPanelComponent(React) {
                 ),
                 row(
                     React,
+                    '底部栏像素桌宠',
+                    '在 Steam 库界面底部「管理下载」长条上缘放两只像素小宠物，随机播日常动画；支持左键戳一戳、长按抚摸、右键投喂与鼠标拖拽（切到商店 / 资料页时自动隐藏休眠）。',
+                    toggle(
+                        React,
+                        '底部栏像素桌宠',
+                        options[OPTIONS.bottomPets] !== '关闭',
+                        (checked) => patch(OPTIONS.bottomPets, checked ? '开启' : '关闭'),
+                        false,
+                    ),
+                    '彩蛋',
+                ),
+                row(
+                    React,
                     '手动填写',
                     '手动补的完成日期与时长。清除后，能取到接口数据的游戏会恢复成接口值。',
                     h(

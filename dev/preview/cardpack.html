@@ -100,6 +100,8 @@ import { createBook } from '/theme/src/js/ac/book.js';
 import { buildExportZip, openExportDialog } from '/theme/src/js/ac/export.js';
 import { showOnboarding, showTreeNotice } from '/theme/src/js/ac/onboarding.js';
 import { openReadingSettings } from '/theme/src/js/ac/readingpanel.js';
+import { applyBadgeLine } from '/theme/src/js/ac/reading.js';
+import { showBorrowError } from '/theme/src/js/ac/borrowerror.js';
 import { setOptionProvider } from '/theme/src/js/ac/env.js';
 import { createTreePage } from '/theme/src/js/ac/treepage.js';
 import { introTierOf } from '/theme/src/js/ac/introfx.js';
@@ -233,6 +235,9 @@ try {
 const host = document.getElementById('host');
 // 册子风格：?album=velvet 等，款式见 src/css/ac/albumstyles.css；风格挑选页会就地切换这个属性
 if (params.get('album') && params.get('album') !== 'grid') host.dataset.album = params.get('album');
+// 「徽章立体内线」：和正式页面一样照本机设置挂在根节点上，设置面板里一改就换
+applyBadgeLine(document);
+window.addEventListener('ac:settings-changed', () => applyBadgeLine(document));
 const book = createBook(host, {
     cards: shown,
     owner,
@@ -333,6 +338,29 @@ function mountToolbars() {
     };
     bar('ac-page-toolbar ac-page-toolbar--left', [['ac-borrow-open', '借阅室']]);
     bar('ac-page-toolbar', [['ac-date-open', '补日期 / 时长'], ['ac-plugin-settings', '设置']]);
+    // 「设置」和正式页面一样打开卡册设置面板；借阅室、补日期在预览里只占位（借阅室另有 borrow.html）
+    host.querySelector('.ac-plugin-settings')?.addEventListener('click', () => {
+        if (readingPanel) readingPanel.destroy();
+        else openReading();
+    });
+    // 「借阅室」在预览里演示打不开时的报错卡片（和 page.js 一样挂在左上角工具条里）
+    const left = host.querySelector('.ac-page-toolbar--left');
+    const errorHost = document.createElement('div');
+    errorHost.className = 'ac-borrow-error-host';
+    left.append(errorHost);
+    let errorCard = null;
+    const showDemoError = () => {
+        errorCard?.destroy();
+        let error;
+        try {
+            null.cards.length; // 故意出错：拿一份真实的 TypeError 和调用栈
+        } catch (err) {
+            error = err;
+        }
+        errorCard = showBorrowError(errorHost, { error, onClose: () => (errorCard = null) });
+    };
+    host.querySelector('.ac-borrow-open')?.addEventListener('click', showDemoError);
+    if (params.get('borrowError') === '1') setTimeout(showDemoError, 400);
 }
 
 // 预览专用：?onboard=1 预览新手引导（正式页面由 page.js 在第一次进入时自动弹出）
@@ -373,6 +401,8 @@ function openTreeNotice() {
 window.__reading = openReading;
 window.__notice = openTreeNotice;
 if (params.get('settings') === '1') setTimeout(() => openReading(), 700);
+// 右上角的工具条一直挂着（和正式页面一样），?toolbar=0 可以去掉，方便截图
+if (params.get('toolbar') !== '0') mountToolbars();
 if (params.get('notice') === '1') setTimeout(() => openTreeNotice(), 900);
 
 // 预览专用：?at=12 直接摊开到第 12 张（不做动画）

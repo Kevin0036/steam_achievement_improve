@@ -167,6 +167,20 @@ Redesigns the completionist showcase on your Steam Community profile: covers are
 
 <img src="docs/images/showcase.gif" width="640" alt="Completionist showcase">
 
+### Library & achievement UI polish
+
+Extends the album's visual style to everyday achievement views across the Steam client and profile, active as soon as Steam starts:
+
+- **Library completion cards**: when sorting your library by % of achievements complete, each card gets a clean optical progress bar, ambient bottom glow and percentage readout — gold-blue glow for 100% base game, and aurora styling with a star crest when all DLC sets are complete.
+
+![Library completion cards](docs/images/library-horizon.webp)
+
+- **Game page, achievement details & recent activity**: unified luminous progress bars (with blue base / purple DLC segments and subtle stardust shimmer on hover or 100%), redesigned dark-silver empty badges for incomplete games, cleaner achievement rows and a compact single-line summary bar.
+
+![Game page and achievement details polish](docs/images/game-ach-polish.webp)
+
+- **Bottom-bar pixel pets (easter egg)**: two interactive pixel pets perched on the top edge of the library's bottom download bar with random idle animations, clicking, dragging and feeding. They auto-hide and sleep on Store/Profile pages and can be toggled off anytime in Settings.
+
 ### Print-ready export
 
 Exports achievement cards (front, back and foil layer), Favorites ticket stubs and badge stamps as 300 DPI print files with 3 mm bleed, ready to send to a printer. Find it under 「设置」 (Settings) → 「印刷素材」 (Print assets) in the top-right corner of the album.
@@ -186,7 +200,9 @@ Adjust these under 「设置」 in the top-right corner of the album, or in the 
 | 年份特殊页 (Year pages) | On | Group cards by completion year and add four pages at the start of each year. |
 | 书口年份索引 (Year tabs) | On | Year tabs on the fore-edge; click one to jump to that year. Requires year pages. |
 | 入册音效 (Card sound) | On | A soft sound when a new card drops into its slot. |
+| 徽章立体内线 (Badge inner bevel) | On | Subtle bevel line inside the star badge; turn off for a flatter fill. |
 | 读取完成日期 (Read completion dates) | On | When off, completion dates are not filled in for each card, and the card pack opens faster. |
+| 底部栏像素桌宠 (Bottom-bar pixel pets) | On | Two interactive pixel pets on the library bottom bar. |
 | 手动填写 (Manual entry) | — | Fill in dates and playtime by hand in the card pack, and clear them with one click. |
 
 ## Notes

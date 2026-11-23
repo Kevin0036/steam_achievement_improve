@@ -18,6 +18,7 @@ export const OPTIONS = {
     introSound: '入册音效',
     badgeLine: '徽章立体内线',
     dates: '成就卡包：读取完成日期',
+    bottomPets: '底部栏像素桌宠',
 };
 
 const BINDING_DEFAULT = '顺序入册';
@@ -36,6 +37,7 @@ export const DEFAULTS = {
     [OPTIONS.introSound]: '开启',
     [OPTIONS.badgeLine]: '开启',
     [OPTIONS.dates]: 'yes',
+    [OPTIONS.bottomPets]: '开启',
 };
 
 /** 年度目标：5～50、步长 5 */
@@ -81,6 +83,7 @@ export function readOptions() {
     merged[OPTIONS.yearTarget] = normalizeTarget(merged[OPTIONS.yearTarget]);
     if (![ '开启', '关闭' ].includes(merged[OPTIONS.introSound])) merged[OPTIONS.introSound] = '开启';
     if (![ 'yes', 'no' ].includes(merged[OPTIONS.dates])) merged[OPTIONS.dates] = 'yes';
+    if (![ '开启', '关闭' ].includes(merged[OPTIONS.bottomPets])) merged[OPTIONS.bottomPets] = '开启';
 
     // 1.1.1 起默认改为「顺序入册」。旧存档分不清「用户真的选过最新优先」还是
     // 只是被默认值顺带写进去的，所以第一次升级读取时统一按新默认，之后照常保存用户选择。

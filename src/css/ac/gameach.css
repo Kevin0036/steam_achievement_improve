@@ -1,0 +1,932 @@
+/* ============================================================================
+ * 成就收藏册 · 游戏页与成就详情视觉优化
+ * ----------------------------------------------------------------------------
+ * 视觉方案：「穹光棱镜融合版」（Horizon × Prism）
+ *   · 骨架沿用库内「穹光地平线」光学容器、顶边渐隐光丝与纤细光学光锋进度条；
+ *   · 单个成就卡片、图标描边、稀有成就棱镜金紫蓝光环与成就详情行融合暗曜棱镜质感；
+ *   · 徽章完整保留 tools/badge.svg（本体蓝 / 独立 DLC 紫 / 全集合左蓝右紫）原本样貌，
+ *     不加圆形虚线或圆环装饰；
+ *   · 进度条平时保持安静，仅在悬停或 100% 满成就时唤醒轻柔星尘与斜向扫光。
+ *
+ * 覆盖区域（仅桌面端，排除 Big Picture .BasicUI）：
+ *   1. 游戏页顶部开始栏成就概览条（MiniAchievements）
+ *   2. 游戏页右侧「成就」卡片（AppDetailsAchievementsSection）
+ *   3. 「查看我的成就」成就详情页（新 Steam 成就面板 83134 / 94618 / 78593）
+ *   4. 共用分段进度条（60747）与集合奖章（48306）
+ * ========================================================================== */
+
+@keyframes ac-pbar-sweep {
+    0%   { transform: translateX(-125%) skewX(-18deg); }
+    100% { transform: translateX(265%) skewX(-18deg); }
+}
+
+@keyframes ac-pbar-star-drift {
+    0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translate3d(-100%, 0, 0); opacity: 0; }
+}
+
+/* ============================================================================
+ * 1. 纯净徽章：替换 Valve 扁平蓝/紫丝带为 tools/badge.svg（无圆环装饰）
+ * ========================================================================== */
+
+/* 奖章堆叠（右侧成就卡片 + 成就详情抬头） */
+body:not(.BasicUI) ._2c-xpzS0W1WUVgT3vTqNDB {
+    --award-w: calc(var(--award-h, var(--award-base, 32px)) * 100 / 118);
+    overflow: visible;
+}
+body:not(.BasicUI) ._2c-xpzS0W1WUVgT3vTqNDB > svg {
+    opacity: 0;
+}
+body:not(.BasicUI) ._2c-xpzS0W1WUVgT3vTqNDB::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.52));
+    transition: transform 0.24s cubic-bezier(0.2, 0.85, 0.3, 1), filter 0.24s ease;
+    pointer-events: none;
+}
+body:not(.BasicUI) ._2EZqJBCxzsAuIxcN4FeHLr._3K-0Zj_9geS1PUGbZyxt94 ._2c-xpzS0W1WUVgT3vTqNDB::before {
+    background-image: var(--ac-badge-img-dlc);
+}
+/* 全集合已验证完成且界面仅显示单枚奖章（例如 Steam 本地缓存滞后的孤山独影）：升格为左蓝右紫全集合徽章；
+   若 Steam 已并排渲染「本体 + DLC」双奖章，则保留「左纯蓝 + 右纯紫」各司其职 */
+body:not(.BasicUI) [data-ac-sets="all"]:not(:has(._2EZqJBCxzsAuIxcN4FeHLr._3K-0Zj_9geS1PUGbZyxt94)) ._2EZqJBCxzsAuIxcN4FeHLr:not(._3K-0Zj_9geS1PUGbZyxt94) ._2c-xpzS0W1WUVgT3vTqNDB:first-child::before {
+    background-image: var(--ac-badge-img-all);
+    filter: drop-shadow(0 3px 8px rgba(154, 102, 236, 0.42));
+}
+body:not(.BasicUI) ._2EZqJBCxzsAuIxcN4FeHLr:hover ._2c-xpzS0W1WUVgT3vTqNDB:first-child::before {
+    transform: translateY(-1px) scale(1.06);
+}
+/* 隐藏 Valve 自带的白色十字闪星，保持纯净 badge.svg 观感 */
+body:not(.BasicUI) ._2-RSM47O-vDauDjiXL-VUs {
+    opacity: 0.45;
+}
+
+/* 独立成就集合丝带：已完成态换为蓝/紫 badge.svg，未完成态换为精铸暗银空槽徽章 */
+body:not(.BasicUI) .EvTiWCnPmaOlfBLffEQgM {
+    position: relative;
+    aspect-ratio: 100 / 118 !important;
+}
+body:not(.BasicUI) .EvTiWCnPmaOlfBLffEQgM > svg {
+    opacity: 0;
+}
+body:not(.BasicUI) .EvTiWCnPmaOlfBLffEQgM::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    background: var(--ac-badge-img-empty) center / contain no-repeat;
+    opacity: 0.86;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+    pointer-events: none;
+}
+body:not(.BasicUI) .EvTiWCnPmaOlfBLffEQgM._2Yn_P5oiJAacgiDA0Zwxu2::before {
+    background-image: var(--ac-badge-img);
+    opacity: 1;
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+}
+body:not(.BasicUI) .EvTiWCnPmaOlfBLffEQgM._2Yn_P5oiJAacgiDA0Zwxu2._3K-0Zj_9geS1PUGbZyxt94::before {
+    background-image: var(--ac-badge-img-dlc);
+}
+
+/* ============================================================================
+ * 2. 共用成就进度条（右侧成就卡片 + 成就详情页 60747 Grid 进度条）
+ * ========================================================================== */
+
+body:not(.BasicUI) ._6MT2UJrz5bk1FX-saHB-i > div:has(> ._3WOeX9PHv29FSw4EKlG77h),
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 div:has(> ._3WOeX9PHv29FSw4EKlG77h) {
+    position: relative;
+    height: 9px !important;
+    border-radius: 999px !important;
+    background: linear-gradient(180deg, rgba(8, 12, 20, 0.92), rgba(14, 20, 32, 0.86)) !important;
+    box-shadow:
+        inset 0 1px 2px rgba(0, 0, 0, 0.68),
+        inset 0 0 0 1px rgba(142, 188, 255, 0.18);
+    overflow: hidden;
+    transition: box-shadow 0.25s ease;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 div:has(> ._3WOeX9PHv29FSw4EKlG77h) {
+    height: 11px !important;
+}
+
+/* 轨道悬停与满成就柔和外光 */
+body:not(.BasicUI) [data-ac-tier="base100"] div:has(> ._3WOeX9PHv29FSw4EKlG77h) {
+    box-shadow:
+        inset 0 0 0 1px rgba(248, 210, 118, 0.36),
+        0 0 12px -3px rgba(246, 198, 86, 0.38);
+}
+body:not(.BasicUI) [data-ac-tier="all100"] div:has(> ._3WOeX9PHv29FSw4EKlG77h),
+body:not(.BasicUI) ._1GSxIoYhz0hxXOYI0_NNnl div:has(> ._3WOeX9PHv29FSw4EKlG77h) {
+    box-shadow:
+        inset 0 0 0 1px rgba(188, 144, 255, 0.42),
+        0 0 14px -3px rgba(170, 112, 255, 0.46);
+}
+body:not(.BasicUI) :is(._2xTb6N-jUUQ-mIkMB6OVMm, ._2Cap9kDsIiQhd0jROKcZh1):hover div:has(> ._3WOeX9PHv29FSw4EKlG77h) {
+    box-shadow:
+        inset 0 0 0 1px rgba(154, 206, 255, 0.44),
+        0 0 14px -3px rgba(92, 168, 255, 0.46);
+}
+
+/* 基础（本体）已解锁段 */
+body:not(.BasicUI) ._3WOeX9PHv29FSw4EKlG77h:not(._2enJwIutXoVwW16Bbu6S6O):not(._2E98Z2axaJzx4rToEJq4nU):not(._3eZH1oNlB2EnSOcHMJqoiL) {
+    position: relative;
+    background: linear-gradient(90deg, #255bc7 0%, #4895ff 64%, #82cbff 100%) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+/* 90%–99% 近在咫尺（仅非多集合分段时转为蓝→晨金过渡，避免干扰蓝/紫语义） */
+body:not(.BasicUI) [data-ac-tier="near"] div:not(:has(> ._2enJwIutXoVwW16Bbu6S6O)) > ._3WOeX9PHv29FSw4EKlG77h:not(._2E98Z2axaJzx4rToEJq4nU) {
+    background: linear-gradient(90deg, #3274e6 0%, #5ea4ff 48%, #f3bc4f 86%, #ffe69c 100%) !important;
+}
+/* 单集合 100% 正篇归册：蓝金双辉 */
+body:not(.BasicUI) [data-ac-tier="base100"] div:not(:has(> ._2enJwIutXoVwW16Bbu6S6O)) > ._3WOeX9PHv29FSw4EKlG77h:not(._2E98Z2axaJzx4rToEJq4nU) {
+    background: linear-gradient(90deg, #2f6ee0 0%, #60a5ff 36%, #e5b74e 76%, #fff0b3 100%) !important;
+}
+/* 已核实全集合 100% 且 Valve 本地缓存未拆分出 DLC 段时：整条升格青蓝紫极光 */
+body:not(.BasicUI) [data-ac-tier="all100"] div:not(:has(> ._2enJwIutXoVwW16Bbu6S6O)) > ._3WOeX9PHv29FSw4EKlG77h:not(._2E98Z2axaJzx4rToEJq4nU) {
+    background: linear-gradient(90deg, #3fd0e6 0%, #5492ff 46%, #a95ef0 82%, #e0a6ff 100%) !important;
+}
+/* DLC 已解锁段（保留 Steam 蓝/紫分段语义，升级为光学星云紫） */
+body:not(.BasicUI) ._3WOeX9PHv29FSw4EKlG77h._2enJwIutXoVwW16Bbu6S6O:not(._2E98Z2axaJzx4rToEJq4nU):not(._3eZH1oNlB2EnSOcHMJqoiL) {
+    position: relative;
+    background: linear-gradient(90deg, #8e3fb0 0%, #bc63d6 68%, #e5a3ff 100%) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    border-left: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* 纤细 3px 亮白光锋收尾（仅在 <100% 且 >0% 时由 .ac-pbar-fx 渲染） */
+.ac-pbar-fx {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--ac-pct, 0%);
+    border-radius: 999px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 3;
+}
+.ac-pbar-tip {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--ac-pct, 0%);
+    width: 3px;
+    transform: translateX(-100%);
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffffff 0%, #d8f2ff 100%);
+    box-shadow: 0 0 8px 1px rgba(154, 218, 255, 0.95);
+    pointer-events: none;
+    z-index: 4;
+}
+[data-ac-tier="near"] .ac-pbar-tip {
+    background: #fff9df;
+    box-shadow: 0 0 9px 1px rgba(255, 214, 112, 0.95);
+}
+[data-ac-pct="0"] .ac-pbar-tip,
+[data-ac-pct="100"] .ac-pbar-tip {
+    opacity: 0;
+}
+
+/* 星尘与流光：0%–99% 平时绝对安静，仅悬停或 100% 满成就唤醒 */
+.ac-pbar-sweep {
+    position: absolute;
+    inset: 0;
+    width: 56%;
+    background: linear-gradient(100deg, transparent 15%, rgba(255, 255, 255, 0.34) 50%, transparent 85%);
+    opacity: 0;
+    transform: translateX(-125%) skewX(-18deg);
+    animation: ac-pbar-sweep 2.8s linear infinite;
+    animation-play-state: paused;
+    transition: opacity 0.3s ease;
+}
+.ac-pbar-stars {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.32s ease;
+}
+.ac-pbar-star {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    margin-top: -1.5px;
+    animation-name: ac-pbar-star-drift;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-play-state: paused;
+}
+.ac-pbar-star > i {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    width: 2.5px;
+    height: 2.5px;
+    margin-left: -1.25px;
+    border-radius: 50%;
+    background: var(--ac-star-color, #eef6ff);
+    box-shadow: 0 0 5px var(--ac-star-glow, rgba(160, 216, 255, 0.95));
+    opacity: var(--sb, 0.9);
+    transform: scale(var(--sb, 0.9));
+}
+
+[data-ac-tier="base100"] .ac-pbar-fx {
+    --ac-star-color: #fff6d2;
+    --ac-star-glow: rgba(255, 216, 114, 0.95);
+}
+[data-ac-tier="all100"] .ac-pbar-fx {
+    --ac-star-color: #f3ecff;
+    --ac-star-glow: rgba(196, 148, 255, 0.95);
+}
+
+/* 100% 满成就：低速静谧星尘与柔和低频扫光常驻 */
+:is([data-ac-tier="base100"], [data-ac-tier="all100"]) .ac-pbar-stars {
+    opacity: 0.72;
+}
+:is([data-ac-tier="base100"], [data-ac-tier="all100"]) .ac-pbar-star {
+    animation-play-state: running;
+}
+:is([data-ac-tier="base100"], [data-ac-tier="all100"]) .ac-pbar-sweep {
+    opacity: 0.4;
+    animation-duration: 5.4s;
+    animation-play-state: running;
+}
+
+/* 悬停唤醒：任何非 0% 进度条在鼠标移入所在区块时唤醒星尘与扫光 */
+:is(._2xTb6N-jUUQ-mIkMB6OVMm, ._2Cap9kDsIiQhd0jROKcZh1, .UAhWiMg9Q2VPsQQBj_ikT):not([data-ac-pct="0"]):hover .ac-pbar-stars {
+    opacity: 1;
+}
+:is(._2xTb6N-jUUQ-mIkMB6OVMm, ._2Cap9kDsIiQhd0jROKcZh1, .UAhWiMg9Q2VPsQQBj_ikT):not([data-ac-pct="0"]):hover .ac-pbar-star {
+    animation-play-state: running;
+}
+:is(._2xTb6N-jUUQ-mIkMB6OVMm, ._2Cap9kDsIiQhd0jROKcZh1, .UAhWiMg9Q2VPsQQBj_ikT):not([data-ac-pct="0"]):hover .ac-pbar-sweep {
+    opacity: 0.76;
+    animation-duration: 2.5s;
+    animation-play-state: running;
+}
+
+/* ============================================================================
+ * 3. 游戏页顶部开始栏成就概览条（MiniAchievements）
+ * ========================================================================== */
+
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT {
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT ._2muiKHUkOiTvX-6arqnQUC {
+    font-variant-numeric: tabular-nums;
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="base100"] ._2muiKHUkOiTvX-6arqnQUC {
+    color: #ffe299;
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="all100"] ._2muiKHUkOiTvX-6arqnQUC {
+    color: #dfc0ff;
+}
+
+/* 顶部开始栏小徽章：未全成就时展示精铸暗银空槽徽章，100% 时原地点亮为本体蓝 / 全集合蓝紫 */
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT .k-QNT9kzOEOvG0U_kGmwr {
+    position: relative;
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT .k-QNT9kzOEOvG0U_kGmwr > svg {
+    opacity: 0;
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT .k-QNT9kzOEOvG0U_kGmwr::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    background: var(--ac-badge-img-empty) center / contain no-repeat;
+    opacity: 0.88;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+    transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2, 0.85, 0.3, 1);
+    pointer-events: none;
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT:hover .k-QNT9kzOEOvG0U_kGmwr::before {
+    opacity: 1;
+    transform: translateY(-0.5px) scale(1.04);
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="base100"] .k-QNT9kzOEOvG0U_kGmwr::before {
+    background-image: var(--ac-badge-img);
+    opacity: 1;
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="all100"] .k-QNT9kzOEOvG0U_kGmwr::before {
+    background-image: var(--ac-badge-img-all);
+    opacity: 1;
+    filter: drop-shadow(0 2px 6px rgba(154, 102, 236, 0.45));
+}
+
+/* 顶部概览条里的微型进度条：统一到穹光光学色阶与纤细光锋 */
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT ._25YVDTaClw6Y2COPsU0UaV {
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(8, 12, 20, 0.9), rgba(14, 20, 32, 0.85));
+    box-shadow:
+        inset 0 1px 2px rgba(0, 0, 0, 0.65),
+        inset 0 0 0 1px rgba(142, 188, 255, 0.2);
+}
+body:not(.BasicUI) ._39RheXihcN6H2k2muQTjkI .UAhWiMg9Q2VPsQQBj_ikT ._25YVDTaClw6Y2COPsU0UaV {
+    height: 3px;
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT ._1FnTqlsi2_-TJf1d5apoS6 {
+    position: relative;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #255bc7 0%, #4895ff 64%, #82cbff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    overflow: visible;
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="near"] ._1FnTqlsi2_-TJf1d5apoS6 {
+    background: linear-gradient(90deg, #3274e6 0%, #5ea4ff 48%, #f3bc4f 86%, #ffe69c 100%);
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="base100"] ._1FnTqlsi2_-TJf1d5apoS6 {
+    background: linear-gradient(90deg, #2f6ee0 0%, #60a5ff 36%, #e5b74e 76%, #fff0b3 100%);
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="all100"] ._1FnTqlsi2_-TJf1d5apoS6 {
+    background: linear-gradient(90deg, #3fd0e6 0%, #5492ff 46%, #a95ef0 82%, #e0a6ff 100%);
+}
+/* 非 0%/100% 纤细亮白光锋收尾 */
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT:not([data-ac-pct="0"]):not([data-ac-pct="100"]) ._1FnTqlsi2_-TJf1d5apoS6::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 2px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 0 6px 1px rgba(154, 218, 255, 0.9);
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="near"] ._1FnTqlsi2_-TJf1d5apoS6::after {
+    background: #fff9df;
+    box-shadow: 0 0 6px 1px rgba(255, 214, 112, 0.95);
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT:hover ._25YVDTaClw6Y2COPsU0UaV {
+    box-shadow:
+        inset 0 0 0 1px rgba(154, 206, 255, 0.45),
+        0 0 10px -2px rgba(92, 168, 255, 0.5);
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="base100"] ._25YVDTaClw6Y2COPsU0UaV {
+    box-shadow: inset 0 0 0 1px rgba(248, 210, 118, 0.36), 0 0 10px -2px rgba(246, 198, 86, 0.4);
+}
+body:not(.BasicUI) .UAhWiMg9Q2VPsQQBj_ikT[data-ac-tier="all100"] ._25YVDTaClw6Y2COPsU0UaV {
+    box-shadow: inset 0 0 0 1px rgba(188, 144, 255, 0.42), 0 0 10px -2px rgba(170, 112, 255, 0.48);
+}
+
+/* ============================================================================
+ * 4. 游戏页右侧「成就」卡片（AppDetailsAchievementsSection）
+ * ========================================================================== */
+
+body:not(.BasicUI) ._2r4TK4BAuU-J4FuF_O7v_5:has(._2xTb6N-jUUQ-mIkMB6OVMm) ._31ptFGGMZrSQc5BCX1e5lm {
+    position: relative;
+    border-radius: var(--st-border-radius, 8px);
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(22, 29, 43, 0.88) 0%, rgba(16, 21, 32, 0.94) 100%);
+    border: 1px solid rgba(138, 184, 255, 0.14);
+    box-shadow:
+        inset 0 1px 0 rgba(162, 206, 255, 0.14),
+        0 10px 26px rgba(0, 0, 0, 0.34);
+}
+/* 顶边 1px 穹光渐隐光丝 */
+body:not(.BasicUI) ._2r4TK4BAuU-J4FuF_O7v_5:has(._2xTb6N-jUUQ-mIkMB6OVMm) ._31ptFGGMZrSQc5BCX1e5lm::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(110, 180, 255, 0.55), transparent);
+    pointer-events: none;
+    z-index: 3;
+}
+body:not(.BasicUI) ._2r4TK4BAuU-J4FuF_O7v_5:has(._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="near"]) ._31ptFGGMZrSQc5BCX1e5lm::before {
+    background: linear-gradient(90deg, transparent, rgba(250, 198, 92, 0.65), transparent);
+}
+body:not(.BasicUI) ._2r4TK4BAuU-J4FuF_O7v_5:has(._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="base100"]) ._31ptFGGMZrSQc5BCX1e5lm {
+    border-color: rgba(246, 202, 102, 0.24);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 224, 140, 0.2),
+        0 10px 28px -10px rgba(246, 198, 86, 0.22),
+        0 8px 22px rgba(0, 0, 0, 0.38);
+}
+body:not(.BasicUI) ._2r4TK4BAuU-J4FuF_O7v_5:has(._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="base100"]) ._31ptFGGMZrSQc5BCX1e5lm::before {
+    background: linear-gradient(90deg, transparent, rgba(114, 178, 255, 0.55) 28%, rgba(255, 218, 122, 0.85) 68%, transparent);
+}
+body:not(.BasicUI) ._2r4TK4BAuU-J4FuF_O7v_5:has(._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="all100"]) ._31ptFGGMZrSQc5BCX1e5lm {
+    border-color: rgba(176, 134, 255, 0.3);
+    box-shadow:
+        inset 0 1px 0 rgba(196, 232, 255, 0.22),
+        0 10px 30px -10px rgba(168, 114, 255, 0.28),
+        0 8px 22px rgba(0, 0, 0, 0.4);
+}
+body:not(.BasicUI) ._2r4TK4BAuU-J4FuF_O7v_5:has(._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="all100"]) ._31ptFGGMZrSQc5BCX1e5lm::before {
+    background: linear-gradient(90deg, transparent, #6ee7f5 25%, #6da6ff 55%, #d384ff 82%, transparent);
+}
+
+/* 顶部进度抬头 */
+body:not(.BasicUI) ._38t1mljBjmJfqjpVzMT1CG._2xTb6N-jUUQ-mIkMB6OVMm {
+    margin-bottom: 0;
+    padding: 13px 14px 12px;
+    border-radius: 0;
+    box-shadow: none;
+    background:
+        radial-gradient(120% 130% at 12% 0%, rgba(77, 155, 255, 0.14), transparent 64%),
+        rgba(14, 19, 29, 0.52);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+body:not(.BasicUI) ._38t1mljBjmJfqjpVzMT1CG._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="near"] {
+    background:
+        radial-gradient(120% 130% at 12% 0%, rgba(246, 196, 83, 0.14), transparent 64%),
+        rgba(16, 20, 28, 0.56);
+}
+body:not(.BasicUI) ._38t1mljBjmJfqjpVzMT1CG._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="base100"] {
+    background:
+        radial-gradient(90% 120% at 8% 0%, rgba(72, 136, 255, 0.18), transparent 60%),
+        radial-gradient(90% 120% at 92% 0%, rgba(246, 198, 86, 0.18), transparent 62%),
+        rgba(15, 20, 30, 0.56);
+}
+body:not(.BasicUI) ._38t1mljBjmJfqjpVzMT1CG._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="all100"] {
+    background:
+        radial-gradient(90% 130% at 10% 0%, rgba(72, 215, 232, 0.18), transparent 58%),
+        radial-gradient(95% 130% at 90% 0%, rgba(196, 116, 255, 0.24), transparent 62%),
+        rgba(16, 18, 32, 0.58);
+}
+
+body:not(.BasicUI) ._3jC8om-5Sci_dkUB-6VYiU {
+    font-variant-numeric: tabular-nums;
+    color: #e4e9f2;
+}
+body:not(.BasicUI) ._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="base100"] ._14kZVEyaz7WX57N47z4Yr1 {
+    background: linear-gradient(90deg, #fff5cf 0%, #f5ca64 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 700;
+}
+body:not(.BasicUI) ._2xTb6N-jUUQ-mIkMB6OVMm[data-ac-tier="all100"] ._14kZVEyaz7WX57N47z4Yr1 {
+    background: linear-gradient(90deg, #a6f7ff 0%, #98c5ff 46%, #e1a8ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 700;
+}
+
+body:not(.BasicUI) ._2r4TK4BAuU-J4FuF_O7v_5:has(._2xTb6N-jUUQ-mIkMB6OVMm) ._5uvIN6jXDXzzck59F-nhv {
+    padding: 12px 14px 13px;
+    background: transparent;
+}
+
+/* 多集合分组提示条 */
+body:not(.BasicUI) ._3RNWlqbjgrjY8dgjfUoJvY {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+body:not(.BasicUI) ._3RNWlqbjgrjY8dgjfUoJvY > div {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #bfd0e8;
+}
+body:not(.BasicUI) ._3RNWlqbjgrjY8dgjfUoJvY > ._3rlhwEkKW72fm952pZicBK {
+    color: #e6c2f5;
+    background: rgba(182, 88, 196, 0.14);
+    border-color: rgba(198, 118, 214, 0.28);
+}
+
+/* ── 融合方案二：最新解锁成就（无外框，与下方图标行保持左对齐缩进）、图标描边、稀有棱镜光环、+N 格 ── */
+body:not(.BasicUI) ._1j_gja8bHXjiS-BeSQk8hb._14U8eM1W6Z4uJhCc5zvbKC {
+    padding: 0;
+    margin-bottom: 10px;
+    gap: 10px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+body:not(.BasicUI) ._1j_gja8bHXjiS-BeSQk8hb._14U8eM1W6Z4uJhCc5zvbKC ._39Y01uSRcLiDg5DneTTR0m {
+    color: #eef2f8;
+    font-weight: 600;
+}
+body:not(.BasicUI) ._1j_gja8bHXjiS-BeSQk8hb._14U8eM1W6Z4uJhCc5zvbKC ._2gLHbXukQBdrIKhqEYVvOe {
+    color: #939eae;
+}
+
+/* 成就图标统一样式（右侧卡片 + 成就详情页通用） */
+body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx {
+    border-radius: 6px;
+    overflow: visible;
+    contain: none;
+    transition: transform 0.2s ease;
+}
+body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx img,
+body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx .M5YgSyrfvCXXY_XYhYzcl {
+    border-radius: 6px;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 3px 8px rgba(0, 0, 0, 0.5);
+    position: relative;
+    z-index: 1;
+}
+body:not(.BasicUI) ._1rvHQ_ELBAWYmrssg3iNZE ._1DmdUWkRKPlUYGtbBrrRtx:hover {
+    transform: translateY(-2px) scale(1.05);
+    z-index: 4;
+}
+
+/* 稀有成就图标：替换 Valve 糊边亮黄光圈为方案二棱镜金紫蓝光环 */
+body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx:has(._1R1QQtfmrxNkfIGlKSdDqG) {
+    position: relative;
+    overflow: visible;
+    contain: none;
+}
+body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx ._1R1QQtfmrxNkfIGlKSdDqG,
+body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx .kt0NXHlg2kFjVkiN_2eEL,
+body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx ._3vFmYitX2pXuOenxR0blk8 {
+    opacity: 0 !important;
+    animation: none !important;
+}
+body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx:has(._1R1QQtfmrxNkfIGlKSdDqG)::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 8px;
+    background: conic-gradient(from 120deg, #4285f4, #9b72cb, #fbbc04, #fff0b8, #9b72cb, #4285f4);
+    box-shadow: 0 0 11px rgba(192, 132, 252, 0.45);
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* +N 溢出格（方案二等宽暗曜微玻璃） */
+body:not(.BasicUI) ._2gISWIeEzZ9PNuAzVuMaWd {
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.045) !important;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: #d4d7e6;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-weight: 600;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+body:not(.BasicUI) ._2gISWIeEzZ9PNuAzVuMaWd:hover {
+    background: rgba(155, 114, 203, 0.18) !important;
+    border-color: rgba(176, 134, 240, 0.45);
+    color: #ffffff;
+}
+body:not(.BasicUI) ._3ca11X3AK6npLS3emMa5Lr._3i6PczGBBYzCDZXkCDbJAD {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ============================================================================
+ * 5. 「查看我的成就」成就详情页（新 Steam 成就面板 83134 / 94618 / 78593 / 56130）
+ * ========================================================================== */
+
+/* 详情页顶部头图区排版：保持进度概览框紧凑饱满，左侧封面自适应贴合右侧「标题 + 概览框」真实高度，上下严丝合缝且不空旷 */
+body:not(.BasicUI) :not(._3BfZdHfjYYh4SgetsHLs0M):has(> * > ._2fgRWeqCxu3KBguIv00_qq):has(._2Cap9kDsIiQhd0jROKcZh1) {
+    grid-template-rows: auto auto !important;
+    row-gap: 14px !important;
+    column-gap: 20px !important;
+    align-items: stretch !important;
+}
+body:not(.BasicUI) :not(._3BfZdHfjYYh4SgetsHLs0M):has(> * > ._2fgRWeqCxu3KBguIv00_qq):has(._2Cap9kDsIiQhd0jROKcZh1) > :has(> ._2fgRWeqCxu3KBguIv00_qq) {
+    min-height: 0 !important;
+    align-self: stretch !important;
+}
+body:not(.BasicUI) :not(._3BfZdHfjYYh4SgetsHLs0M):has(> * > ._2fgRWeqCxu3KBguIv00_qq):has(._2Cap9kDsIiQhd0jROKcZh1) > :not(:has(._2fgRWeqCxu3KBguIv00_qq)):not(:has(._2Cap9kDsIiQhd0jROKcZh1)) {
+    align-self: start !important;
+    padding-top: 2px;
+}
+body:not(.BasicUI) :not(._3BfZdHfjYYh4SgetsHLs0M):has(> * > ._2fgRWeqCxu3KBguIv00_qq):has(._2Cap9kDsIiQhd0jROKcZh1) > :has(._2Cap9kDsIiQhd0jROKcZh1) {
+    align-self: end !important;
+}
+/* 左侧游戏封面微圆角与微光描边，图片绝对铺满避免 600×900 原始尺寸撑大列宽 */
+body:not(.BasicUI) ._2fgRWeqCxu3KBguIv00_qq {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 7px;
+    overflow: hidden;
+    box-shadow:
+        0 10px 26px rgba(0, 0, 0, 0.48),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+body:not(.BasicUI) :not(._3BfZdHfjYYh4SgetsHLs0M):has(> * > ._2fgRWeqCxu3KBguIv00_qq):has(._2Cap9kDsIiQhd0jROKcZh1) > :has(> ._2fgRWeqCxu3KBguIv00_qq) ._2fgRWeqCxu3KBguIv00_qq > *,
+body:not(.BasicUI) :not(._3BfZdHfjYYh4SgetsHLs0M):has(> * > ._2fgRWeqCxu3KBguIv00_qq):has(._2Cap9kDsIiQhd0jROKcZh1) > :has(> ._2fgRWeqCxu3KBguIv00_qq) ._2fgRWeqCxu3KBguIv00_qq img {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+}
+
+/* 好友对比栏圆角与暗曜玻璃质感，与上下卡片统一 */
+body:not(.BasicUI) ._3yQg8ImDrqj78xIoWem3m5 {
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(20, 26, 38, 0.72), rgba(14, 18, 28, 0.68)) !important;
+    border: 1px solid rgba(142, 188, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* 多集合折叠横幅（「基础游戏 / DLC 集合」）与内置进度条视觉统一 */
+body:not(.BasicUI) ._22S4Af9ZUjd6IavgboVcEC {
+    position: relative;
+    border-radius: 10px !important;
+    overflow: hidden;
+    border: 1px solid rgba(124, 178, 255, 0.22);
+    background:
+        radial-gradient(60% 180% at 8% 50%, rgba(56, 128, 240, 0.24), transparent 65%),
+        linear-gradient(180deg, rgba(20, 30, 48, 0.84), rgba(14, 20, 32, 0.88)) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(164, 210, 255, 0.14),
+        0 4px 14px rgba(0, 0, 0, 0.22);
+}
+body:not(.BasicUI) ._22S4Af9ZUjd6IavgboVcEC._3YFGNchAbHXDLqKpEXAq8I {
+    border-color: rgba(186, 128, 246, 0.28);
+    background:
+        radial-gradient(60% 180% at 8% 50%, rgba(168, 92, 232, 0.26), transparent 65%),
+        linear-gradient(180deg, rgba(28, 20, 44, 0.84), rgba(18, 14, 30, 0.88)) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(214, 170, 255, 0.16),
+        0 4px 14px rgba(0, 0, 0, 0.22);
+}
+body:not(.BasicUI) ._22S4Af9ZUjd6IavgboVcEC::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 6%;
+    right: 6%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(124, 186, 255, 0.45), transparent);
+    pointer-events: none;
+    z-index: 2;
+}
+body:not(.BasicUI) ._22S4Af9ZUjd6IavgboVcEC._3YFGNchAbHXDLqKpEXAq8I::before {
+    background: linear-gradient(90deg, transparent, rgba(198, 138, 255, 0.55), transparent);
+}
+body:not(.BasicUI) ._22S4Af9ZUjd6IavgboVcEC .AfQpH696L8Mh6Za5QmZna {
+    border-radius: 9px;
+    opacity: 0.48;
+}
+body:not(.BasicUI) .Fur8xECXK4OVuhm8aWu3K {
+    --progress-bar-size: 9px;
+    --progress-bar-radius: 999px;
+    background: linear-gradient(180deg, rgba(8, 12, 20, 0.92), rgba(14, 20, 32, 0.86)) !important;
+    box-shadow:
+        inset 0 1px 2px rgba(0, 0, 0, 0.65),
+        inset 0 0 0 1px rgba(142, 188, 255, 0.18);
+}
+body:not(.BasicUI) .Fur8xECXK4OVuhm8aWu3K._3szjUMH5QeRwtXAsLRcWt9::after {
+    background: linear-gradient(90deg, #255bc7 0%, #4895ff 64%, #8ad0ff 100%) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+body:not(.BasicUI) .Fur8xECXK4OVuhm8aWu3K._3aFdgQ9lDxMcHD4YtT0Weq._3szjUMH5QeRwtXAsLRcWt9::after,
+body:not(.BasicUI) .Fur8xECXK4OVuhm8aWu3K._5nqf47jrcxrwlvFcdSpwt._3szjUMH5QeRwtXAsLRcWt9::after,
+body:not(.BasicUI) ._3YFGNchAbHXDLqKpEXAq8I .Fur8xECXK4OVuhm8aWu3K._3szjUMH5QeRwtXAsLRcWt9::after {
+    background: linear-gradient(90deg, #8e3fb0 0%, #bc63d6 68%, #e5a3ff 100%) !important;
+}
+
+/* 顶部进度概览框外层包裹（至少完成 1 个集合时，Steam 会用 CompletionBackgroundContainer / AllGroupsCompleted 包裹，
+   外层自带直角蓝紫底色与平铺图标底纹层 CompletionBackgroundLayer，必须同步圆角裁切并清掉外层底色，避免四角露出残角） */
+body:not(.BasicUI) ._3Gs55Ei71cZRSIZfm38P5r:has(> ._2Cap9kDsIiQhd0jROKcZh1),
+body:not(.BasicUI) ._1GSxIoYhz0hxXOYI0_NNnl {
+    border-radius: 10px;
+    overflow: hidden;
+    background: transparent !important;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+body:not(.BasicUI) ._3Gs55Ei71cZRSIZfm38P5r:has(> ._2Cap9kDsIiQhd0jROKcZh1) > .nnas6EHBDxM1pKWh2CAoy {
+    top: 1px;
+    left: 1px;
+    right: 1px;
+    bottom: 1px;
+    border-radius: 9px;
+}
+
+/* 顶部进度概览框 */
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 {
+    position: relative;
+    border-radius: 10px;
+    background: rgba(15, 21, 33, 0.74) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(142, 190, 255, 0.16);
+    box-shadow:
+        inset 0 1px 0 rgba(174, 214, 255, 0.16),
+        0 10px 28px rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+}
+body:not(.BasicUI) ._3Gs55Ei71cZRSIZfm38P5r > ._2Cap9kDsIiQhd0jROKcZh1 {
+    box-shadow: inset 0 1px 0 rgba(174, 214, 255, 0.16);
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 8%;
+    right: 8%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(110, 180, 255, 0.55), transparent);
+    pointer-events: none;
+    z-index: 2;
+}
+body:not(.BasicUI) ._1GSxIoYhz0hxXOYI0_NNnl ._2Cap9kDsIiQhd0jROKcZh1,
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1[data-ac-tier="all100"] {
+    background:
+        radial-gradient(50% 110% at 15% 0%, rgba(72, 215, 232, 0.14), transparent 62%),
+        radial-gradient(55% 110% at 88% 0%, rgba(188, 114, 255, 0.2), transparent 64%),
+        rgba(15, 20, 34, 0.76) !important;
+    border-color: rgba(180, 138, 255, 0.28);
+}
+body:not(.BasicUI) ._1GSxIoYhz0hxXOYI0_NNnl ._2Cap9kDsIiQhd0jROKcZh1::before,
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1[data-ac-tier="all100"]::before {
+    background: linear-gradient(90deg, transparent, #6ee7f5 25%, #6da6ff 55%, #d384ff 82%, transparent);
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1[data-ac-tier="base100"] {
+    border-color: rgba(246, 202, 102, 0.26);
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1[data-ac-tier="base100"]::before {
+    background: linear-gradient(90deg, transparent, rgba(114, 178, 255, 0.55) 28%, rgba(255, 218, 122, 0.85) 68%, transparent);
+}
+
+/* 概览框精炼单行文字与三区垂直居中排版（消除「62 项成就已解锁，共 62 项 (占 100%) 在 2 / 个集合中」断行） */
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 > div:has(> :first-child ._2d9vai7rjfYszJbUlShoM6) {
+    align-items: center;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 > div:has(> :first-child ._2d9vai7rjfYszJbUlShoM6) > :first-child {
+    align-items: center !important;
+    gap: 16px;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 > div:has(> :first-child ._2d9vai7rjfYszJbUlShoM6) > :first-child > :has(._2d9vai7rjfYszJbUlShoM6) {
+    align-self: center !important;
+    gap: 8px;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 :has(> ._2d9vai7rjfYszJbUlShoM6) {
+    align-items: center !important;
+    flex-wrap: nowrap;
+    gap: 12px;
+}
+@media (min-width: 760px) {
+    body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 > div:has(> :first-child ._2d9vai7rjfYszJbUlShoM6) > :nth-child(2) {
+        padding-left: 20px;
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+    }
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 ._2d9vai7rjfYszJbUlShoM6 {
+    min-width: 0;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 ._2d9vai7rjfYszJbUlShoM6[data-ac-compact="1"] > :not(.ac-summary-compact) {
+    display: none !important;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 .ac-summary-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 .ac-sc-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #a9b8cf;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 .ac-sc-ratio {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #f4f7fc;
+    letter-spacing: -0.01em;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 .ac-sc-slash {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(204, 218, 240, 0.45);
+    margin: 0 1px;
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1 .ac-sc-pct {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #8fd0ff;
+    background: rgba(74, 152, 255, 0.14);
+    border: 1px solid rgba(114, 182, 255, 0.28);
+}
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1[data-ac-tier="near"] .ac-sc-pct,
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1[data-ac-tier="base100"] .ac-sc-pct {
+    color: #ffe39b;
+    background: rgba(246, 198, 86, 0.15);
+    border-color: rgba(250, 212, 118, 0.34);
+}
+body:not(.BasicUI) ._1GSxIoYhz0hxXOYI0_NNnl ._2Cap9kDsIiQhd0jROKcZh1 .ac-sc-pct,
+body:not(.BasicUI) ._2Cap9kDsIiQhd0jROKcZh1[data-ac-tier="all100"] .ac-sc-pct {
+    color: #e4c8ff;
+    background: linear-gradient(90deg, rgba(72, 215, 232, 0.15), rgba(182, 114, 255, 0.2));
+    border-color: rgba(196, 154, 255, 0.36);
+}
+
+/* 成就列表行：融合方案二暗曜微玻璃独立卡片（兼容 Steam 动态虚拟列表高度测量） */
+body:not(.BasicUI) ._1BnbXfdEvRubouJucJRU7z [data-index]:has(> .ZjLfk-YYYg2BeAX0wJt3k) {
+    display: flow-root;
+}
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k {
+    position: relative;
+    margin: 3px 0;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.068) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.2s ease, max-height 0.4s ease-out;
+}
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 2.5px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #4285f4, #9b72cb);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+}
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k:hover {
+    background: rgba(255, 255, 255, 0.048);
+    border-color: rgba(155, 114, 203, 0.32) !important;
+}
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k:hover::before {
+    opacity: 1;
+}
+
+/* 稀有成就行（<10%）：紫金折光暗曜底纹 + 棱镜三色左光条 + 等宽金色百分比 */
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k._2OpYdvVAE8DxeSJHcI5cd4 {
+    background: linear-gradient(
+        112deg,
+        rgba(155, 114, 203, 0.11) 0%,
+        rgba(22, 26, 38, 0.86) 44%,
+        rgba(251, 188, 4, 0.085) 100%
+    );
+    border-color: rgba(186, 146, 232, 0.28) !important;
+}
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k._2OpYdvVAE8DxeSJHcI5cd4::before {
+    opacity: 0.9;
+    background: linear-gradient(180deg, #fbbc04, #9b72cb, #4285f4);
+}
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k._2OpYdvVAE8DxeSJHcI5cd4:hover {
+    border-color: rgba(212, 174, 252, 0.44) !important;
+    box-shadow: 0 6px 20px -10px rgba(155, 114, 203, 0.34);
+}
+
+/* 隐藏 / 未解锁成就行 */
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k.tWO5GpyOZ8kk-B3TpWXB8 {
+    background: rgba(10, 13, 20, 0.56);
+    border-color: rgba(255, 255, 255, 0.045) !important;
+}
+
+/* 全球解锁百分比：等宽清晰排印 */
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k .e7973cA3wCnzPWJJJJ1Hn {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+}
+body:not(.BasicUI) .ZjLfk-YYYg2BeAX0wJt3k._2OpYdvVAE8DxeSJHcI5cd4 .e7973cA3wCnzPWJJJJ1Hn {
+    color: #f8d478;
+}
+
+/* 行内单成就计数进度条（如 420 / 800） */
+body:not(.BasicUI) .Fur8xECXK4OVuhm8aWu3K {
+    --color-progress-bar-background: rgba(8, 12, 20, 0.85);
+    --color-progress-bar-foreground: #4c96ff;
+    box-shadow: inset 0 0 0 1px rgba(142, 188, 255, 0.16);
+}
+body:not(.BasicUI) .Fur8xECXK4OVuhm8aWu3K._3aFdgQ9lDxMcHD4YtT0Weq {
+    --color-progress-bar-foreground: #bc63d6;
+}
+
+/* ── 无障碍与低性能模式降级 ───────────────────────────────────────────── */
+.LowPerfMode .ac-pbar-sweep,
+.LowPerfMode .ac-pbar-star {
+    animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .ac-pbar-sweep,
+    .ac-pbar-star {
+        animation: none !important;
+    }
+    body:not(.BasicUI) ._2c-xpzS0W1WUVgT3vTqNDB::before,
+    body:not(.BasicUI) ._1DmdUWkRKPlUYGtbBrrRtx {
+        transition: none !important;
+    }
+}

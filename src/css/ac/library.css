@@ -1,18 +1,25 @@
 /*
- * 库内游戏卡片底部的成就信息条（Valve 的 LibraryItemBoxSubscript）。
+ * 库内游戏卡片底部的成就进度展示（Valve 的 LibraryItemBoxSubscript）。
  *
- * 三种状态，按 Valve 自己挂在信息条上的勋章类名判定：
- *   · 本体成就集合未打通    —— 暗色条，只显示百分比，不显示徽章；
- *   · 本体集合 100%         —— 徽章蓝条 + 金勋章；
- *   · 本体 + 所有 DLC 集合  —— 蓝紫条 + 蓝紫勋章（和展柜口径一致）。
+ * 视觉方案：「穹光地平线」Horizon Aura
+ *   · 放弃胶囊外壳与旧缎带徽章，改用无框光影排印 + 3px 底部光学进度轨 + 星仪菱钻徽印；
+ *   · 四个状态档位（由 Valve 挂在信息条上的集合勋章类名 + librarystyle.js 同步的进度百分比共同驱动）：
+ *       1. 进行中（0%–89%）      —— 冷蓝氛围底光 + 极细 3px 蓝光进度轨 + 轻盈数字；
+ *       2. 近在咫尺（90%–99%）   —— 暖金晨光底光 + 金色进度轨 + 「近在咫尺」标注；
+ *       3. 本体集合 100%         —— 蓝金双辉底光 + 微尘星屑 + 鎏金数字 + 「正篇归册」+ 鎏金星仪菱钻；
+ *       4. 本体 + 全 DLC 100%    —— 青蓝紫极光底光 + 幻彩星屑 + 极光数字 + 「全卷无瑕」+ 极光双环星仪。
  *
- * 这些规则原先只活在主题的 libHome.css 里；主题不启用时插件 CSS 收不到，
- * 所以搬到这里，由插件包和主题共用同一份。--st-* 变量是主题才有的，
- * 插件模式下给回退值（颜色用主题的默认值 17,17,17）。
+ * 非成就信息条（游玩时间 / 日期 / 无成就等）保留原有暗色轻胶囊；
+ * Metacritic 与 Steam 评测胶囊完全排除，保持 Valve 原样；
+ * Big Picture（.BasicUI）下的结构不同，只通过兄弟选择器 .WYgDg9NyCcMIVuMyZ_NBC ~ 命中桌面端，不误伤大屏模式。
+ *
+ * 这份样式由插件包（librarystyle.js + showcase.css）和主题共用。
  */
 
-/* Playtime/Date etc. */
-._1LJqx_qFOC8199RBQO5kU8 {
+/* ── 非成就信息条（Playtime / Date / 无成就等） ───────────────────────── */
+/* 排除 MC 分数、Steam 评测胶囊，以及由下方「穹光地平线」接管的成就进度条。
+   ⚠️ :not(...) 之间绝不能留空格或换行（否则会被 CSS 解析成后代选择器导致误伤 MC / 评测胶囊）。 */
+._1LJqx_qFOC8199RBQO5kU8:where(:not(._1KR40mXc7Z4Dss99aBDbyN):not(._1H3NRDhuiZh5xH5jZsiI38):not(._3lWVD8RYypVvbk60T5Vqcs):not(._2pensWpJpr4aPLfsnWG2Mk):not(.YMFWNw7ysEz2lagC8pW5N):not(._2DHhHuQVbivzEpsIvhaAys):not(._2-196-NjaMB6Mbhh7xGpXB):not(:has(._2EqIgCcLt4h8d4NKik-VAp))) {
     width: calc(100% - 12px);
     margin: 6px;
     margin-top: -30px;
@@ -21,57 +28,578 @@
     background-color: rgba(var(--st-color-1, 17, 17, 17), 60%);
     box-shadow: 0px 0px 3px 2px rgb(0 0 0 / 50%);
 }
-/* Achievements：勋章与百分比整体居中，Valve 的奖杯不再显示 */
-/* 没有完成任何集合时 Valve 不加 CompletedGroups，也就没有 flex，这里自己补上 */
-._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) {
+
+/* ============================================================================
+ * 「穹光地平线」Horizon Aura · 桌面端库内成就进度卡片
+ * ========================================================================== */
+
+/* 卡片外框建立定位基准；去掉封面盒原生 1px 上下边框并改 border-box，避免高分屏/小数行高下封面比叠加层多出 1px */
+._1pwP4eeP1zQD7PEgmsep0W:has(> ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp)) {
+    position: relative;
+}
+.WYgDg9NyCcMIVuMyZ_NBC:has(~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp)) {
+    box-sizing: border-box;
+    border-top: 0;
+    border-bottom: 0;
+}
+
+/* 封面底部内置图标（家庭副本数、下载按钮、Deck 标识、下载进度条）向上避让穹光数字区 */
+.WYgDg9NyCcMIVuMyZ_NBC:has(~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp)) .tvCvyQrDNndbXWp_b5__b {
+    padding-bottom: 38px;
+}
+.LibraryDisplaySizeSmall .WYgDg9NyCcMIVuMyZ_NBC:has(~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp)) .tvCvyQrDNndbXWp_b5__b {
+    padding-bottom: 30px;
+}
+
+/* 100% 卡片的封面外发光（挂在封面盒本身，自然投射到 Steam 书架底色上） */
+.WYgDg9NyCcMIVuMyZ_NBC:has(
+    ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp):is(
+        :has(.-zN46pB8pmZXuCZhPxSMN),
+        :has(.ZIGP3oO2DN1MGwxWyf54t),
+        ._1fddiVOLgn9nNxAEDjyV4k
+    )
+) {
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.54),
+        0 10px 26px -14px rgba(246, 198, 86, 0.44);
+}
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC:has(
+    ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp):is(
+        :has(.-zN46pB8pmZXuCZhPxSMN),
+        :has(.ZIGP3oO2DN1MGwxWyf54t),
+        ._1fddiVOLgn9nNxAEDjyV4k
+    )
+):is(:hover, :has(~ ._1LJqx_qFOC8199RBQO5kU8:hover), ._2YsY_x7hLyKlUqjX9bhn0R) {
+    box-shadow:
+        0 14px 26px rgba(0, 0, 0, 0.56),
+        0 12px 28px -12px rgba(246, 198, 86, 0.56);
+}
+
+.WYgDg9NyCcMIVuMyZ_NBC:has(
+    ~ ._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._2EqIgCcLt4h8d4NKik-VAp):is(
+        [data-ac-sets="all"],
+        :has(._4yfj5N2soD6vkHQDBDaOw),
+        :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+        :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+    )
+) {
+    box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.58),
+        0 10px 28px -12px rgba(178, 118, 250, 0.5);
+}
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC:has(
+    ~ ._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._2EqIgCcLt4h8d4NKik-VAp):is(
+        [data-ac-sets="all"],
+        :has(._4yfj5N2soD6vkHQDBDaOw),
+        :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+        :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+    )
+):is(:hover, :has(~ ._1LJqx_qFOC8199RBQO5kU8:hover), ._2YsY_x7hLyKlUqjX9bhn0R) {
+    box-shadow:
+        0 14px 28px rgba(0, 0, 0, 0.6),
+        0 12px 30px -10px rgba(178, 118, 250, 0.62);
+}
+
+/* ── 信息条本体：覆盖整张封面以与封面盒 100% 同步 3D 悬停透视 ─────────── */
+/* pointer-events: none 确保点击、右键菜单、原生悬停浮窗与下载图标全盘交还给封面盒；
+   仅在 100% 星仪徽印上打开 pointer-events: auto，保留 Valve 原生的「已完成 N 个成就组」提示。 */
+._1pwP4eeP1zQD7PEgmsep0W .WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0 10px 10px 11px;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-end;
+    justify-content: flex-start;
     gap: 6px;
-    color: #fff;
-    background: linear-gradient(180deg, #3a475d 0%, #333f54 55%, #2b3547 100%);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 2px 6px rgba(0, 0, 0, 0.35);
+    border-radius: var(--st-border-radius, 0px);
+    overflow: hidden;
+    pointer-events: none;
+    color: rgba(246, 249, 255, 0.94);
+    font-family: var(--ac-font);
+    text-align: left;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.88);
+    /* JS 注入前的纯 CSS 兜底渐隐底幕 */
+    background: linear-gradient(
+        180deg,
+        rgba(7, 9, 14, 0) 54%,
+        rgba(7, 9, 14, 0.16) 67%,
+        rgba(7, 9, 14, 0.62) 83%,
+        rgba(6, 8, 13, 0.94) 100%
+    );
+    box-shadow: none;
+    z-index: 12;
+    transform-origin: 50% 50%;
+    transition: transform 0.6s cubic-bezier(0, 0.73, 0.48, 1);
 }
-/* 本体成就集合已打通：徽章蓝条 + 金勋章 */
-/* DLCFrom1 全是 DLC 勋章，说明本体还没打通；DLCFrom2/3 的第一枚是本体勋章 */
-._1LJqx_qFOC8199RBQO5kU8:has(.-zN46pB8pmZXuCZhPxSMN),
-._1LJqx_qFOC8199RBQO5kU8:has(.ZIGP3oO2DN1MGwxWyf54t) {
-    background: linear-gradient(180deg, var(--ac-blue-hi) 0%, var(--ac-blue) 55%, var(--ac-blue-lo) 100%);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.16),
-        0 2px 6px rgba(0, 0, 0, 0.35);
+
+/* 悬停同步（含 ShowAsHovered 状态，与 sp.css 的 .WYgDg9NyCcMIVuMyZ_NBC 曲线完全一致） */
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC:hover ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp),
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC._2YsY_x7hLyKlUqjX9bhn0R ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp),
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp):hover {
+    transform: rotateX(3deg) translateZ(15px);
+    z-index: 13;
 }
-._1LJqx_qFOC8199RBQO5kU8:has(.-zN46pB8pmZXuCZhPxSMN)::before,
-._1LJqx_qFOC8199RBQO5kU8:has(.ZIGP3oO2DN1MGwxWyf54t)::before,
-._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw)::before {
-    content: "";
-    flex: 0 0 auto;
-    width: 12px;
-    height: 14px;
-    background: var(--ac-badge-img) center / contain no-repeat;
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
-}
-._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) ._1p4OC0BKEjB8LT2BlRyxO-,
-._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) ._4yfj5N2soD6vkHQDBDaOw,
-._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) .-zN46pB8pmZXuCZhPxSMN,
-._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) .ZIGP3oO2DN1MGwxWyf54t {
+
+/* 隐藏 Valve 自带的奖杯堆叠图标 */
+.WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) ._1p4OC0BKEjB8LT2BlRyxO-,
+.WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) ._4yfj5N2soD6vkHQDBDaOw,
+.WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) .-zN46pB8pmZXuCZhPxSMN,
+.WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp) .ZIGP3oO2DN1MGwxWyf54t {
     display: none;
 }
-/* 本体和 DLC 成就集合全部打通：蓝紫条 + 蓝紫勋章，与展柜一致 */
-/* AllAchieved 只代表成就 100%；老游戏只有一个本体集合，不能算「全集合」，
-   所以还要看到 DLC 勋章：DLCFrom1 全是 DLC；DLCFrom2 的第 2 枚起是 DLC；
-   DLCFrom3 的第 3 枚是 DLC（只有 2 枚时是多个本体集合，没有 DLC） */
-._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw),
-._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
-._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3)) {
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.12) 100%),
-        linear-gradient(90deg, var(--ac-blue) 0%, var(--ac-blue) 30%, #8a5fd6 52%, #a856c2 72%, #b658c4 100%);
+
+/* JS 已挂入 .ac-hz 渲染层：清掉兜底背景并隐藏原生文字 span（保留在 DOM 里让 React 正常维护） */
+._1pwP4eeP1zQD7PEgmsep0W .WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8[data-ac-hz="1"]:has(._2EqIgCcLt4h8d4NKik-VAp) {
+    padding: 0;
+    background: none;
 }
-._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw)::before,
-._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2))::before,
-._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))::before {
-    background-image: var(--ac-badge-img-all);
+.WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8[data-ac-hz="1"]:has(._2EqIgCcLt4h8d4NKik-VAp) > ._2EqIgCcLt4h8d4NKik-VAp,
+.WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8[data-ac-hz="1"]:has(._2EqIgCcLt4h8d4NKik-VAp) > .LTPd1K0p7pbPS9nEgQGLs {
+    display: none !important;
+}
+
+/* 排序切换离开「成就完成度」时，确保残留的 .ac-hz 在观察器清理前立刻隐身 */
+._1LJqx_qFOC8199RBQO5kU8:not(:has(._2EqIgCcLt4h8d4NKik-VAp)) > .ac-hz {
+    display: none !important;
+}
+
+/* 100% 卡片的细描边内框（画在叠加层之上，不被封面 <img> 遮挡） */
+._1pwP4eeP1zQD7PEgmsep0W .WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8:has(._2EqIgCcLt4h8d4NKik-VAp):is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) {
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 224, 148, 0.2),
+        inset 0 -1px 0 rgba(255, 234, 170, 0.46);
+}
+._1pwP4eeP1zQD7PEgmsep0W .WYgDg9NyCcMIVuMyZ_NBC ~ ._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:has(._2EqIgCcLt4h8d4NKik-VAp):is(
+    [data-ac-sets="all"],
+    :has(._4yfj5N2soD6vkHQDBDaOw),
+    :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+    :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+) {
+    box-shadow:
+        inset 0 0 0 1px rgba(196, 212, 255, 0.24),
+        inset 0 -1px 0 rgba(176, 242, 232, 0.52);
+}
+
+/* ── 穹光地平线内部图层（.ac-hz） ─────────────────────────────────────── */
+.ac-hz {
+    position: absolute;
+    inset: 0;
+    display: block;
+    pointer-events: none;
+    font-family: var(--ac-font);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 100% 专属悬停丝光扫过 */
+.ac-hz-sheen {
+    position: absolute;
+    inset: -14%;
+    z-index: 18;
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(
+        110deg,
+        transparent 22%,
+        rgba(255, 255, 255, 0.06) 38%,
+        rgba(255, 255, 255, 0.34) 48%,
+        rgba(255, 255, 255, 0.06) 58%,
+        transparent 74%
+    );
+    transform: translateX(-118%) skewX(-16deg);
+}
+@keyframes ac-hz-silk-sweep {
+    0% { opacity: 1; transform: translateX(-118%) skewX(-16deg); }
+    100% { opacity: 0.9; transform: translateX(148%) skewX(-16deg); }
+}
+
+/* 底部无框渐隐暗幕 */
+.ac-hz-scrim {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 46%;
+    z-index: 6;
+    background: linear-gradient(
+        180deg,
+        rgba(7, 9, 14, 0) 0%,
+        rgba(7, 9, 14, 0.16) 28%,
+        rgba(7, 9, 14, 0.62) 64%,
+        rgba(6, 8, 13, 0.94) 100%
+    );
+    transition: opacity 0.35s ease;
+}
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC:hover ~ ._1LJqx_qFOC8199RBQO5kU8 .ac-hz-scrim,
+._54PuCatl_tYG836TOs4Mv ._1LJqx_qFOC8199RBQO5kU8:hover .ac-hz-scrim {
+    opacity: 0.9;
+}
+
+/* 氛围底光（随进度位置漂移的冷蓝微光 → 90%+ 暖金晨光 → 蓝金双辉 → 极光） */
+.ac-hz-aura {
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    bottom: -6px;
+    height: 98px;
+    z-index: 7;
+    background: radial-gradient(
+        70% 40px at calc(var(--ac-pct, 0) * 0.8% + 10%) 100%,
+        rgba(96, 166, 255, 0.24) 0%,
+        transparent 100%
+    );
+    transition: transform 0.45s cubic-bezier(0.16, 0.84, 0.44, 1);
+}
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC:hover ~ ._1LJqx_qFOC8199RBQO5kU8 .ac-hz-aura,
+._54PuCatl_tYG836TOs4Mv ._1LJqx_qFOC8199RBQO5kU8:hover .ac-hz-aura {
+    transform: scaleY(1.18);
+}
+
+/* 100% 微尘星屑 */
+.ac-hz-dust {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 4px;
+    height: 44px;
+    z-index: 8;
+    opacity: 0;
+    transition: opacity 0.4s ease, transform 0.5s ease;
+    background-image:
+        radial-gradient(1px 1px at 14% 72%, rgba(255, 244, 200, 0.85), transparent),
+        radial-gradient(1.2px 1.2px at 31% 48%, rgba(255, 232, 168, 0.72), transparent),
+        radial-gradient(1px 1px at 49% 68%, rgba(255, 255, 255, 0.8), transparent),
+        radial-gradient(1.3px 1.3px at 66% 38%, rgba(255, 236, 176, 0.75), transparent),
+        radial-gradient(1px 1px at 81% 62%, rgba(255, 248, 224, 0.7), transparent),
+        radial-gradient(1px 1px at 91% 46%, rgba(210, 232, 255, 0.75), transparent);
+}
+
+/* 底部排印层：百分比数字 + 星仪徽印（纯净无文案） */
+.ac-hz-content {
+    position: absolute;
+    left: 11px;
+    right: 10px;
+    bottom: 8px;
+    z-index: 12;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px;
+}
+.ac-hz-num-block {
+    display: inline-flex;
+    align-items: baseline;
+    min-width: 0;
+}
+.ac-hz-num {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1.5px;
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+}
+.ac-hz-digits {
+    font-size: 23px;
+    font-weight: 300;
+    letter-spacing: -0.04em;
+    color: rgba(246, 249, 255, 0.94);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+}
+.ac-hz-sym {
+    font-size: 10.5px;
+    font-weight: 500;
+    color: rgba(226, 236, 252, 0.62);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+}
+
+.ac-hz-sub {
+    display: none !important;
+}
+
+/* 右下角星仪菱钻徽印（默认隐藏，仅本体/全集合 100% 显示） */
+.ac-hz-crest {
+    display: none;
+    width: 26px;
+    height: 26px;
+    flex: none;
+    margin-bottom: -1px;
+    background: var(--ac-hz-crest-base) center / contain no-repeat;
+    pointer-events: auto;
+    cursor: pointer;
+    transition: transform 0.55s cubic-bezier(0.16, 0.84, 0.44, 1);
+}
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC:hover ~ ._1LJqx_qFOC8199RBQO5kU8 .ac-hz-crest,
+._54PuCatl_tYG836TOs4Mv ._1LJqx_qFOC8199RBQO5kU8:hover .ac-hz-crest {
+    transform: rotate(18deg) scale(1.08);
+}
+
+/* 底部 3px 纯净光学进度轨（无刻度线） */
+.ac-hz-rail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    z-index: 13;
+    background: rgba(255, 255, 255, 0.09);
+}
+.ac-hz-beam {
+    position: relative;
+    display: block;
+    height: 100%;
+    width: calc(var(--ac-pct, 0) * 1%);
+    background: linear-gradient(90deg, rgba(84, 146, 245, 0.35) 0%, #6eb5ff 78%, #cbe5ff 100%);
+    box-shadow: 0 0 8px rgba(114, 182, 255, 0.55);
+    transition: width 0.22s ease;
+}
+.ac-hz-beam::after {
+    content: "";
+    position: absolute;
+    right: -2px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    background: #eef7ff;
+    box-shadow: 0 0 10px 2px rgba(120, 188, 255, 0.9);
+}
+._1LJqx_qFOC8199RBQO5kU8[data-ac-pct="0"] .ac-hz-beam::after {
+    display: none;
+}
+
+/* ── 档位 2：近在咫尺（90%–99%，本体尚未打通） ───────────────────────── */
+._1LJqx_qFOC8199RBQO5kU8[data-ac-tier="near"] .ac-hz-aura {
+    background:
+        radial-gradient(90% 52px at 50% 100%, rgba(246, 190, 74, 0.3) 0%, transparent 100%),
+        radial-gradient(45% 42px at calc(var(--ac-pct, 95) * 0.82% + 9%) 100%, rgba(255, 224, 128, 0.38) 0%, transparent 100%);
+}
+._1LJqx_qFOC8199RBQO5kU8[data-ac-tier="near"] .ac-hz-digits {
+    font-weight: 400;
+    color: #ffe9aa;
+}
+._1LJqx_qFOC8199RBQO5kU8[data-ac-tier="near"] .ac-hz-sym {
+    color: rgba(255, 224, 144, 0.8);
+}
+._1LJqx_qFOC8199RBQO5kU8[data-ac-tier="near"] .ac-hz-beam {
+    background: linear-gradient(90deg, rgba(224, 148, 34, 0.42) 0%, #f7c752 72%, #fff3c4 100%);
+    box-shadow: 0 0 12px rgba(250, 200, 82, 0.8);
+}
+._1LJqx_qFOC8199RBQO5kU8[data-ac-tier="near"] .ac-hz-beam::after {
+    background: #fffbeb;
+    box-shadow: 0 0 12px 3px rgba(255, 212, 92, 0.95);
+}
+
+/* ── 档位 3：本体成就集合 100%（「正篇归册」） ───────────────────────── */
+/* DLCFrom1 全是 DLC 勋章，说明本体还没打通；DLCFrom2/3 的第一枚是本体勋章；
+   AllAchieved（_1fddiVOLgn9nNxAEDjyV4k）兜底仅单个集合或集合元数据未就绪的 100% 游戏。 */
+._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-sheen {
+    display: block;
+}
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC:hover ~ ._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-sheen,
+._54PuCatl_tYG836TOs4Mv ._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+):hover .ac-hz-sheen {
+    animation: ac-hz-silk-sweep 0.82s cubic-bezier(0.22, 0.1, 0.25, 1) 1 forwards;
+}
+
+._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-aura {
+    background:
+        radial-gradient(100% 74px at 50% 100%, rgba(62, 134, 248, 0.26) 0%, transparent 100%),
+        radial-gradient(84% 58px at 46% 100%, rgba(248, 200, 88, 0.44) 0%, rgba(240, 174, 54, 0.14) 55%, transparent 100%);
+}
+._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-dust {
+    opacity: 0.65;
+}
+._54PuCatl_tYG836TOs4Mv .WYgDg9NyCcMIVuMyZ_NBC:hover ~ ._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-dust,
+._54PuCatl_tYG836TOs4Mv ._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+):hover .ac-hz-dust {
+    transform: translateY(-4px);
+    opacity: 1;
+}
+
+._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-digits {
+    font-weight: 600;
+    background: linear-gradient(180deg, #fffdf0 0%, #fae096 52%, #d89f36 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.78));
+    text-shadow: none;
+}
+._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-sym {
+    color: #f6cd6d;
+}
+._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-crest {
+    display: block;
+    background-image: var(--ac-hz-crest-base);
+    filter: drop-shadow(0 0 8px rgba(248, 200, 88, 0.55)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.7));
+}
+._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-beam {
+    width: calc(var(--ac-pct, 100) * 1%);
+    background: linear-gradient(90deg, #5e9fff 0%, #f5c95d 32%, #fff3c4 52%, #f5c95d 72%, #5e9fff 100%);
+    box-shadow: 0 0 14px rgba(248, 206, 98, 0.82);
+}
+._1LJqx_qFOC8199RBQO5kU8:is(
+    :has(.-zN46pB8pmZXuCZhPxSMN),
+    :has(.ZIGP3oO2DN1MGwxWyf54t),
+    ._1fddiVOLgn9nNxAEDjyV4k
+) .ac-hz-beam::after {
+    display: none;
+}
+
+/* ── 档位 4：本体 + 全部 DLC 集合 100%（「全卷无瑕」） ──────────────── */
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:is(
+    [data-ac-sets="all"],
+    :has(._4yfj5N2soD6vkHQDBDaOw),
+    :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+    :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+) .ac-hz-aura {
+    background:
+        radial-gradient(62% 68px at 20% 100%, rgba(88, 242, 200, 0.4) 0%, transparent 100%),
+        radial-gradient(68% 72px at 52% 100%, rgba(86, 156, 255, 0.42) 0%, transparent 100%),
+        radial-gradient(64% 68px at 84% 100%, rgba(202, 108, 250, 0.48) 0%, transparent 100%);
+}
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:is(
+    [data-ac-sets="all"],
+    :has(._4yfj5N2soD6vkHQDBDaOw),
+    :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+    :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+) .ac-hz-dust {
+    opacity: 0.85;
+    background-image:
+        radial-gradient(1.1px 1.1px at 14% 70%, rgba(132, 248, 214, 0.9), transparent),
+        radial-gradient(1.3px 1.3px at 29% 44%, rgba(255, 238, 162, 0.85), transparent),
+        radial-gradient(1px 1px at 47% 64%, rgba(164, 214, 255, 0.9), transparent),
+        radial-gradient(1.4px 1.4px at 64% 34%, rgba(230, 174, 255, 0.9), transparent),
+        radial-gradient(1.1px 1.1px at 78% 58%, rgba(255, 246, 206, 0.85), transparent),
+        radial-gradient(1.2px 1.2px at 90% 42%, rgba(180, 152, 255, 0.9), transparent);
+}
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:is(
+    [data-ac-sets="all"],
+    :has(._4yfj5N2soD6vkHQDBDaOw),
+    :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+    :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+) .ac-hz-digits {
+    font-weight: 600;
+    background: linear-gradient(96deg, #fff4b3 0%, #8bf5ca 45%, #a8caff 72%, #dfb0ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.82));
+    text-shadow: none;
+}
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:is(
+    [data-ac-sets="all"],
+    :has(._4yfj5N2soD6vkHQDBDaOw),
+    :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+    :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+) .ac-hz-sym {
+    color: #d0b8ff;
+}
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:is(
+    [data-ac-sets="all"],
+    :has(._4yfj5N2soD6vkHQDBDaOw),
+    :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+    :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+) .ac-hz-crest {
+    display: block;
+    background-image: var(--ac-hz-crest-all);
+    filter: drop-shadow(0 0 10px rgba(154, 174, 255, 0.65)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.75));
+}
+._1LJqx_qFOC8199RBQO5kU8._1fddiVOLgn9nNxAEDjyV4k:is(
+    [data-ac-sets="all"],
+    :has(._4yfj5N2soD6vkHQDBDaOw),
+    :has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+    :has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))
+) .ac-hz-beam {
+    width: 100%;
+    background: linear-gradient(90deg, #ffe26a 0%, #6cf2c2 34%, #66b4ff 66%, #cf74ff 100%);
+    box-shadow: 0 0 16px rgba(146, 198, 255, 0.85);
+}
+
+/* ── 中 / 小尺寸卡片适配（Steam 原生 LibraryDisplaySizeMedium / Small） ── */
+.LibraryDisplaySizeMedium .ac-hz-content {
+    left: 10px;
+    right: 9px;
+    bottom: 8px;
+}
+.LibraryDisplaySizeMedium .ac-hz-digits {
+    font-size: 20px;
+}
+.LibraryDisplaySizeMedium .ac-hz-sym {
+    font-size: 10px;
+}
+.LibraryDisplaySizeMedium .ac-hz-crest {
+    width: 22px;
+    height: 22px;
+}
+
+.LibraryDisplaySizeSmall .ac-hz-content {
+    left: 8px;
+    right: 7px;
+    bottom: 7px;
+}
+.LibraryDisplaySizeSmall .ac-hz-digits {
+    font-size: 16px;
+}
+.LibraryDisplaySizeSmall .ac-hz-sym {
+    font-size: 8.5px;
+}
+.LibraryDisplaySizeSmall .ac-hz-crest {
+    width: 17px;
+    height: 17px;
 }

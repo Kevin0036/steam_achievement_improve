@@ -22,7 +22,7 @@ const PLUGIN_DIR = path.join(THEME, 'plugin');
 const PACKAGE_DIR = path.join(PLUGIN_DIR, 'dist', 'AchievementCollection');
 const LAZY_SOURCE = path.join(THEME, 'packaging', 'lazy');
 const VENDOR = path.join(root, 'vendor', 'millennium');
-const MILLENNIUM_VERSION = '3.6.2';
+const MILLENNIUM_VERSION = '3.6.3';
 const MILLENNIUM_ZIP = `millennium-v${MILLENNIUM_VERSION}-windows-x86_64.zip`;
 const MILLENNIUM_SHA = `millennium-v${MILLENNIUM_VERSION}-windows-x86_64.sha256`;
 

@@ -1,0 +1,3683 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>游戏页与成就详情 · 新视觉方案实验室</title>
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/tokens.css">
+<link rel="stylesheet" href="/theme/src/css/ac/art.css">
+<style>
+  :root {
+    --st-border-radius: 6px;
+    --ui-bg: #11141b;
+    --ui-topbar: rgba(16, 20, 28, 0.9);
+    --ui-panel: #181d27;
+    --ui-border: rgba(255, 255, 255, 0.08);
+    --ui-border-strong: rgba(255, 255, 255, 0.17);
+    --ui-text: #eef1f7;
+    --ui-dim: #9aa5b8;
+    --ui-faint: #6c778b;
+
+    /* Steam client canvas backdrop (toggleable between Vanilla Steam & SpaceTheme) */
+    --canvas-bg: #1b2029;
+    --canvas-surface: #222731;
+    --canvas-surface-2: #191d25;
+    --canvas-card-border: rgba(255, 255, 255, 0.06);
+
+    /* Badge fallback (DLC purple variant injected by script using exact badge.svg paths) */
+    --ac-badge-img-dlc: var(--ac-badge-img-all);
+  }
+
+  body[data-shell="spacetheme"] {
+    --canvas-bg: #0f1014;
+    --canvas-surface: #16171c;
+    --canvas-surface-2: #111216;
+    --canvas-card-border: rgba(255, 255, 255, 0.07);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    font-family: var(--ac-font, "Be Vietnam Pro", "Motiva Sans", "Microsoft YaHei UI", sans-serif);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Top Studio Toolbar
+     ════════════════════════════════════════════════════════════════════════ */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    background: var(--ui-topbar);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--ui-border);
+  }
+  .topbar-row {
+    max-width: 1420px;
+    margin: 0 auto;
+    padding: 11px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+  }
+  .topbar-row + .topbar-row {
+    padding-top: 0;
+    padding-bottom: 11px;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .brand h1 {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: #f4f7fc;
+  }
+  .brand span {
+    font-size: 11.5px;
+    color: var(--ui-faint);
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .seg {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--ui-panel);
+    border: 1px solid var(--ui-border);
+    gap: 2px;
+  }
+  .seg button, .pill-btn {
+    border: 0;
+    background: transparent;
+    color: var(--ui-dim);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    white-space: nowrap;
+  }
+  .seg button:hover, .pill-btn:hover { color: #fff; }
+  .seg button.is-active {
+    background: rgba(88, 146, 255, 0.22);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(110, 166, 255, 0.48);
+  }
+  .pill-btn {
+    background: var(--ui-panel);
+    border: 1px solid var(--ui-border);
+    padding: 6px 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pill-btn.is-on {
+    background: rgba(155, 114, 203, 0.22);
+    border-color: rgba(178, 134, 238, 0.56);
+    color: #f4ecff;
+    box-shadow: 0 0 14px -4px rgba(155, 114, 203, 0.55);
+  }
+  .pill-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #6c778b;
+    transition: background 0.16s ease, box-shadow 0.16s ease;
+  }
+  .pill-btn.is-on .pill-dot {
+    background: #d8b4fe;
+    box-shadow: 0 0 8px #c084fc;
+  }
+
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tab {
+    border: 1px solid var(--ui-border);
+    background: var(--ui-panel);
+    color: var(--ui-dim);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 13px;
+    border-radius: 9px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.18s ease;
+  }
+  .tab:hover { color: #fff; border-color: var(--ui-border-strong); }
+  .tab .swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .tab small { font-size: 11px; opacity: 0.68; font-weight: 400; }
+  .tab.is-active {
+    background: linear-gradient(180deg, rgba(84, 140, 250, 0.26), rgba(64, 114, 224, 0.16));
+    border-color: rgba(114, 166, 255, 0.56);
+    color: #fff;
+  }
+  .tab[data-scheme="prism"].is-active {
+    background: linear-gradient(180deg, rgba(132, 92, 232, 0.28), rgba(66, 133, 244, 0.16));
+    border-color: rgba(164, 126, 245, 0.62);
+  }
+  .tab[data-scheme="gilt"].is-active {
+    background: linear-gradient(180deg, rgba(212, 175, 100, 0.24), rgba(140, 104, 42, 0.14));
+    border-color: rgba(232, 196, 124, 0.56);
+  }
+  .tab[data-scheme="compare"].is-active {
+    background: linear-gradient(180deg, rgba(100, 210, 190, 0.22), rgba(74, 144, 226, 0.15));
+    border-color: rgba(120, 218, 204, 0.54);
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Main Studio Layout
+     ════════════════════════════════════════════════════════════════════════ */
+  main {
+    max-width: 1420px;
+    margin: 0 auto;
+    padding: 22px 24px 72px;
+  }
+
+  .scheme-brief {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 24px;
+    padding: 15px 20px;
+    margin-bottom: 24px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.014));
+    border: 1px solid var(--ui-border);
+  }
+  .scheme-brief h2 {
+    margin: 0 0 3px;
+    font-size: 15.5px;
+    font-weight: 600;
+    color: #f6f8fc;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .scheme-brief p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--ui-dim);
+    max-width: 780px;
+  }
+  .brief-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .brief-tag {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    color: #cfd8ea;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .studio-section {
+    margin-bottom: 34px;
+  }
+  .studio-section[hidden] { display: none; }
+  .sec-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px 18px;
+    margin-bottom: 14px;
+  }
+  .sec-head h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #edf1f8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sec-num {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #a9c6ff;
+    background: rgba(88, 146, 255, 0.16);
+    border: 1px solid rgba(114, 166, 255, 0.3);
+  }
+  .sec-note {
+    font-size: 12px;
+    color: var(--ui-faint);
+  }
+
+  .steam-canvas {
+    background: var(--canvas-bg);
+    border: 1px solid var(--canvas-card-border);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 14px 36px rgba(0, 0, 0, 0.34);
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Shared Primitives: Badges, Progress Bars, Stardust Engine (Quiet-by-default!)
+     ════════════════════════════════════════════════════════════════════════ */
+  @keyframes ac-bar-sweep {
+    0%   { transform: translateX(-120%) skewX(-18deg); }
+    100% { transform: translateX(260%) skewX(-18deg); }
+  }
+  @keyframes ac-star-drift {
+    0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translate3d(-100%, 0, 0); opacity: 0; }
+  }
+  @keyframes ac-badge-sheen {
+    0%   { transform: translateX(-140%) skewX(-22deg); opacity: 0; }
+    20%  { opacity: 0.9; }
+    100% { transform: translateX(220%) skewX(-22deg); opacity: 0; }
+  }
+  @keyframes ac-orbit-spin {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to   { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
+  /* Badge wrapper (uses official tools/badge.svg via art.css + pure DLC purple variant) */
+  .ac-badge-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: var(--b-size, 36px);
+    height: calc(var(--b-size, 36px) * 1.18);
+    cursor: default;
+  }
+  /* True circle centered on the octagonal star (cy = 47 / 118 ≈ 39.8%), letting swallowtails drape out below */
+  .ac-badge-wrap .ac-badge-mount {
+    position: absolute;
+    left: 50%;
+    top: 39.8%;
+    width: calc(var(--b-size, 36px) * 1.06);
+    height: calc(var(--b-size, 36px) * 1.06);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    border-radius: 50%;
+    transition: opacity 0.25s ease, transform 0.28s ease, box-shadow 0.28s ease;
+  }
+  .ac-badge-wrap .ac-badge-svg {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    background-position: center;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-image: var(--ac-badge-img);
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.52));
+    transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1), filter 0.26s ease;
+  }
+  .ac-badge-wrap[data-badge="all"] .ac-badge-svg {
+    background-image: var(--ac-badge-img-all);
+  }
+  .ac-badge-wrap[data-badge="dlc"] .ac-badge-svg {
+    background-image: var(--ac-badge-img-dlc);
+  }
+  .ac-badge-wrap[data-badge="empty"] .ac-badge-svg {
+    background-image: var(--ac-badge-img-empty);
+    opacity: 0.9;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42));
+  }
+  .ac-badge-wrap[data-badge="empty"]:hover .ac-badge-svg,
+  .ac-card-hoverable:hover .ac-badge-wrap[data-badge="empty"] .ac-badge-svg {
+    opacity: 1;
+  }
+  .ac-badge-wrap .ac-badge-shine {
+    position: absolute;
+    inset: 4% 8% 12% 8%;
+    z-index: 3;
+    overflow: hidden;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .ac-badge-wrap .ac-badge-shine::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 55%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.58), transparent);
+    transform: translateX(-140%) skewX(-22deg);
+    opacity: 0;
+  }
+  .ac-badge-wrap:hover .ac-badge-svg,
+  .ac-card-hoverable:hover .ac-badge-svg,
+  body[data-force-hover="1"] .ac-badge-svg {
+    transform: translateY(-1px) scale(1.06);
+  }
+  .ac-badge-wrap:hover .ac-badge-shine::after,
+  .ac-card-hoverable:hover .ac-badge-shine::after {
+    animation: ac-badge-sheen 0.85s cubic-bezier(0.25, 0.1, 0.25, 1) 1;
+  }
+
+  /* Native Steam flat ribbon (only visible in Baseline scheme!) */
+  .ac-badge-wrap .ac-native-ribbon {
+    display: none;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Progress Bar Base Structure */
+  .ach-bar {
+    --bar-h: 10px;
+    --bar-r: 999px;
+    --pct: 88%;
+    --base-pct: 0%;
+    --dlc-pct: 0%;
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: var(--bar-h);
+    border-radius: var(--bar-r);
+    overflow: hidden;
+    background: rgba(8, 10, 16, 0.72);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    transition: box-shadow 0.28s ease;
+  }
+  .ach-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--pct);
+    border-radius: inherit;
+    overflow: hidden;
+    transition: width 0.35s cubic-bezier(0.2, 0.85, 0.3, 1), filter 0.25s ease;
+  }
+  /* Multi-set segmented fill */
+  .ach-bar[data-segmented="1"] .ach-bar-fill {
+    display: flex;
+    width: 100%;
+    background: none !important;
+  }
+  .ach-bar-seg {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    flex: none;
+  }
+  .ach-bar-seg.is-base {
+    width: var(--base-pct);
+    border-radius: var(--bar-r) 0 0 var(--bar-r);
+  }
+  .ach-bar-seg.is-dlc {
+    width: var(--dlc-pct);
+    border-left: 1px solid rgba(255, 255, 255, 0.36);
+  }
+  .ach-bar[data-tier="all100"] .ach-bar-seg.is-dlc {
+    border-radius: 0 var(--bar-r) var(--bar-r) 0;
+  }
+  .ach-bar-seg.is-dlc:last-child {
+    border-top-right-radius: var(--bar-r);
+    border-bottom-right-radius: var(--bar-r);
+  }
+
+  /* Leading optical tip / luminous core (replaces big slider knob) */
+  .ach-bar-tip {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--pct);
+    transform: translateX(-100%);
+    pointer-events: none;
+    z-index: 4;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .ach-bar[data-pct="0"] .ach-bar-tip,
+  .ach-bar[data-pct="100"] .ach-bar-tip {
+    opacity: 0;
+  }
+
+  /* Energy sweep & Stardust particles — QUIET BY DEFAULT on <100%! */
+  .ach-bar-fx {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--pct);
+    border-radius: inherit;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .ach-bar-sweep {
+    position: absolute;
+    inset: 0;
+    width: 56%;
+    background: linear-gradient(100deg, transparent 15%, rgba(255, 255, 255, 0.34) 50%, transparent 85%);
+    opacity: 0;
+    transform: translateX(-120%) skewX(-18deg);
+    animation: ac-bar-sweep 2.8s linear infinite;
+    animation-play-state: paused;
+    transition: opacity 0.3s ease;
+  }
+  .ach-bar-stars {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.32s ease;
+  }
+  .ach-star {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    margin-top: -1.5px;
+    animation-name: ac-star-drift;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-play-state: paused;
+  }
+  .ach-star i {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    width: 2.6px;
+    height: 2.6px;
+    margin-left: -1.3px;
+    border-radius: 50%;
+    background: var(--star-color, #eef6ff);
+    box-shadow: 0 0 5px var(--star-glow, rgba(160, 216, 255, 0.95));
+    opacity: var(--sb, 0.9);
+    transform: scale(var(--sb, 0.9));
+  }
+
+  /* 100% Completed: Serene slow stardust & gentle sweep active at rest */
+  .ach-bar[data-tier="base100"] .ach-bar-stars,
+  .ach-bar[data-tier="all100"] .ach-bar-stars {
+    opacity: 0.72;
+  }
+  .ach-bar[data-tier="base100"] .ach-star,
+  .ach-bar[data-tier="all100"] .ach-star {
+    animation-play-state: running;
+  }
+  .ach-bar[data-tier="base100"] .ach-bar-sweep,
+  .ach-bar[data-tier="all100"] .ach-bar-sweep {
+    opacity: 0.42;
+    animation-duration: 5.2s;
+    animation-play-state: running;
+  }
+
+  /* Hover or Simulated Hover: awaken stardust + shimmer on ANY non-zero bar */
+  .ach-bar:not([data-pct="0"]):hover .ach-bar-stars,
+  .ach-hover-zone:hover .ach-bar:not([data-pct="0"]) .ach-bar-stars,
+  body[data-force-hover="1"] .ach-bar:not([data-pct="0"]) .ach-bar-stars {
+    opacity: 1;
+  }
+  .ach-bar:not([data-pct="0"]):hover .ach-star,
+  .ach-hover-zone:hover .ach-bar:not([data-pct="0"]) .ach-star,
+  body[data-force-hover="1"] .ach-bar:not([data-pct="0"]) .ach-star {
+    animation-play-state: running;
+  }
+  .ach-bar:not([data-pct="0"]):hover .ach-bar-sweep,
+  .ach-hover-zone:hover .ach-bar:not([data-pct="0"]) .ach-bar-sweep,
+  body[data-force-hover="1"] .ach-bar:not([data-pct="0"]) .ach-bar-sweep {
+    opacity: 0.78;
+    animation-duration: 2.5s;
+    animation-play-state: running;
+  }
+
+  /* Cursor-following prism rim pseudo-layer (used in Scheme 2: Obsidian Prism) */
+  .ach-bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SECTION 1: Right-Sidebar Achievements Card Grid
+     ════════════════════════════════════════════════════════════════════════ */
+  .sidebar-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  @media (max-width: 1180px) {
+    .sidebar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .sidebar-grid { grid-template-columns: 1fr; }
+  }
+
+  .card-slot-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--ui-dim);
+    margin-bottom: 7px;
+    padding: 0 2px;
+  }
+  .card-slot-label strong {
+    color: #e4eaf5;
+    font-weight: 600;
+  }
+  .state-chip {
+    font-size: 10.5px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #b7c3d8;
+  }
+
+  .gp-ach-card {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+  .gp-ach-sec-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: #9ba5b4;
+    padding: 0 0 7px 2px;
+    letter-spacing: 0.02em;
+  }
+  .gp-ach-head {
+    position: relative;
+    padding: 13px 15px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .gp-ach-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13.5px;
+    color: #e4e9f2;
+  }
+  .gp-ach-label-main {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .gp-ach-count {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .gp-ach-pct {
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: #919cad;
+  }
+  .gp-ach-tier-tag {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 1px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .gp-ach-sets-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: -2px;
+  }
+  .set-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+  }
+  .set-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .set-pill.is-base .dot { background: #5da3ff; box-shadow: 0 0 6px rgba(93, 163, 255, 0.8); }
+  .set-pill.is-dlc .dot  { background: #c576e0; box-shadow: 0 0 6px rgba(197, 118, 224, 0.8); }
+
+  .gp-ach-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .gp-ach-body {
+    padding: 13px 15px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .gp-featured {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .gp-featured .ach-ico {
+    width: 48px;
+    height: 48px;
+  }
+  .gp-featured-info {
+    min-width: 0;
+    flex: 1;
+  }
+  .gp-featured-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #eef2f8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .gp-featured-desc {
+    font-size: 12px;
+    color: #939eae;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gp-icon-row {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 7px;
+  }
+  .ach-ico {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    border-radius: 5px;
+    overflow: visible;
+    flex: none;
+    transition: transform 0.2s ease, filter 0.2s ease;
+  }
+  .ach-ico img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+    position: relative;
+    z-index: 1;
+  }
+  .ach-ico.is-locked img {
+    filter: grayscale(1) brightness(0.72) contrast(1.04);
+    opacity: 0.84;
+  }
+  .ach-ico:hover {
+    transform: translateY(-2px) scale(1.05);
+    z-index: 4;
+  }
+  .ach-ico.is-rare::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: calc(var(--ico-r, 5px) + 2px);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .gp-more-tile {
+    aspect-ratio: 1 / 1;
+    display: grid;
+    place-items: center;
+    border-radius: 5px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #dce4f2;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+
+  .gp-locked-wrap {
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .gp-locked-title {
+    font-size: 11.5px;
+    color: #8893a6;
+  }
+
+  .gp-footer-row {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 2px;
+  }
+  .gp-view-all {
+    font-size: 12px;
+    font-weight: 500;
+    color: #93a1b8;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+  .gp-view-all:hover { color: #fff; }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SECTION 2: Full Achievements Details Page (查看我的成就)
+     ════════════════════════════════════════════════════════════════════════ */
+  .detail-shell {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.52);
+  }
+  .detail-hero {
+    position: relative;
+    padding: 22px 26px 22px;
+    overflow: hidden;
+  }
+  .detail-hero-bg {
+    position: absolute;
+    inset: -24px;
+    background-size: cover;
+    background-position: center 22%;
+    filter: blur(26px) saturate(1.25) brightness(0.42);
+    transform: scale(1.08);
+    pointer-events: none;
+  }
+  .detail-hero-scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .detail-hero-inner {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 116px minmax(0, 1fr);
+    gap: 20px;
+    align-items: center;
+  }
+  @media (max-width: 720px) {
+    .detail-hero-inner { grid-template-columns: 84px minmax(0, 1fr); gap: 14px; }
+  }
+  .detail-cover {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+  }
+  .detail-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .detail-hero-right {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .detail-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .detail-game-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #fff;
+  }
+  .detail-sub {
+    font-size: 12.5px;
+    color: #aeb8c9;
+    margin-top: 3px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .detail-sub span { display: inline-flex; align-items: center; gap: 5px; }
+
+  .detail-stats-box {
+    position: relative;
+    padding: 13px 16px 15px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .detail-stats-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .detail-stats-left {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 14px;
+    color: #eef2fa;
+  }
+  .detail-stats-left strong {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  .detail-stats-pct {
+    font-variant-numeric: tabular-nums;
+    color: #97a5bd;
+    font-size: 13.5px;
+  }
+  .detail-rare-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+  }
+  .detail-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .detail-body {
+    padding: 16px 26px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .detail-friends-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: #c2ccd9;
+  }
+  .detail-friends-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .friend-avatars {
+    display: flex;
+  }
+  .friend-avatars span {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid #1a1f29;
+    margin-left: -6px;
+    display: inline-grid;
+    place-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .friend-avatars span:first-child { margin-left: 0; }
+
+  .detail-select {
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 11px;
+    border-radius: 7px;
+    color: #dce4f0;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .detail-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding: 8px 0 4px;
+  }
+  .detail-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+  }
+  .steam-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: #b7c2d4;
+    cursor: pointer;
+    user-select: none;
+  }
+  .steam-switch {
+    position: relative;
+    width: 34px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .steam-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #eef3fb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: transform 0.2s cubic-bezier(0.25, 0.9, 0.3, 1);
+  }
+  .steam-toggle.is-on .steam-switch::after {
+    transform: translateX(16px);
+  }
+
+  .detail-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .set-tabs {
+    display: inline-flex;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .set-tab {
+    border: 0;
+    background: transparent;
+    color: #9ba7bc;
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+  }
+  .set-tab:hover { color: #fff; }
+  .set-tab.is-active {
+    background: rgba(88, 146, 255, 0.24);
+    color: #fff;
+  }
+  .set-tab.is-dlc.is-active {
+    background: rgba(182, 88, 196, 0.28);
+    color: #f7e4ff;
+  }
+
+  .detail-search {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .detail-search input {
+    width: 190px;
+    height: 30px;
+    padding: 0 28px 0 11px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.26);
+    color: #eef2fa;
+    font: inherit;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .detail-search input::placeholder { color: #6f7c91; }
+  .detail-search svg {
+    position: absolute;
+    right: 9px;
+    width: 13px;
+    height: 13px;
+    color: #7c889c;
+    pointer-events: none;
+  }
+
+  .ach-group-heading {
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a0b5;
+    letter-spacing: 0.03em;
+    margin: 6px 0 6px 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ach-group-heading::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .ach-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ach-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.2s ease;
+  }
+  .ach-row .ach-ico {
+    width: 56px;
+    height: 56px;
+  }
+  .ach-row-mid {
+    min-width: 0;
+  }
+  .ach-row-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #f0f4fb;
+  }
+  .ach-row.is-locked .ach-row-title { color: #9ea8b8; }
+  .ach-row-desc {
+    font-size: 12.5px;
+    color: #95a0b2;
+    margin-top: 2px;
+  }
+  .ach-set-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+  }
+  .ach-set-badge.is-dlc {
+    color: #e5b8f5;
+    background: rgba(182, 88, 196, 0.2);
+    border: 1px solid rgba(198, 118, 214, 0.34);
+  }
+  .ach-rare-chip {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  .ach-row-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    white-space: nowrap;
+  }
+  .ach-unlock-time {
+    font-size: 11.5px;
+    color: #7c879b;
+    font-variant-numeric: tabular-nums;
+  }
+  .ach-global-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 78px;
+  }
+  .ach-global {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #c2ccdc;
+  }
+  .ach-global svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.78;
+  }
+  .ach-rarity-meter {
+    width: 68px;
+    height: 3px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  .ach-rarity-meter i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: rgba(164, 184, 214, 0.55);
+  }
+  .ach-row.is-rare .ach-rarity-meter i {
+    background: linear-gradient(90deg, #f0b443, #ffe494);
+  }
+  .ach-hidden-btn {
+    margin-left: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #b4c0d4;
+    font: inherit;
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .ach-hidden-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.11); }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SECTION 3: Steam Profile Recent Activity (个人资料 · 最近游玩)
+     ════════════════════════════════════════════════════════════════════════ */
+  .profile-col {
+    max-width: 680px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .profile-block-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 2px 4px;
+    font-size: 13px;
+    color: #cfd8e8;
+  }
+  .profile-block-head span {
+    font-size: 12px;
+    color: #7e8a9f;
+  }
+  .recent-game-card {
+    position: relative;
+    border-radius: 10px;
+    padding: 13px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    overflow: hidden;
+    transition: border-color 0.24s ease, box-shadow 0.24s ease, transform 0.24s ease;
+  }
+  .recent-game-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .recent-cap {
+    width: 148px;
+    aspect-ratio: 460 / 215;
+    border-radius: 5px;
+    overflow: hidden;
+    flex: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.48);
+  }
+  .recent-cap img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .recent-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .recent-name {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #f0f4fc;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .recent-sub {
+    font-size: 11.5px;
+    color: #8b96aa;
+  }
+  .recent-ach-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    flex-wrap: wrap;
+  }
+  .recent-ach-left {
+    flex: 1;
+    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .recent-ach-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: #b7c2d6;
+  }
+  .recent-ach-label strong {
+    color: #eef3fb;
+    font-variant-numeric: tabular-nums;
+  }
+  .recent-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .recent-icons {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .recent-icons .ach-ico {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+  }
+  .recent-icons .gp-more-tile {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+    border-radius: 4px;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SECTION 4: Progress Bar & Badge Spec Lab
+     ════════════════════════════════════════════════════════════════════════ */
+  .lab-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 18px;
+  }
+  @media (max-width: 980px) {
+    .lab-grid { grid-template-columns: 1fr; }
+  }
+  .lab-box {
+    padding: 16px 18px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+  }
+  .lab-box h4 {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #dce4f4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .lab-box h4 small {
+    font-weight: 400;
+    font-size: 11px;
+    color: #7c879c;
+  }
+  .lab-bar-item {
+    display: grid;
+    grid-template-columns: 148px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    transition: background 0.18s ease;
+  }
+  .lab-bar-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .lab-bar-name {
+    font-size: 12px;
+    color: #bcc6d8;
+    display: flex;
+    flex-direction: column;
+  }
+  .lab-bar-name small {
+    font-size: 10.5px;
+    color: #758096;
+  }
+  .lab-bar-val {
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #d6e0f0;
+  }
+  .badge-showcase-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .minibar-preview-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, rgba(44, 35, 45, 0.72), rgba(26, 31, 42, 0.85));
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .minibar-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: 7px;
+    background: rgba(12, 16, 24, 0.36);
+  }
+  .minibar-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .minibar-lbl {
+    font-size: 10.5px;
+    color: #93a0b5;
+    line-height: 1.1;
+  }
+  .minibar-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: #cfd8e8;
+  }
+  .minibar-row .ach-bar {
+    width: 72px;
+    flex: none;
+  }
+  .badge-specimen {
+    padding: 14px 10px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.024);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .badge-sizes {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 15px;
+    min-height: 58px;
+    padding-top: 4px;
+  }
+  .badge-specimen-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #e2e8f5;
+  }
+  .badge-specimen-sub {
+    font-size: 10.5px;
+    color: #7c879c;
+    margin-top: -6px;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SECTION 5: 3-Up Side-by-Side Comparison Matrix
+     ════════════════════════════════════════════════════════════════════════ */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 1140px) {
+    .compare-grid { grid-template-columns: 1fr; }
+  }
+  .compare-col {
+    background: var(--canvas-bg);
+    border: 1px solid var(--canvas-card-border);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+  }
+  .compare-col-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .compare-col-head h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #f3f6fc;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .compare-pick-btn {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: #d6e0f2;
+    font: inherit;
+    font-size: 11.5px;
+    padding: 4px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+  }
+  .compare-pick-btn:hover {
+    color: #fff;
+    background: rgba(92, 148, 255, 0.25);
+    border-color: rgba(124, 174, 255, 0.52);
+  }
+  .compare-mini-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #7c879d;
+    margin-bottom: 7px;
+    text-transform: uppercase;
+  }
+  /* Compact achievement rows inside narrow 3-Up Compare columns */
+  .compare-col .ach-row {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 9px 11px;
+  }
+  .compare-col .ach-row .ach-ico {
+    width: 42px;
+    height: 42px;
+  }
+  .compare-col .ach-row-title {
+    font-size: 13px;
+  }
+  .compare-col .ach-row-desc {
+    font-size: 11.5px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .compare-col .ach-unlock-time {
+    display: none;
+  }
+  .compare-col .ach-global-wrap {
+    min-width: 56px;
+  }
+  .compare-col .ach-global {
+    font-size: 12.5px;
+  }
+  .compare-col .ach-rarity-meter {
+    width: 52px;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SCHEME 0: STEAM NATIVE BASELINE (原版基准)
+     ════════════════════════════════════════════════════════════════════════ */
+  .theme-baseline .ac-badge-wrap .ac-badge-svg,
+  .theme-baseline .ac-badge-wrap .ac-badge-mount,
+  .theme-baseline .ac-badge-wrap .ac-badge-shine { display: none; }
+  .theme-baseline .ac-badge-wrap .ac-native-ribbon { display: block; }
+  .theme-baseline .gp-ach-tier-tag,
+  .theme-baseline .ach-bar-stars,
+  .theme-baseline .ach-bar-sweep,
+  .theme-baseline .ach-bar-tip,
+  .theme-baseline .ach-rarity-meter,
+  .theme-baseline .ach-rare-chip { display: none !important; }
+
+  .theme-baseline .gp-ach-card {
+    background: #232730;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 4px;
+  }
+  .theme-baseline .gp-ach-head {
+    background: #2a2f3a;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .theme-baseline .gp-ach-body { background: #22262f; }
+  .theme-baseline .gp-featured { padding: 0; background: transparent; }
+  .theme-baseline .ach-bar {
+    --bar-h: 10px;
+    --bar-r: 999px;
+    background: #101318;
+    box-shadow: none;
+  }
+  .theme-baseline .ach-bar-fill { background: #4ea5f5; }
+  .theme-baseline .ach-bar-seg.is-base { background: #4ea5f5; }
+  .theme-baseline .ach-bar-seg.is-dlc  { background: #b658c4; border-left-color: #101318; }
+  .theme-baseline .gp-more-tile {
+    background: #303642;
+    border-radius: 3px;
+  }
+  .theme-baseline .ach-ico { border-radius: 2px; }
+  .theme-baseline .ach-ico.is-rare::before {
+    inset: -3px;
+    border-radius: 3px;
+    box-shadow: 0 0 11px 2px rgba(247, 198, 72, 0.85);
+    border: 1px solid #f7d06b;
+  }
+  .theme-baseline .set-pill {
+    background: rgba(255, 255, 255, 0.06);
+    color: #9ea9bb;
+  }
+
+  .theme-baseline .detail-shell { background: #1d2129; border-radius: 6px; }
+  .theme-baseline .detail-hero-scrim {
+    background: linear-gradient(180deg, rgba(24, 28, 36, 0.55) 0%, rgba(24, 28, 36, 0.96) 100%);
+  }
+  .theme-baseline .detail-stats-box {
+    background: rgba(26, 30, 38, 0.78);
+    border-radius: 4px;
+  }
+  .theme-baseline .detail-rare-pill { color: #f6c94d; background: transparent; padding: 0; }
+  .theme-baseline .detail-friends-bar { background: #262b35; border-radius: 4px; }
+  .theme-baseline .steam-toggle.is-on .steam-switch { background: #4ea5f5; }
+  .theme-baseline .ach-row {
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0;
+  }
+  .theme-baseline .ach-row:hover { background: rgba(255, 255, 255, 0.03); }
+  .theme-baseline .ach-row.is-rare .ach-global { color: #f7c948; }
+  .theme-baseline .recent-game-card { background: #1f242d; border-radius: 4px; }
+  .theme-baseline .recent-ach-strip { background: #171a21; border-radius: 3px; }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SCHEME 1: 穹光地平线 · 星仪延伸 (Horizon Astrolabe)
+     与库内「穹光地平线」一脉相承：透亮冷蓝/晨金/极光光学色阶、顶边渐隐光丝、
+     克制星仪细环承托 badge.svg、精密纤细光锋收尾、稀有成就光学刻度与暖金氛围
+     ════════════════════════════════════════════════════════════════════════ */
+  .theme-horizon .gp-ach-card {
+    background: linear-gradient(180deg, rgba(22, 29, 43, 0.88) 0%, rgba(16, 21, 32, 0.94) 100%);
+    border: 1px solid rgba(138, 184, 255, 0.13);
+    box-shadow:
+      inset 0 1px 0 rgba(162, 206, 255, 0.14),
+      0 10px 26px rgba(0, 0, 0, 0.36);
+  }
+  .theme-horizon .gp-ach-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(110, 180, 255, 0.55), transparent);
+    pointer-events: none;
+    z-index: 3;
+  }
+  .theme-horizon .gp-ach-card[data-tier="near"]::before {
+    background: linear-gradient(90deg, transparent, rgba(250, 198, 92, 0.65), transparent);
+  }
+  .theme-horizon .gp-ach-card[data-tier="base100"] {
+    border-color: rgba(246, 202, 102, 0.24);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 224, 140, 0.22),
+      0 12px 30px -8px rgba(246, 198, 86, 0.22),
+      0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+  .theme-horizon .gp-ach-card[data-tier="base100"]::before {
+    background: linear-gradient(90deg, transparent, rgba(114, 178, 255, 0.55) 28%, rgba(255, 218, 122, 0.85) 68%, transparent);
+  }
+  .theme-horizon .gp-ach-card[data-tier="all100"] {
+    border-color: rgba(176, 134, 255, 0.3);
+    box-shadow:
+      inset 0 1px 0 rgba(196, 232, 255, 0.24),
+      0 12px 32px -8px rgba(168, 114, 255, 0.28),
+      0 8px 24px rgba(0, 0, 0, 0.42);
+  }
+  .theme-horizon .gp-ach-card[data-tier="all100"]::before {
+    background: linear-gradient(90deg, transparent, #6ee7f5 25%, #6da6ff 55%, #d384ff 82%, transparent);
+  }
+
+  .theme-horizon .gp-ach-head {
+    background: radial-gradient(120% 130% at 12% 0%, rgba(77, 155, 255, 0.14), transparent 64%),
+                rgba(14, 19, 29, 0.52);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .theme-horizon .gp-ach-card[data-tier="near"] .gp-ach-head {
+    background: radial-gradient(120% 130% at 12% 0%, rgba(246, 196, 83, 0.15), transparent 64%),
+                rgba(16, 20, 28, 0.56);
+  }
+  .theme-horizon .gp-ach-card[data-tier="base100"] .gp-ach-head {
+    background:
+      radial-gradient(90% 120% at 8% 0%, rgba(72, 136, 255, 0.18), transparent 60%),
+      radial-gradient(90% 120% at 92% 0%, rgba(246, 198, 86, 0.2), transparent 62%),
+      rgba(15, 20, 30, 0.56);
+  }
+  .theme-horizon .gp-ach-card[data-tier="all100"] .gp-ach-head {
+    background:
+      radial-gradient(90% 130% at 10% 0%, rgba(72, 215, 232, 0.18), transparent 58%),
+      radial-gradient(95% 130% at 90% 0%, rgba(196, 116, 255, 0.24), transparent 62%),
+      rgba(16, 18, 32, 0.58);
+  }
+
+  /* Horizon typography & tier pills */
+  .theme-horizon .gp-ach-tier-tag {
+    color: #8cc2ff;
+    background: rgba(77, 155, 255, 0.14);
+    border: 1px solid rgba(110, 178, 255, 0.28);
+  }
+  .theme-horizon [data-tier="near"] .gp-ach-tier-tag {
+    color: #ffd778;
+    background: rgba(246, 196, 83, 0.14);
+    border-color: rgba(250, 206, 102, 0.34);
+  }
+  .theme-horizon [data-tier="base100"] .gp-ach-tier-tag {
+    color: #ffe399;
+    background: linear-gradient(90deg, rgba(64, 132, 248, 0.22), rgba(245, 202, 100, 0.24));
+    border-color: rgba(248, 210, 118, 0.42);
+  }
+  .theme-horizon [data-tier="base100"] .gp-ach-pct,
+  .theme-horizon [data-tier="base100"] .detail-stats-pct {
+    background: linear-gradient(90deg, #fff5cf 0%, #f5ca64 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 700;
+  }
+  .theme-horizon [data-tier="all100"] .gp-ach-tier-tag {
+    color: #f0dbff;
+    background: linear-gradient(90deg, rgba(72, 215, 232, 0.2), rgba(92, 152, 255, 0.22), rgba(196, 116, 255, 0.26));
+    border-color: rgba(188, 146, 255, 0.46);
+  }
+  .theme-horizon [data-tier="all100"] .gp-ach-pct,
+  .theme-horizon [data-tier="all100"] .detail-stats-pct {
+    background: linear-gradient(90deg, #a6f7ff 0%, #98c5ff 46%, #e1a8ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 700;
+  }
+  .theme-horizon .set-pill {
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #bfd0e8;
+  }
+
+  /* Pure tools/badge.svg without circular dashed or solid ring overlays */
+  .theme-horizon .ac-badge-wrap .ac-badge-mount {
+    display: none;
+  }
+
+  /* Horizon Optical Progress Bar */
+  .theme-horizon .ach-bar {
+    --bar-h: 9px;
+    --bar-r: 999px;
+    background: linear-gradient(180deg, rgba(8, 12, 20, 0.9), rgba(14, 20, 32, 0.85));
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.65),
+      inset 0 0 0 1px rgba(142, 188, 255, 0.16);
+  }
+  .theme-horizon .ach-bar-fill {
+    background: linear-gradient(90deg, #255bc7 0%, #4895ff 64%, #82cbff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  }
+  .theme-horizon .ach-bar[data-tier="near"] .ach-bar-fill {
+    background: linear-gradient(90deg, #3274e6 0%, #5ea4ff 48%, #f3bc4f 86%, #ffe69c 100%);
+  }
+  .theme-horizon .ach-bar[data-tier="base100"] .ach-bar-fill {
+    background: linear-gradient(90deg, #2f6ee0 0%, #60a5ff 36%, #e5b74e 76%, #fff0b3 100%);
+  }
+  .theme-horizon .ach-bar[data-tier="all100"] .ach-bar-fill {
+    background: linear-gradient(90deg, #3fd0e6 0%, #5492ff 46%, #a95ef0 82%, #e0a6ff 100%);
+  }
+  .theme-horizon .ach-bar-seg.is-base {
+    background: linear-gradient(90deg, #2862d1 0%, #4e9aff 68%, #85ccff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  }
+  .theme-horizon .ach-bar-seg.is-dlc {
+    background: linear-gradient(90deg, #8e3fb0 0%, #bc63d6 68%, #e5a3ff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  }
+  /* Crisp 3px optical leading beam (NOT a round knob) */
+  .theme-horizon .ach-bar-tip {
+    width: 3px;
+    background: linear-gradient(180deg, #ffffff 0%, #d8f2ff 100%);
+    box-shadow: 0 0 8px 1px rgba(154, 218, 255, 0.95);
+    border-radius: 999px;
+  }
+  .theme-horizon .ach-bar[data-tier="near"] .ach-bar-tip {
+    background: #fff9df;
+    box-shadow: 0 0 9px 1px rgba(255, 214, 112, 0.95);
+  }
+  .theme-horizon .ach-bar[data-tier="base100"] {
+    --star-color: #fff6d2;
+    --star-glow: rgba(255, 216, 114, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(248, 210, 118, 0.34), 0 0 12px -3px rgba(246, 198, 86, 0.38);
+  }
+  .theme-horizon .ach-bar[data-tier="all100"] {
+    --star-color: #f3ecff;
+    --star-glow: rgba(196, 148, 255, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(188, 144, 255, 0.4), 0 0 14px -3px rgba(170, 112, 255, 0.45);
+  }
+  .theme-horizon .ach-bar:not([data-pct="0"]):hover,
+  .theme-horizon .ach-hover-zone:hover .ach-bar:not([data-pct="0"]),
+  body[data-force-hover="1"] .theme-horizon .ach-bar:not([data-pct="0"]) {
+    box-shadow: inset 0 0 0 1px rgba(154, 206, 255, 0.45), 0 0 14px -3px rgba(92, 168, 255, 0.48);
+  }
+
+  /* Horizon featured item (flush with icon grid below, no outer box) + Prism icon ring */
+  .theme-horizon .gp-featured {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+  .theme-horizon .ach-ico { --ico-r: 6px; border-radius: 6px; }
+  .theme-horizon .ach-ico img {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 3px 8px rgba(0, 0, 0, 0.5);
+  }
+  .theme-horizon .ach-ico.is-rare::before {
+    inset: -2px;
+    border-radius: 8px;
+    background: conic-gradient(from 120deg, #4285f4, #9b72cb, #fbbc04, #fff0b8, #9b72cb, #4285f4);
+    box-shadow: 0 0 11px rgba(192, 132, 252, 0.45);
+  }
+  .theme-horizon .gp-more-tile {
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: #d4d7e6;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  .theme-horizon .gp-more-tile:hover {
+    background: rgba(155, 114, 203, 0.18);
+    border-color: rgba(176, 134, 240, 0.45);
+    color: #fff;
+  }
+  .theme-horizon .gp-view-all:hover {
+    color: #9ac8ff;
+    background: rgba(88, 152, 255, 0.12);
+  }
+
+  /* Horizon Achievement Details Page */
+  .theme-horizon .detail-shell {
+    background: #141924;
+    border-color: rgba(138, 184, 255, 0.16);
+  }
+  .theme-horizon .detail-hero-scrim {
+    background:
+      radial-gradient(60% 100% at 85% 0%, rgba(82, 152, 255, 0.18), transparent 65%),
+      linear-gradient(180deg, rgba(16, 22, 34, 0.45) 0%, rgba(20, 25, 36, 0.96) 100%);
+  }
+  .theme-horizon .detail-shell[data-tier="all100"] .detail-hero-scrim {
+    background:
+      radial-gradient(50% 100% at 20% 0%, rgba(72, 215, 232, 0.2), transparent 60%),
+      radial-gradient(55% 100% at 88% 0%, rgba(188, 114, 255, 0.25), transparent 64%),
+      linear-gradient(180deg, rgba(16, 20, 34, 0.44) 0%, rgba(20, 25, 36, 0.96) 100%);
+  }
+  .theme-horizon .detail-cover {
+    border: 1px solid rgba(176, 214, 255, 0.24);
+  }
+  .theme-horizon .detail-stats-box {
+    background: rgba(15, 21, 33, 0.72);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(142, 190, 255, 0.16);
+    box-shadow: inset 0 1px 0 rgba(174, 214, 255, 0.16);
+  }
+  .theme-horizon .detail-rare-pill {
+    color: #ffe08a;
+    background: rgba(246, 196, 83, 0.13);
+    border: 1px solid rgba(248, 206, 102, 0.32);
+  }
+  .theme-horizon .detail-friends-bar {
+    background: rgba(255, 255, 255, 0.032);
+    border: 1px solid rgba(138, 184, 255, 0.11);
+  }
+  .theme-horizon .steam-toggle.is-on .steam-switch {
+    background: linear-gradient(90deg, #3576e8, #60b4ff);
+    box-shadow: 0 0 10px rgba(84, 162, 255, 0.42);
+  }
+  .theme-horizon .detail-search input:focus {
+    border-color: rgba(102, 174, 255, 0.56);
+    box-shadow: 0 0 0 2px rgba(77, 155, 255, 0.18);
+  }
+  .theme-horizon .ach-row {
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.068);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .theme-horizon .ach-row::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 8px; bottom: 8px;
+    width: 2.5px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #4285f4, #9b72cb);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .theme-horizon .ach-row:hover {
+    background: rgba(255, 255, 255, 0.048);
+    border-color: rgba(155, 114, 203, 0.32);
+  }
+  .theme-horizon .ach-row:hover::before { opacity: 1; }
+  .theme-horizon .ach-row.is-rare {
+    background: linear-gradient(112deg, rgba(155, 114, 203, 0.11) 0%, rgba(22, 26, 38, 0.88) 44%, rgba(251, 188, 4, 0.085) 100%);
+    border-color: rgba(186, 146, 232, 0.28);
+  }
+  .theme-horizon .ach-row.is-rare::before {
+    opacity: 0.9;
+    background: linear-gradient(180deg, #fbbc04, #9b72cb, #4285f4);
+  }
+  .theme-horizon .ach-row.is-rare:hover {
+    border-color: rgba(212, 174, 252, 0.44);
+    box-shadow: 0 6px 20px -10px rgba(155, 114, 203, 0.34);
+  }
+  .theme-horizon .ach-row .ach-global {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  .theme-horizon .ach-row.is-rare .ach-global { color: #f8d478; }
+  .theme-horizon .ach-row.is-rare .ach-rare-chip {
+    color: #ebd6ff;
+    background: linear-gradient(90deg, rgba(155, 114, 203, 0.28), rgba(251, 188, 4, 0.18));
+    border: 1px solid rgba(196, 152, 246, 0.38);
+  }
+  .theme-horizon .ach-row.is-locked {
+    background: rgba(10, 13, 20, 0.56);
+    border-color: rgba(255, 255, 255, 0.045);
+  }
+  .theme-horizon .recent-game-card {
+    background: linear-gradient(180deg, rgba(22, 29, 43, 0.88), rgba(16, 21, 32, 0.94));
+    border: 1px solid rgba(138, 184, 255, 0.13);
+  }
+  .theme-horizon .recent-game-card[data-tier="all100"] {
+    border-color: rgba(178, 136, 255, 0.3);
+    box-shadow: inset 0 1px 0 rgba(196, 232, 255, 0.2), 0 8px 24px -10px rgba(170, 112, 255, 0.32);
+  }
+  .theme-horizon .recent-ach-strip {
+    background: rgba(11, 15, 24, 0.56);
+    border: 1px solid rgba(140, 184, 255, 0.1);
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SCHEME 2: 暗曜星尘棱镜 (Obsidian Prism)
+     深度融合 ~/.gemini/config/plugins/obsidian-prism：
+     冷黑曜石表面 #0B0B0E/#141418、1px 棱镜光谱折光边 (Cobalt→Iris→Coral→Amber)、
+     饱满星云胶囊槽 + 柔白内嵌星核、悬停/100%唤醒黄金分割星尘与斜向流光
+     ════════════════════════════════════════════════════════════════════════ */
+  .theme-prism .gp-ach-card {
+    background: linear-gradient(172deg, #16171f 0%, #101117 100%);
+    border: 1px solid rgba(255, 255, 255, 0.088);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.095),
+      0 14px 32px -10px rgba(0, 0, 0, 0.62);
+  }
+  .theme-prism .gp-ach-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    z-index: 4;
+    background: linear-gradient(125deg, rgba(66, 133, 244, 0.32), rgba(155, 114, 203, 0.32) 48%, rgba(234, 67, 53, 0.18) 78%, rgba(251, 188, 4, 0.24));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.38;
+    transition: opacity 0.25s ease;
+  }
+  .theme-prism .gp-ach-card:hover::after,
+  .theme-prism .gp-ach-card[data-tier="all100"]::after,
+  body[data-force-hover="1"] .theme-prism .gp-ach-card::after {
+    opacity: 0.85;
+  }
+  .theme-prism .gp-ach-card[data-tier="base100"]::after {
+    background: linear-gradient(125deg, rgba(66, 133, 244, 0.45), rgba(155, 114, 203, 0.42) 55%, rgba(251, 188, 4, 0.55));
+    opacity: 0.72;
+  }
+
+  /* Energy dock header inspired by orchestrator-effort-bar */
+  .theme-prism .gp-ach-head {
+    margin: 10px 10px 0;
+    padding: 12px 13px 13px;
+    border-radius: 8px;
+    background: linear-gradient(112deg, rgba(255, 255, 255, 0.04) 0%, rgba(196, 208, 240, 0.022) 55%, rgba(255, 255, 255, 0.015) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      inset 0 0 0 1px rgba(176, 192, 228, 0.18);
+  }
+  .theme-prism .gp-ach-card[data-tier="all100"] .gp-ach-head {
+    box-shadow:
+      inset 0 1px 0 rgba(216, 196, 255, 0.18),
+      inset 0 0 0 1px rgba(155, 114, 203, 0.38),
+      0 0 22px -10px rgba(155, 114, 203, 0.42);
+  }
+
+  .theme-prism .gp-ach-pct,
+  .theme-prism .detail-stats-pct {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    background: linear-gradient(90deg, #e7edf8 0%, #c6d4f2 52%, #b59ee6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .theme-prism .gp-ach-tier-tag {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    color: #b7ccfa;
+    background: rgba(66, 133, 244, 0.14);
+    border: 1px solid rgba(102, 157, 246, 0.3);
+  }
+  .theme-prism [data-tier="near"] .gp-ach-tier-tag {
+    color: #f8d482;
+    background: rgba(251, 188, 4, 0.12);
+    border-color: rgba(251, 188, 4, 0.34);
+  }
+  .theme-prism [data-tier="base100"] .gp-ach-tier-tag {
+    color: #d6c5ff;
+    background: rgba(124, 92, 232, 0.18);
+    border-color: rgba(155, 114, 203, 0.42);
+  }
+  .theme-prism [data-tier="all100"] .gp-ach-tier-tag {
+    color: #efe2ff;
+    background: linear-gradient(90deg, rgba(66, 133, 244, 0.22), rgba(155, 114, 203, 0.32));
+    border-color: rgba(192, 132, 252, 0.56);
+  }
+  .theme-prism .set-pill {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.085);
+    color: #c4c8d8;
+  }
+
+  /* Obsidian Prism Badge Pedestal (subtle spectral ring) */
+  .theme-prism .ac-badge-wrap .ac-badge-mount {
+    background: radial-gradient(circle, rgba(20, 22, 32, 0.9) 55%, rgba(66, 133, 244, 0.14) 100%);
+    padding: 1.5px;
+    box-shadow: 0 0 14px rgba(124, 92, 232, 0.25), inset 0 0 0 1px rgba(155, 114, 203, 0.45);
+  }
+  .theme-prism .ac-badge-wrap[data-badge="all"] .ac-badge-mount {
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.42), inset 0 0 0 1.5px rgba(192, 132, 252, 0.65);
+  }
+
+  /* Obsidian Prism Progress Bar (plump obsidian capsule + prism rim + cosmic nebula gradient + soft inner light core) */
+  .theme-prism .ach-bar {
+    --bar-h: 13px;
+    --bar-r: 999px;
+    background: radial-gradient(120% 140% at 50% 0%, rgba(28, 33, 46, 0.95) 0%, rgba(11, 13, 20, 0.98) 100%);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.72),
+      inset 0 0 0 1px rgba(212, 224, 248, 0.16),
+      0 2px 8px rgba(0, 0, 0, 0.36);
+  }
+  /* 1px Prism Rim (follows pointer via --px/--py, gently luminous at rest) */
+  .theme-prism .ach-bar::after {
+    padding: 1px;
+    opacity: 0.48;
+    background:
+      radial-gradient(110px circle at var(--px, 82%) var(--py, 50%),
+        rgba(255, 255, 255, 0.92) 0%,
+        #4285f4 24%,
+        #9b72cb 50%,
+        #ea4335 74%,
+        #fbbc04 92%,
+        transparent 100%),
+      linear-gradient(90deg, rgba(66, 133, 244, 0.28), rgba(155, 114, 203, 0.34), rgba(251, 188, 4, 0.2));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  .theme-prism .ach-bar:hover::after,
+  .theme-prism .ach-hover-zone:hover .ach-bar::after,
+  .theme-prism .ach-bar[data-tier="all100"]::after,
+  body[data-force-hover="1"] .theme-prism .ach-bar::after {
+    opacity: 0.95;
+  }
+  .theme-prism .ach-bar-fill {
+    background: linear-gradient(90deg, #1d3a8a 0%, #3b74f2 46%, #7d5cf2 86%, #b594ff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+  .theme-prism .ach-bar[data-tier="near"] .ach-bar-fill {
+    background: linear-gradient(90deg, #2b4db8 0%, #6d48e5 44%, #c668d4 76%, #f8c660 100%);
+  }
+  .theme-prism .ach-bar[data-tier="base100"] .ach-bar-fill {
+    background: linear-gradient(90deg, #273e9e 0%, #4e7cf5 35%, #8f56e8 72%, #d4a6ff 100%);
+  }
+  .theme-prism .ach-bar[data-tier="all100"] .ach-bar-fill {
+    background: linear-gradient(90deg, #3b1178 0%, #6d28d9 30%, #9333ea 64%, #c084fc 100%);
+  }
+  .theme-prism .ach-bar-seg.is-base {
+    background: linear-gradient(90deg, #1d3c94 0%, #4285f4 64%, #7bb2ff 100%);
+  }
+  .theme-prism .ach-bar-seg.is-dlc {
+    background: linear-gradient(90deg, #561f9e 0%, #9333ea 64%, #c78aff 100%);
+    border-left-color: rgba(255, 255, 255, 0.28);
+  }
+  /* Subtle recessed stardust light-core at leading edge (sleek, NOT a bulky slider knob!) */
+  .theme-prism .ach-bar-tip {
+    top: 2px;
+    bottom: 2px;
+    width: 9px;
+    margin-left: -2px;
+    border-radius: 999px;
+    background: radial-gradient(circle, #ffffff 15%, rgba(224, 206, 255, 0.92) 60%, rgba(168, 85, 247, 0) 100%);
+    box-shadow: 0 0 10px 2px rgba(196, 152, 255, 0.85);
+  }
+  .theme-prism .ach-bar[data-tier="base100"] {
+    --star-color: #eef4ff;
+    --star-glow: rgba(152, 188, 255, 0.95);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.65), 0 0 14px -3px rgba(114, 134, 248, 0.48);
+  }
+  .theme-prism .ach-bar[data-tier="all100"] {
+    --star-color: #f5f3ff;
+    --star-glow: rgba(216, 180, 254, 0.98);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.65), 0 0 18px -2px rgba(168, 85, 247, 0.56);
+  }
+  .theme-prism .ach-bar:not([data-pct="0"]):hover,
+  .theme-prism .ach-hover-zone:hover .ach-bar:not([data-pct="0"]),
+  body[data-force-hover="1"] .theme-prism .ach-bar:not([data-pct="0"]) {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.65), 0 0 16px -3px rgba(155, 114, 203, 0.55);
+  }
+
+  .theme-prism .gp-featured {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .theme-prism .ach-ico { --ico-r: 6px; border-radius: 6px; }
+  .theme-prism .ach-ico img {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 3px 8px rgba(0, 0, 0, 0.5);
+  }
+  .theme-prism .ach-ico.is-rare::before {
+    inset: -2px;
+    border-radius: 8px;
+    background: conic-gradient(from 120deg, #4285f4, #9b72cb, #fbbc04, #fff0b8, #9b72cb, #4285f4);
+    box-shadow: 0 0 11px rgba(192, 132, 252, 0.45);
+  }
+  .theme-prism .gp-more-tile {
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: #d4d7e6;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  .theme-prism .gp-more-tile:hover {
+    background: rgba(155, 114, 203, 0.18);
+    border-color: rgba(176, 134, 240, 0.45);
+    color: #fff;
+  }
+  .theme-prism .gp-view-all:hover {
+    color: #d4bcff;
+    background: rgba(155, 114, 203, 0.14);
+  }
+
+  /* Obsidian Prism Achievement Details Page */
+  .theme-prism .detail-shell {
+    background: #0d0e13;
+    border-color: rgba(255, 255, 255, 0.095);
+  }
+  .theme-prism .detail-hero-scrim {
+    background:
+      radial-gradient(55% 95% at 88% 0%, rgba(155, 114, 203, 0.2), transparent 62%),
+      radial-gradient(50% 90% at 12% 0%, rgba(66, 133, 244, 0.14), transparent 60%),
+      linear-gradient(180deg, rgba(11, 11, 14, 0.52) 0%, rgba(13, 14, 19, 0.98) 100%);
+  }
+  .theme-prism .detail-cover {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
+  }
+  .theme-prism .detail-stats-box {
+    background: linear-gradient(118deg, rgba(22, 23, 30, 0.88), rgba(14, 15, 20, 0.92));
+    border: 1px solid rgba(176, 192, 228, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.095);
+  }
+  .theme-prism .detail-rare-pill {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    color: #f6d57a;
+    background: rgba(251, 188, 4, 0.1);
+    border: 1px solid rgba(251, 188, 4, 0.28);
+  }
+  .theme-prism .detail-friends-bar {
+    background: #14151c;
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .theme-prism .steam-toggle.is-on .steam-switch {
+    background: linear-gradient(90deg, #4285f4, #9b72cb);
+    box-shadow: 0 0 10px rgba(155, 114, 203, 0.45);
+  }
+  .theme-prism .set-tab.is-active {
+    background: linear-gradient(90deg, rgba(66, 133, 244, 0.28), rgba(155, 114, 203, 0.3));
+    color: #fff;
+  }
+  .theme-prism .detail-search input {
+    background: #14151c;
+    border-color: rgba(255, 255, 255, 0.09);
+  }
+  .theme-prism .detail-search input:focus {
+    border-color: rgba(155, 114, 203, 0.65);
+    box-shadow: 0 0 0 2px rgba(155, 114, 203, 0.22);
+  }
+  .theme-prism .ach-row {
+    background: #14151b;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  }
+  .theme-prism .ach-row::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 8px; bottom: 8px;
+    width: 2.5px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #4285f4, #9b72cb);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .theme-prism .ach-row:hover {
+    background: #191b23;
+    border-color: rgba(155, 114, 203, 0.32);
+  }
+  .theme-prism .ach-row:hover::before { opacity: 1; }
+  .theme-prism .ach-row.is-rare {
+    background: linear-gradient(112deg, rgba(155, 114, 203, 0.11) 0%, #15161d 44%, rgba(251, 188, 4, 0.09) 100%);
+    border-color: rgba(186, 146, 232, 0.26);
+  }
+  .theme-prism .ach-row.is-rare::before {
+    opacity: 0.9;
+    background: linear-gradient(180deg, #fbbc04, #9b72cb, #4285f4);
+  }
+  .theme-prism .ach-row.is-rare .ach-global {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    color: #f8d478;
+  }
+  .theme-prism .ach-row .ach-global {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  .theme-prism .ach-row.is-rare .ach-rare-chip {
+    color: #ebd6ff;
+    background: linear-gradient(90deg, rgba(155, 114, 203, 0.28), rgba(251, 188, 4, 0.18));
+    border: 1px solid rgba(196, 152, 246, 0.38);
+  }
+  .theme-prism .ach-row.is-locked {
+    background: #101116;
+    border-color: rgba(255, 255, 255, 0.045);
+  }
+  .theme-prism .recent-game-card {
+    background: linear-gradient(172deg, #16171f 0%, #101117 100%);
+    border: 1px solid rgba(255, 255, 255, 0.088);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .theme-prism .recent-game-card[data-tier="all100"] {
+    border-color: rgba(168, 120, 240, 0.42);
+    box-shadow: inset 0 1px 0 rgba(216, 196, 255, 0.14), 0 10px 26px -10px rgba(155, 114, 203, 0.36);
+  }
+  .theme-prism .recent-ach-strip {
+    background: rgba(9, 10, 14, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SCHEME 3: 典藏黑曜鎏金 (Museum Gilt / Collector's Vault)
+     博物馆实体展柜与收藏画册气质：暖调炭黑绒面、香槟鎏金 Hairline 细框、
+     精密微圆角镶金进度槽、天鹅绒托底徽章、典藏珍品稀有成就框
+     ════════════════════════════════════════════════════════════════════════ */
+  .theme-gilt .gp-ach-card {
+    background: linear-gradient(180deg, #1b1916 0%, #141210 100%);
+    border: 1px solid rgba(216, 182, 112, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 232, 182, 0.1),
+      0 12px 28px rgba(0, 0, 0, 0.46);
+  }
+  .theme-gilt .gp-ach-card[data-tier="base100"],
+  .theme-gilt .gp-ach-card[data-tier="all100"] {
+    border-color: rgba(232, 196, 118, 0.38);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 236, 186, 0.2),
+      0 14px 32px -10px rgba(212, 168, 76, 0.26),
+      0 8px 22px rgba(0, 0, 0, 0.48);
+  }
+  .theme-gilt .gp-ach-head {
+    background:
+      radial-gradient(110% 130% at 50% 0%, rgba(216, 178, 98, 0.09), transparent 68%),
+      linear-gradient(180deg, rgba(30, 27, 22, 0.85), rgba(20, 18, 15, 0.9));
+    border-bottom: 1px solid rgba(216, 182, 112, 0.16);
+  }
+  .theme-gilt .gp-ach-card[data-tier="all100"] .gp-ach-head {
+    background:
+      radial-gradient(85% 130% at 18% 0%, rgba(82, 134, 224, 0.14), transparent 62%),
+      radial-gradient(85% 130% at 86% 0%, rgba(182, 102, 212, 0.18), transparent 62%),
+      radial-gradient(100% 100% at 50% 0%, rgba(232, 194, 114, 0.1), transparent 72%),
+      linear-gradient(180deg, rgba(30, 26, 26, 0.9), rgba(20, 18, 17, 0.94));
+  }
+
+  .theme-gilt .gp-ach-sec-title { color: #bda982; }
+  .theme-gilt .gp-ach-label-row { color: #f3ece0; }
+  .theme-gilt .gp-ach-pct,
+  .theme-gilt .detail-stats-pct {
+    color: #d6bc87;
+    font-weight: 600;
+  }
+  .theme-gilt .gp-ach-tier-tag {
+    color: #e4c98e;
+    background: rgba(212, 175, 100, 0.11);
+    border: 1px solid rgba(220, 184, 112, 0.28);
+    border-radius: 4px;
+  }
+  .theme-gilt [data-tier="base100"] .gp-ach-tier-tag {
+    color: #fff0c2;
+    background: linear-gradient(180deg, rgba(226, 186, 100, 0.26), rgba(164, 124, 48, 0.16));
+    border-color: rgba(240, 206, 132, 0.48);
+  }
+  .theme-gilt [data-tier="all100"] .gp-ach-tier-tag {
+    color: #f6e6ff;
+    background: linear-gradient(90deg, rgba(72, 126, 220, 0.24), rgba(168, 92, 202, 0.28));
+    border-color: rgba(232, 196, 120, 0.5);
+  }
+  .theme-gilt .set-pill {
+    background: rgba(216, 182, 112, 0.06);
+    border: 1px solid rgba(216, 182, 112, 0.18);
+    border-radius: 4px;
+    color: #d7cab2;
+  }
+
+  /* Museum Velvet Medallion Mount for badge.svg (true circle centered behind 8-pointed star) */
+  .theme-gilt .ac-badge-wrap .ac-badge-mount {
+    width: calc(var(--b-size, 36px) * 1.12);
+    height: calc(var(--b-size, 36px) * 1.12);
+    background: radial-gradient(circle, #241e16 42%, #12100d 100%);
+    border: 1px solid rgba(226, 190, 116, 0.48);
+    box-shadow:
+      inset 0 0 0 2px rgba(18, 16, 13, 0.9),
+      inset 0 0 0 3px rgba(226, 190, 116, 0.22),
+      0 4px 12px rgba(0, 0, 0, 0.55);
+  }
+  .theme-gilt .ac-badge-wrap[data-badge="all"] .ac-badge-mount {
+    border-color: rgba(242, 208, 134, 0.65);
+    box-shadow:
+      inset 0 0 0 2px rgba(18, 16, 13, 0.9),
+      inset 0 0 0 3px rgba(196, 128, 226, 0.34),
+      0 0 16px rgba(218, 178, 96, 0.28);
+  }
+
+  /* Museum Gilt Precision Channel Bar (crisp 4px architectural radius + gilt hairline bezel + enamel fill) */
+  .theme-gilt .ach-bar {
+    --bar-h: 9px;
+    --bar-r: 4px;
+    background: linear-gradient(180deg, #0d0c0a, #171512);
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.78),
+      inset 0 0 0 1px rgba(222, 186, 114, 0.26);
+  }
+  .theme-gilt .ach-bar-fill {
+    background: linear-gradient(90deg, #1f4896 0%, #3a75d6 66%, #74aef5 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 246, 220, 0.28);
+  }
+  .theme-gilt .ach-bar[data-tier="near"] .ach-bar-fill {
+    background: linear-gradient(90deg, #7f5d22 0%, #c89b44 62%, #f4da93 100%);
+  }
+  .theme-gilt .ach-bar[data-tier="base100"] .ach-bar-fill {
+    background: linear-gradient(90deg, #8e6926 0%, #cfa44f 45%, #f3d78e 82%, #fff5d2 100%);
+  }
+  .theme-gilt .ach-bar[data-tier="all100"] .ach-bar-fill {
+    background: linear-gradient(90deg, #2d62c8 0%, #6658c8 42%, #a64eb8 74%, #e8c474 100%);
+  }
+  .theme-gilt .ach-bar-seg.is-base {
+    background: linear-gradient(90deg, #224d9e 0%, #3e7be0 68%, #77b0f6 100%);
+  }
+  .theme-gilt .ach-bar-seg.is-dlc {
+    background: linear-gradient(90deg, #76348c 0%, #a952bd 68%, #da96eb 100%);
+    border-left-color: rgba(245, 222, 162, 0.55);
+  }
+  /* Fine champagne gilt needle tip */
+  .theme-gilt .ach-bar-tip {
+    width: 3px;
+    background: linear-gradient(180deg, #fff9e5, #ecc56d);
+    box-shadow: 0 0 8px rgba(242, 206, 124, 0.9);
+  }
+  .theme-gilt .ach-bar[data-tier="base100"] {
+    --star-color: #fff6dc;
+    --star-glow: rgba(242, 204, 114, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(242, 208, 134, 0.5), 0 0 14px -4px rgba(226, 184, 92, 0.44);
+  }
+  .theme-gilt .ach-bar[data-tier="all100"] {
+    --star-color: #fff5e8;
+    --star-glow: rgba(232, 192, 255, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(238, 204, 132, 0.5), 0 0 14px -4px rgba(188, 118, 224, 0.44);
+  }
+  .theme-gilt .ach-bar:not([data-pct="0"]):hover,
+  .theme-gilt .ach-hover-zone:hover .ach-bar:not([data-pct="0"]),
+  body[data-force-hover="1"] .theme-gilt .ach-bar:not([data-pct="0"]) {
+    box-shadow: inset 0 0 0 1px rgba(240, 206, 130, 0.56), 0 0 14px -4px rgba(226, 186, 98, 0.42);
+  }
+
+  .theme-gilt .gp-featured {
+    background: rgba(216, 182, 112, 0.045);
+    border: 1px solid rgba(216, 182, 112, 0.17);
+    border-radius: 6px;
+  }
+  .theme-gilt .ach-ico { --ico-r: 4px; border-radius: 4px; }
+  .theme-gilt .ach-ico img {
+    box-shadow: 0 0 0 1px rgba(216, 182, 112, 0.14), 0 3px 8px rgba(0, 0, 0, 0.52);
+  }
+  .theme-gilt .ach-ico.is-rare::before {
+    inset: -2px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #fff5cf 0%, #dab056 48%, #8c6320 100%);
+    box-shadow: 0 0 12px rgba(226, 184, 92, 0.45);
+  }
+  .theme-gilt .gp-more-tile {
+    border-radius: 4px;
+    background: rgba(216, 182, 112, 0.07);
+    border: 1px solid rgba(216, 182, 112, 0.22);
+    color: #e4cd98;
+  }
+  .theme-gilt .gp-more-tile:hover {
+    background: rgba(216, 182, 112, 0.16);
+    border-color: rgba(238, 204, 130, 0.46);
+    color: #fff6dc;
+  }
+  .theme-gilt .gp-locked-wrap { border-top-color: rgba(216, 182, 112, 0.12); }
+  .theme-gilt .gp-view-all { color: #cbb68a; }
+  .theme-gilt .gp-view-all:hover {
+    color: #fff0c4;
+    background: rgba(216, 182, 112, 0.12);
+  }
+
+  /* Museum Gilt Achievement Details Page */
+  .theme-gilt .detail-shell {
+    background: #131210;
+    border-color: rgba(216, 182, 112, 0.24);
+  }
+  .theme-gilt .detail-hero-scrim {
+    background:
+      radial-gradient(60% 100% at 85% 0%, rgba(218, 178, 96, 0.15), transparent 65%),
+      linear-gradient(180deg, rgba(19, 17, 14, 0.5) 0%, rgba(19, 18, 16, 0.98) 100%);
+  }
+  .theme-gilt .detail-cover {
+    border-radius: 4px;
+    border: 1px solid rgba(232, 196, 122, 0.34);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.68);
+  }
+  .theme-gilt .detail-stats-box {
+    background: linear-gradient(180deg, rgba(28, 25, 21, 0.86), rgba(18, 16, 14, 0.92));
+    border: 1px solid rgba(222, 186, 114, 0.22);
+    border-radius: 7px;
+    box-shadow: inset 0 1px 0 rgba(255, 236, 186, 0.12);
+  }
+  .theme-gilt .detail-rare-pill {
+    color: #f6dc99;
+    background: rgba(216, 178, 96, 0.14);
+    border: 1px solid rgba(232, 196, 118, 0.36);
+    border-radius: 4px;
+  }
+  .theme-gilt .detail-friends-bar {
+    background: #1a1815;
+    border: 1px solid rgba(216, 182, 112, 0.14);
+    border-radius: 6px;
+  }
+  .theme-gilt .steam-toggle.is-on .steam-switch {
+    background: linear-gradient(90deg, #b88c3a, #e2be6e);
+    box-shadow: 0 0 10px rgba(218, 180, 96, 0.38);
+  }
+  .theme-gilt .set-tabs {
+    background: rgba(14, 12, 10, 0.72);
+    border-color: rgba(216, 182, 112, 0.16);
+  }
+  .theme-gilt .set-tab.is-active {
+    background: linear-gradient(180deg, rgba(224, 184, 100, 0.28), rgba(162, 124, 48, 0.18));
+    color: #fff2cc;
+  }
+  .theme-gilt .set-tab.is-dlc.is-active {
+    background: rgba(176, 94, 206, 0.28);
+    color: #f8e8ff;
+  }
+  .theme-gilt .detail-search input {
+    background: #1a1815;
+    border-color: rgba(216, 182, 112, 0.18);
+    border-radius: 5px;
+  }
+  .theme-gilt .detail-search input:focus {
+    border-color: rgba(236, 200, 124, 0.56);
+    box-shadow: 0 0 0 2px rgba(216, 180, 96, 0.18);
+  }
+  .theme-gilt .ach-group-heading { color: #c9b58d; }
+  .theme-gilt .ach-group-heading::after { background: rgba(216, 182, 112, 0.14); }
+  .theme-gilt .ach-row {
+    background: #191714;
+    border: 1px solid rgba(216, 182, 112, 0.1);
+    border-radius: 6px;
+  }
+  .theme-gilt .ach-row:hover {
+    background: #201d19;
+    border-color: rgba(226, 190, 116, 0.28);
+  }
+  .theme-gilt .ach-row.is-rare {
+    background: linear-gradient(90deg, rgba(216, 178, 96, 0.1) 0%, #1c1914 42%, rgba(216, 178, 96, 0.08) 100%);
+    border-color: rgba(232, 196, 118, 0.34);
+    box-shadow: inset 3px 0 0 #e2bc6b;
+  }
+  .theme-gilt .ach-row.is-rare .ach-global { color: #f4d483; }
+  .theme-gilt .ach-row.is-rare .ach-rare-chip {
+    color: #fff0c2;
+    background: rgba(216, 178, 96, 0.18);
+    border: 1px solid rgba(236, 200, 124, 0.4);
+  }
+  .theme-gilt .ach-row.is-locked {
+    background: #141310;
+    border-color: rgba(255, 255, 255, 0.045);
+  }
+  .theme-gilt .recent-game-card {
+    background: linear-gradient(180deg, #1b1916 0%, #141210 100%);
+    border: 1px solid rgba(216, 182, 112, 0.18);
+    border-radius: 7px;
+  }
+  .theme-gilt .recent-game-card[data-tier="all100"] {
+    border-color: rgba(236, 200, 124, 0.42);
+    box-shadow: inset 0 1px 0 rgba(255, 236, 186, 0.16), 0 8px 24px -10px rgba(212, 168, 76, 0.28);
+  }
+  .theme-gilt .recent-ach-strip {
+    background: rgba(12, 11, 9, 0.65);
+    border: 1px solid rgba(216, 182, 112, 0.14);
+    border-radius: 5px;
+  }
+
+  /* Compare-mode layout helpers */
+  #singleView[hidden], #compareView[hidden] { display: none; }
+</style>
+</head>
+<body data-shell="steam">
+
+<header class="topbar">
+  <div class="topbar-row">
+    <div class="brand">
+      <h1>游戏页与成就详情 · 视觉优化预览台</h1>
+      <span>沿用 tools/badge.svg 徽章体系 · 进度条静息克制、悬停/满成就唤醒星尘流光</span>
+    </div>
+    <div class="controls">
+      <div class="seg" id="shellSeg" role="group" aria-label="客户端底色">
+        <button type="button" data-shell="steam" class="is-active">Steam 原生底色</button>
+        <button type="button" data-shell="spacetheme">SpaceTheme 黑底</button>
+      </div>
+      <div class="seg" id="sectionSeg" role="group" aria-label="视图区域">
+        <button type="button" data-sec="all" class="is-active">全部区域</button>
+        <button type="button" data-sec="sidebar">① 右侧卡片</button>
+        <button type="button" data-sec="detail">② 成就详情</button>
+        <button type="button" data-sec="profile">③ 最近游玩</button>
+        <button type="button" data-sec="lab">④ 进度/徽章</button>
+      </div>
+      <button type="button" class="pill-btn" id="hoverSimBtn" title="一键锁定悬停状态，便于观察 0–99% 进度条唤醒星尘与扫光的效果">
+        <span class="pill-dot"></span>模拟悬停唤醒
+      </button>
+    </div>
+  </div>
+  <div class="topbar-row">
+    <div class="tabs" id="schemeTabs" role="tablist">
+      <button type="button" class="tab is-active" data-scheme="horizon">
+        <span class="swatch" style="background:linear-gradient(135deg,#56a4ff,#9b72cb,#f5ca64)"></span>
+        方案一 · 穹光融合版 <small>穹光骨架 + 暗曜成就卡</small>
+      </button>
+      <button type="button" class="tab" data-scheme="prism">
+        <span class="swatch" style="background:linear-gradient(135deg,#4285f4,#9b72cb,#fbbc04)"></span>
+        方案二 · 暗曜棱镜 <small>致敬 obsidian-prism</small>
+      </button>
+      <button type="button" class="tab" data-scheme="gilt">
+        <span class="swatch" style="background:linear-gradient(135deg,#f3d78e,#a5782a)"></span>
+        方案三 · 典藏鎏金 <small>博物馆黑曜展柜风</small>
+      </button>
+      <button type="button" class="tab" data-scheme="baseline">
+        <span class="swatch" style="background:#4ea5f5"></span>
+        Steam 原版基准 <small>对照原样</small>
+      </button>
+      <button type="button" class="tab" data-scheme="compare">
+        <span class="swatch" style="background:linear-gradient(135deg,#56a4ff,#9b72cb,#e2be6e)"></span>
+        三套横向对比 <small>同屏挑选</small>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Single Scheme Full Preview -->
+  <div id="singleView" class="theme-horizon">
+    <section class="scheme-brief" id="schemeBrief"></section>
+
+    <!-- ① Right Sidebar Cards -->
+    <section class="studio-section" data-section="sidebar">
+      <div class="sec-head">
+        <h3><span class="sec-num">1</span>游戏页右侧「成就」卡片（覆盖 5 种核心进度与多 DLC 集合态）</h3>
+        <span class="sec-note">悬停任意进度条唤醒星尘流光 · 100% 满成就自带轻柔慢速静谧星尘 · 徽章沿用 tools/badge.svg</span>
+      </div>
+      <div class="steam-canvas">
+        <div class="sidebar-grid" id="sidebarGrid"></div>
+      </div>
+    </section>
+
+    <!-- ② Full Achievement Details Page -->
+    <section class="studio-section" data-section="detail">
+      <div class="sec-head">
+        <h3><span class="sec-num">2</span>「查看我的成就」成就详情页</h3>
+        <div class="seg" id="detailGameSeg">
+          <button type="button" data-game="krv" class="is-active">进行中 88% · Kingdom Rush Vengeance</button>
+          <button type="button" data-game="farmer">多集合本体满 82% · 编程农场</button>
+          <button type="button" data-game="cairn">全集合 100% · 孤山独影 Cairn</button>
+        </div>
+      </div>
+      <div class="steam-canvas">
+        <div id="detailMount"></div>
+      </div>
+    </section>
+
+    <!-- ③ Steam Profile Recent Activity -->
+    <section class="studio-section" data-section="profile">
+      <div class="sec-head">
+        <h3><span class="sec-num">3</span>个人资料页 ·「最近游玩」成就状态</h3>
+        <span class="sec-note">模拟 Steam 社区个人资料动态栏（680px 真实栏宽）：进行中 / 多集合本体满 / 全集合 100%</span>
+      </div>
+      <div class="steam-canvas">
+        <div class="profile-col" id="profileMount"></div>
+      </div>
+    </section>
+
+    <!-- ④ Progress Bar & Badge Spec Lab -->
+    <section class="studio-section" data-section="lab">
+      <div class="sec-head">
+        <h3><span class="sec-num">4</span>进度条全档位与徽章承托近距实验室</h3>
+        <span class="sec-note">方案二（暗曜棱镜）进度条支持鼠标掠过触发棱镜微光追随 · 点击顶部「模拟悬停唤醒」可全局冻结检视</span>
+      </div>
+      <div class="steam-canvas">
+        <div class="lab-grid" id="labMount"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 3-Up Side-by-Side Comparison View -->
+  <div id="compareView" hidden>
+    <section class="scheme-brief">
+      <div>
+        <h2>三套方案同屏横向对比</h2>
+        <p>将「穹光星仪」「暗曜棱镜」「典藏鎏金」并排展示，直观对比徽章承托、四档进度条、右侧成就卡片（进行中 88% &amp; 全集合 100%）、成就列表行（含稀有成就）以及个人资料「最近游玩」的质感差异。点每列右上角按钮可切回完整单方案视图。</p>
+      </div>
+      <div class="brief-tags">
+        <span class="brief-tag">快捷键 1/2/3/0 切方案</span>
+        <span class="brief-tag">快捷键 A 横向对比</span>
+        <span class="brief-tag">支持模拟悬停唤醒</span>
+      </div>
+    </section>
+    <div class="compare-grid" id="compareGrid"></div>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ── 1. Exact DLC-Purple badge.svg generator (identical geometry to tools/badge.svg / make-art.mjs) ── */
+  const CX = 50, CY = 47;
+  const fmt = (n) => (Math.round(n * 100) / 100).toString();
+  function starPath(R) {
+    const inner = (R * Math.cos(Math.PI / 4)) / Math.cos(Math.PI / 8);
+    let d = '';
+    for (let i = 0; i < 16; i++) {
+      const r = i % 2 === 0 ? R : inner;
+      const a = (-90 + i * 22.5) * (Math.PI / 180);
+      d += `${i ? 'L' : 'M'}${fmt(CX + r * Math.cos(a))} ${fmt(CY + r * Math.sin(a))}`;
+    }
+    return `${d}Z`;
+  }
+  const TAIL_L = [[26, 64], [52, 77], [45.5, 112.5], [33.5, 102.5], [16.5, 107]];
+  const tailPath = (m) => `M${TAIL_L.map(([x, y]) => `${fmt(m ? 100 - x : x)} ${fmt(y)}`).join('L')}Z`;
+
+  function buildDlcBadgeUri() {
+    const s40 = starPath(40);
+    const svg = [
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 118"><defs>',
+      '<linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff6d6"/><stop offset=".45" stop-color="#f7d77e"/><stop offset="1" stop-color="#d49b2c"/></linearGradient>',
+      '<linearGradient id="pIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c468d4"/><stop offset="1" stop-color="#843892"/></linearGradient>',
+      '<linearGradient id="tail" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a3689"/><stop offset=".55" stop-color="#b658c4"/><stop offset="1" stop-color="#8a3f97"/></linearGradient>',
+      '<radialGradient id="orb" cx=".38" cy=".32" r=".75"><stop offset="0" stop-color="#ffe17a"/><stop offset=".5" stop-color="#fbb52a"/><stop offset="1" stop-color="#e08a0e"/></radialGradient>',
+      '<linearGradient id="ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffaf0"/><stop offset=".6" stop-color="#f6dc9c"/><stop offset="1" stop-color="#dcae55"/></linearGradient>',
+      '<clipPath id="orbClip"><circle cx="50" cy="47" r="15.2"/></clipPath>',
+      '<clipPath id="tl"><rect width="50" height="47"/></clipPath>',
+      `<clipPath id="inside"><path d="${s40}"/></clipPath>`,
+      '</defs>',
+      ...[false, true].map((m) =>
+        `<path d="${tailPath(m)}" fill="url(#tail)" stroke="#4a3208" stroke-width="7" stroke-linejoin="round"/>` +
+        `<path d="${tailPath(m)}" fill="none" stroke="url(#rim)" stroke-width="4.6" stroke-linejoin="round"/>`
+      ),
+      `<path d="${s40}" fill="url(#pIn)"/>`,
+      `<path d="${s40}" fill="none" stroke-width="11.6" stroke-linejoin="round" clip-path="url(#inside)" stroke="#58236e" opacity=".95"/>`,
+      `<g clip-path="url(#tl)"><path d="${s40}" fill="none" stroke-width="11.5" stroke-linejoin="round" clip-path="url(#inside)" stroke="#e6a6f5" opacity=".45"/></g>`,
+      `<path d="${s40}" fill="none" stroke="#4a3208" stroke-width="9.5" stroke-linejoin="round"/>`,
+      `<path d="${s40}" fill="none" stroke="url(#rim)" stroke-width="7" stroke-linejoin="round"/>`,
+      '<circle cx="50" cy="47" r="19.6" fill="#4a3208" opacity=".55"/>',
+      '<circle cx="50" cy="47" r="19" fill="url(#ring)"/>',
+      '<circle cx="50" cy="47" r="15.6" fill="#b86d06" opacity=".55"/>',
+      '<circle cx="50" cy="47" r="15.2" fill="url(#orb)"/>',
+      '<path d="M53 29L68 44L47 65L32 50Z" fill="#ffd257" opacity=".42" clip-path="url(#orbClip)"/>',
+      '<path d="M50.5 35.8A11.2 11.2 0 0 1 60.4 43.4" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" opacity=".95"/>',
+      '<circle cx="60.6" cy="48.4" r="1.7" fill="#fff" opacity=".95"/></svg>',
+    ].join('');
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
+  document.documentElement.style.setProperty('--ac-badge-img-dlc', buildDlcBadgeUri());
+
+  /* ── 2. Crisp Offline Illustrated Achievement Icons (SVG Data URIs) ──── */
+  function makeArtIcon(bg1, bg2, accent, shapeSvg) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <defs>
+        <radialGradient id="b" cx=".5" cy=".38" r=".72"><stop offset="0" stop-color="${bg1}"/><stop offset="1" stop-color="${bg2}"/></radialGradient>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="${accent}"/><stop offset="1" stop-color="${bg1}"/></linearGradient>
+      </defs>
+      <rect width="64" height="64" fill="url(#b)"/>
+      <path d="M0 0L64 0L64 64L0 64Z" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="2"/>
+      <circle cx="32" cy="30" r="22" fill="${accent}" opacity=".16"/>
+      ${shapeSvg}
+    </svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  }
+
+  const ICONS = {
+    fist: makeArtIcon('#2a4834', '#0f1712', '#9ef0b0',
+      '<path d="M22 46h20v6H22z" fill="#5da869"/><path d="M20 26c0-5 4-9 12-9s12 4 12 9v10c0 6-5 10-12 10s-12-4-12-10z" fill="url(#g)" stroke="#1b2e1f" stroke-width="2"/><path d="M26 22v10M32 20v12M38 22v10" stroke="#24422a" stroke-width="2.4" stroke-linecap="round"/><path d="M12 44c5 6 12 9 20 9s15-3 20-9" fill="none" stroke="#7fe078" stroke-width="3" stroke-linecap="round"/>'),
+    shield: makeArtIcon('#412858', '#150d1f', '#c78cff',
+      '<path d="M32 10l18 7v15c0 12-8 19-18 23-10-4-18-11-18-23V17z" fill="url(#g)" stroke="#1d112b" stroke-width="2"/><path d="M32 17l11 4.5v10c0 7.5-4.8 12.2-11 15-6.2-2.8-11-7.5-11-15v-10z" fill="#3a2359"/><path d="M32 22l4 9-4 9-4-9z" fill="#e6d6ff"/>'),
+    guardian: makeArtIcon('#5e4118', '#1b1207', '#ffd666',
+      '<path d="M12 48L24 18l8 12 8-12 12 30z" fill="url(#g)" stroke="#2e1d08" stroke-width="2" stroke-linejoin="round"/><circle cx="24" cy="36" r="4" fill="#fff6d1"/><circle cx="40" cy="36" r="4" fill="#fff6d1"/><path d="M16 50h32" stroke="#ffe599" stroke-width="3" stroke-linecap="round"/>'),
+    mage: makeArtIcon('#481c4e', '#140919', '#ff7ee6',
+      '<circle cx="32" cy="28" r="14" fill="url(#g)"/><path d="M16 52c2-11 9-16 16-16s14 5 16 16z" fill="#2c1233"/><circle cx="27" cy="27" r="2.6" fill="#1b0821"/><circle cx="37" cy="27" r="2.6" fill="#1b0821"/><path d="M32 8l3 8-3 2-3-2z" fill="#ffabf0"/>'),
+    spider: makeArtIcon('#2e4722', '#10190c', '#a8ee66',
+      '<circle cx="32" cy="34" r="10" fill="#182414" stroke="#b6f279" stroke-width="2"/><circle cx="32" cy="22" r="6" fill="#182414" stroke="#b6f279" stroke-width="2"/><path d="M22 28L10 20M22 34L8 34M22 40L10 48M42 28L54 20M42 34L56 34M42 40L54 48" stroke="#c8ff8c" stroke-width="2.4" stroke-linecap="round"/>'),
+    gold: makeArtIcon('#583d14', '#1a1206', '#ffcb52',
+      '<ellipse cx="32" cy="43" rx="18" ry="11" fill="url(#g)" stroke="#3b2608" stroke-width="2"/><path d="M22 24h20l-4 10H26z" fill="#d99a26"/><circle cx="24" cy="46" r="4.5" fill="#ffe794"/><circle cx="36" cy="48" r="4.5" fill="#ffd257"/><path d="M16 18l10 10" stroke="#fff3c4" stroke-width="3" stroke-linecap="round"/>'),
+    helm: makeArtIcon('#2f2a52', '#100e1f', '#a6a1ff',
+      '<path d="M18 32c0-10 6-16 14-16s14 6 14 16v14H18z" fill="url(#g)" stroke="#17142e" stroke-width="2"/><path d="M14 24c-4-4-4-10 2-12M50 24c4-4 4-10-2-12" fill="none" stroke="#e4dfff" stroke-width="3.2" stroke-linecap="round"/><path d="M24 34h16v4H24z" fill="#181430"/>'),
+    gems: makeArtIcon('#1f3b58', '#0c1624', '#6ee7ff',
+      '<polygon points="32,12 46,26 32,52 18,26" fill="url(#g)" stroke="#0d2236" stroke-width="2"/><polygon points="20,28 32,16 44,28 32,42" fill="#8df2ff" opacity=".55"/><circle cx="20" cy="46" r="5" fill="#ff7474"/><circle cx="44" cy="46" r="5" fill="#ffd257"/>'),
+    moth: makeArtIcon('#24262b', '#0c0d10', '#f4f6fa',
+      '<path d="M32 22c-6-10-20-10-21 2-1 8 8 12 14 11-4 4-5 11 1 13 4 1 6-3 6-7 0 4 2 8 6 7 6-2 5-9 1-13 6 1 15-3 14-11-1-12-15-12-21-2z" fill="#f3f5f8" stroke="#111" stroke-width="1.5"/><line x1="32" y1="18" x2="32" y2="46" stroke="#111" stroke-width="2.6"/>'),
+    peak: makeArtIcon('#24415e', '#0d1826', '#88d4ff',
+      '<path d="M8 52L28 16l10 17 6-9 12 28z" fill="url(#g)" stroke="#102136" stroke-width="2" stroke-linejoin="round"/><path d="M28 16l5 10-5-2-5 2z" fill="#fff"/><circle cx="48" cy="18" r="4" fill="#ffe794"/>'),
+    water: makeArtIcon('#3a245e', '#110a21', '#d28aff',
+      '<path d="M32 10C42 24 48 31 48 40a16 16 0 1 1-32 0c0-9 6-16 16-30z" fill="url(#g)" stroke="#1d1033" stroke-width="2"/><path d="M26 38a6 6 0 0 0 6 6" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>'),
+    code: makeArtIcon('#1f483a', '#0c1b16', '#6ef5b8',
+      '<rect x="12" y="14" width="40" height="36" rx="6" fill="#132b23" stroke="#78f0ba" stroke-width="2.2"/><path d="M25 26l-6 6 6 6M39 26l6 6-6 6M34 24l-4 16" fill="none" stroke="#d0ffea" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'),
+    skull: makeArtIcon('#3a3e48', '#15171c', '#cfd6e4',
+      '<circle cx="32" cy="28" r="14" fill="url(#g)"/><rect x="24" y="38" width="16" height="10" rx="3" fill="#c7cfde"/><circle cx="27" cy="27" r="3.4" fill="#17191f"/><circle cx="37" cy="27" r="3.4" fill="#17191f"/><path d="M28 43v5M32 43v5M36 43v5" stroke="#17191f" stroke-width="1.8"/>'),
+  };
+
+  /* ── 3. Real Local Steam Covers (served via /assets/ from appcache/librarycache) ── */
+  const ART = {
+    krv: {
+      cover: '/assets/1367550/library_600x900_schinese.jpg',
+      header: '/assets/1367550/library_header.jpg',
+      hero: '/assets/1367550/library_hero_blur_schinese.jpg',
+    },
+    tlou2: {
+      cover: '/assets/2531310/aeac394b61ac94b5d4ea939351baf3943ac0b282/library_600x900.jpg',
+      header: '/assets/2531310/12b4b3e0be2b903802a2d59e001f652f07a03ad9/library_header.jpg',
+      hero: '/assets/2531310/0010af00e1172d4a047e0711abed2c27755f6760/library_hero_blur.jpg',
+    },
+    cairn: {
+      cover: '/assets/1588550/library_600x900.jpg',
+      header: '/assets/1588550/library_header.jpg',
+      hero: '/assets/1588550/library_hero_blur.jpg',
+    },
+    farmer: {
+      cover: '/assets/2060160/b687e9404563e049be65cb043aafe6751ae744b8/library_capsule_schinese.jpg',
+      header: '/assets/2060160/8611dfa7fa50151f3c0006b5d9d1e44be9c00306/library_header_schinese.jpg',
+      hero: '/assets/2060160/621428717f6846ebb4b931883a1612173237682c/library_hero_blur.jpg',
+    },
+    trails: {
+      cover: '/assets/3447040/0a99e4a12fbf1e349c634b5b253160da286e511f/library_600x900_schinese.jpg',
+      header: '/assets/3447040/276fd0f77c0a12ee28786b12c0ff8685319a3dbe/library_header_schinese.jpg',
+      hero: '/assets/3447040/a4da7f26cda39f2051132731977c1b808f7357e0/library_hero_blur.jpg',
+    },
+  };
+
+  /* ── 4. Deterministic Golden-Ratio Stardust Generator (inspired by obsidian-prism) ── */
+  const GOLDEN_RATIO = 0.6180339887498949;
+  const STAR_SLOTS = [14, 78, 34, 86, 52, 22, 68, 42, 82, 26, 62, 18];
+  function buildStarsHtml(count = 12, slow = false) {
+    let html = '';
+    for (let i = 0; i < count; i++) {
+      const phase = ((i + 1) * GOLDEN_RATIO) % 1;
+      const y = STAR_SLOTS[i % STAR_SLOTS.length];
+      const dur = slow ? (6.4 + (i % 4) * 1.15) : (3.4 + (i % 4) * 0.65);
+      const delay = -(phase * dur);
+      const b = (0.58 + ((i * 37) % 10) * 0.042).toFixed(2);
+      html += `<span class="ach-star" style="top:${y}%;animation-duration:${dur.toFixed(2)}s;animation-delay:${delay.toFixed(2)}s"><i style="--sb:${b}"></i></span>`;
+    }
+    return html;
+  }
+
+  /* Native Steam flat ribbon SVG (for Baseline comparison only) */
+  function nativeRibbonSvg(type) {
+    const color = type === 'dlc' ? '#b658c4' : '#4ea5f5';
+    return `<svg class="ac-native-ribbon" viewBox="0 0 28 34" fill="none" aria-hidden="true">
+      <path d="M9 20l-4 12 5-3 4 3 1-12zM19 20l4 12-5-3-4 3-1-12z" fill="${color}" opacity=".82"/>
+      <polygon points="14,2 17.5,5.5 22.5,5.5 22.5,10.5 26,14 22.5,17.5 22.5,22.5 17.5,22.5 14,26 10.5,22.5 5.5,22.5 5.5,17.5 2,14 5.5,10.5 5.5,5.5 10.5,5.5" fill="${color}"/>
+      <circle cx="14" cy="14" r="5" fill="#182230"/>
+    </svg>`;
+  }
+
+  function renderBadge(type, size = 34, title = '') {
+    return `<span class="ac-badge-wrap" data-badge="${type}" style="--b-size:${size}px" title="${title}">
+      <span class="ac-badge-mount" aria-hidden="true"></span>
+      <span class="ac-badge-svg" aria-hidden="true"></span>
+      <span class="ac-badge-shine" aria-hidden="true"></span>
+      ${nativeRibbonSvg(type)}
+    </span>`;
+  }
+
+  function renderProgressBar({ pct = 88, tier = 'progress', segmented = false, basePct = 0, dlcPct = 0, height = null }) {
+    const fillPct = segmented ? Math.min(100, Number((basePct + dlcPct).toFixed(2))) : pct;
+    const styleParts = [`--pct:${fillPct}%`];
+    if (segmented) {
+      styleParts.push(`--base-pct:${basePct}%`, `--dlc-pct:${dlcPct}%`);
+    }
+    if (height) styleParts.push(`--bar-h:${height}px`);
+    const isFull = tier === 'base100' || tier === 'all100';
+    const fillInner = segmented
+      ? `<span class="ach-bar-seg is-base"></span><span class="ach-bar-seg is-dlc"></span>`
+      : '';
+    return `<div class="ach-bar" data-tier="${tier}" data-pct="${pct}" data-segmented="${segmented ? '1' : '0'}" style="${styleParts.join(';')}">
+      <div class="ach-bar-fill">${fillInner}</div>
+      <div class="ach-bar-fx">
+        <div class="ach-bar-sweep"></div>
+        <div class="ach-bar-stars">${buildStarsHtml(isFull ? 12 : 10, isFull)}</div>
+      </div>
+      <div class="ach-bar-tip"></div>
+    </div>`;
+  }
+
+  function renderIconTile(key, { rare = false, locked = false, title = '' } = {}) {
+    const cls = ['ach-ico', rare ? 'is-rare' : '', locked ? 'is-locked' : ''].filter(Boolean).join(' ');
+    return `<span class="${cls}" title="${title}"><img src="${ICONS[key]}" alt=""></span>`;
+  }
+
+  /* ── 5. Scheme Descriptions ───────────────────────────────────────────── */
+  const SCHEMES = {
+    horizon: {
+      cls: 'theme-horizon',
+      name: '方案一 · 穹光棱镜融合版（Horizon × Prism）',
+      desc: '以「穹光地平线」光学容器、渐隐顶光丝与纤细 9px 光锋进度条为骨架，融入方案二暗曜微玻璃单个成就卡片、棱镜光谱稀有图标框与详情行设计；徽章完整保留 tools/badge.svg 原本样貌，不加多余圆环装饰。',
+      tags: ['与库内穹光同源', '纯净原版徽章', '暗曜棱镜成就卡', '稀有棱镜光环'],
+    },
+    prism: {
+      cls: 'theme-prism',
+      name: '方案二 · 暗曜星尘棱镜（Obsidian Prism）',
+      desc: '深度融合 obsidian-prism 的视觉语言：冷黑曜石双层暗面（#0D0E13 / #14151B）、1px 钴蓝→鸢尾紫→琥珀棱镜折光边（鼠标掠过进度条时棱镜光斑追随指针）、饱满星云胶囊槽与柔白内嵌星核，平时安静克制，悬停或 100% 唤醒黄金分割横穿星尘与斜向流光。',
+      tags: ['致敬 obsidian-prism', '1px 光谱折光边框', '星云胶囊 + 内嵌光核', '指针追随微光'],
+    },
+    gilt: {
+      cls: 'theme-gilt',
+      name: '方案三 · 典藏黑曜鎏金（Museum Gilt）',
+      desc: '呼应「成就收藏册」本身的实体典藏画册气质：暖炭黑曜绒面底板、低饱和古董香槟金 Hairline 细框、微圆角 4px 镶金精密刻度槽与鎏金针锋、黑曜天鹅绒双金环托底 badge.svg，稀有成就以珍藏金边展位呈现，沉稳贵气且耐看。',
+      tags: ['博物馆展柜气质', '天鹅绒金环徽章托', '4px 精密镶金槽', '珍稀藏品金框行'],
+    },
+    baseline: {
+      cls: 'theme-baseline',
+      name: 'Steam 原版基准（对照用）',
+      desc: '忠实还原你截图中的 Steam 客户端原生样式：扁平单色蓝/紫进度条、平涂丝带图标、纯灰底板与生硬亮黄发光边框，便于与三套新方案做直观前后对比。',
+      tags: ['Valve 原生样式', '扁平蓝条', '原版丝带图标'],
+    },
+  };
+
+  /* ── 6. Section 1 Data: Right-Sidebar Cards (5 Key States) ────────────── */
+  const SIDEBAR_CASES = [
+    {
+      slotTitle: 'Kingdom Rush Vengeance',
+      slotChip: '进行中 · 88%',
+      tier: 'progress',
+      label: '您已解锁',
+      count: '79/90',
+      pctText: '(88%)',
+      tierTag: '',
+      pct: 88,
+      badges: [],
+      featured: { icon: 'fist', name: '钢筋铁骨', desc: '赢得钢铁模式下的所有挑战', rare: false },
+      unlocked: [
+        { k: 'shield' }, { k: 'guardian', rare: true }, { k: 'mage' },
+        { k: 'spider' }, { k: 'gold' }, { k: 'helm' },
+      ],
+      unlockedMore: '+71',
+      locked: [{ k: 'skull' }, { k: 'helm' }, { k: 'guardian' }, { k: 'spider' }, { k: 'gems' }, { k: 'gold' }],
+      lockedMore: '+4',
+    },
+    {
+      slotTitle: '空之轨迹 1st',
+      slotChip: '临近全成就 · 94%',
+      tier: 'near',
+      label: '您已解锁',
+      count: '49/52',
+      pctText: '(94%)',
+      tierTag: '近在咫尺',
+      pct: 94,
+      badges: [],
+      featured: { icon: 'gems', name: '游击士的荣光', desc: '完成王国全境所有委托任务', rare: true },
+      unlocked: [
+        { k: 'peak', rare: true }, { k: 'shield' }, { k: 'gold' },
+        { k: 'mage' }, { k: 'fist' }, { k: 'helm' },
+      ],
+      unlockedMore: '+42',
+      locked: [{ k: 'guardian' }, { k: 'skull' }, { k: 'water' }],
+      lockedMore: '',
+    },
+    {
+      slotTitle: 'The Last of Us Part II',
+      slotChip: '单集合 · 100%',
+      tier: 'base100',
+      label: '您已解锁所有成就！',
+      count: '45/45',
+      pctText: '(100%)',
+      tierTag: '正篇归册',
+      pct: 100,
+      badges: [{ type: 'base', title: '本体成就全达成' }],
+      featured: { icon: 'moth', name: '坟墓成双', desc: '以绝地模式完成故事线', rare: true },
+      unlocked: [
+        { k: 'skull', rare: true }, { k: 'helm', rare: true }, { k: 'guardian', rare: true },
+        { k: 'shield', rare: true }, { k: 'peak', rare: true }, { k: 'gold', rare: true },
+      ],
+      unlockedMore: '+37',
+      locked: [],
+      lockedMore: '',
+    },
+    {
+      slotTitle: '编程农场',
+      slotChip: '多集合 · 本体满 + DLC 4/12',
+      tier: 'progress',
+      label: '您已解锁',
+      count: '36/44',
+      pctText: '(82%)',
+      tierTag: '本体已满',
+      pct: 82,
+      segmented: true,
+      basePct: 72.7,
+      dlcPct: 9.1,
+      setsMeta: [
+        { type: 'base', text: '本体集合 32/32 ✓' },
+        { type: 'dlc', text: 'DLC 集合 4/12' },
+      ],
+      badges: [{ type: 'base', title: '已完成本体成就集合' }],
+      featured: { icon: 'code', name: '递归丰收', desc: '在无人工干预下自动完成迷宫寻路', rare: true },
+      unlocked: [
+        { k: 'gems' }, { k: 'gold' }, { k: 'shield' },
+        { k: 'peak', rare: true }, { k: 'fist' }, { k: 'water' },
+      ],
+      unlockedMore: '+29',
+      locked: [{ k: 'water' }, { k: 'skull' }, { k: 'mage' }, { k: 'guardian' }],
+      lockedMore: '+4',
+    },
+    {
+      slotTitle: '孤山独影 Cairn',
+      slotChip: '多集合 · 本体+全 DLC 100%',
+      tier: 'all100',
+      label: '您已解锁全部集合！',
+      count: '62/62',
+      pctText: '(100%)',
+      tierTag: '全卷无瑕',
+      pct: 100,
+      segmented: true,
+      basePct: 83.87,
+      dlcPct: 16.13,
+      setsMeta: [
+        { type: 'base', text: '本体 52/52 ✓' },
+        { type: 'dlc', text: '深水 DLC 10/10 ✓' },
+      ],
+      badges: [{ type: 'all', title: '本体 + 所有 DLC 集合全达成' }],
+      featured: { icon: 'water', name: '深水孤行', desc: '在「深水试炼」DLC 中无失误登顶', rare: true },
+      unlocked: [
+        { k: 'peak', rare: true }, { k: 'guardian', rare: true }, { k: 'moth', rare: true },
+        { k: 'gems' }, { k: 'shield' }, { k: 'helm' },
+      ],
+      unlockedMore: '+55',
+      locked: [],
+      lockedMore: '',
+    },
+  ];
+
+  function renderSidebarCard(c, compact = false) {
+    const badgesHtml = c.badges.map((b) => renderBadge(b.type, compact ? 30 : 34, b.title)).join('');
+    const setsHtml = c.setsMeta
+      ? `<div class="gp-ach-sets-meta">${c.setsMeta.map((s) => `<span class="set-pill is-${s.type}"><i class="dot"></i>${s.text}</span>`).join('')}</div>`
+      : '';
+    const unlockedTiles = c.unlocked.slice(0, compact ? 5 : 6).map((x) => renderIconTile(x.k, { rare: x.rare })).join('');
+    const lockedHtml = !compact && c.locked.length
+      ? `<div class="gp-locked-wrap">
+          <div class="gp-locked-title">锁定的成就</div>
+          <div class="gp-icon-row">
+            ${c.locked.map((x) => renderIconTile(x.k, { locked: true })).join('')}
+            ${c.lockedMore ? `<span class="gp-more-tile">${c.lockedMore}</span>` : ''}
+          </div>
+        </div>`
+      : '';
+
+    return `<div class="gp-ach-card ach-hover-zone ac-card-hoverable" data-tier="${c.tier}">
+      <div class="gp-ach-head">
+        <div class="gp-ach-label-row">
+          <div class="gp-ach-label-main">
+            <span>${c.label}</span>
+            <span class="gp-ach-count">${c.count}</span>
+            <span class="gp-ach-pct">${c.pctText}</span>
+          </div>
+          ${c.tierTag ? `<span class="gp-ach-tier-tag">${c.tierTag}</span>` : ''}
+        </div>
+        ${setsHtml}
+        <div class="gp-ach-progress-row">
+          ${badgesHtml}
+          ${renderProgressBar({ pct: c.pct, tier: c.tier, segmented: !!c.segmented, basePct: c.basePct, dlcPct: c.dlcPct })}
+        </div>
+      </div>
+      <div class="gp-ach-body">
+        <div class="gp-featured">
+          ${renderIconTile(c.featured.icon, { rare: c.featured.rare })}
+          <div class="gp-featured-info">
+            <div class="gp-featured-name">${c.featured.name}</div>
+            <div class="gp-featured-desc">${c.featured.desc}</div>
+          </div>
+        </div>
+        <div class="gp-icon-row" style="${compact ? 'grid-template-columns:repeat(6,minmax(0,1fr))' : ''}">
+          ${unlockedTiles}
+          <span class="gp-more-tile">${c.unlockedMore}</span>
+        </div>
+        ${lockedHtml}
+        <div class="gp-footer-row">
+          <span class="gp-view-all">查看我的成就 →</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* ── 7. Section 2 Data: Full Achievement Details Games ────────────────── */
+  const DETAIL_GAMES = {
+    krv: {
+      title: 'Kingdom Rush Vengeance',
+      art: ART.krv,
+      tier: 'progress',
+      subtitle: '成就：已解锁 79 项，共 90 项',
+      playtime: '游戏时间：36.6 小时 · 过去两周：14.2 小时',
+      summaryMain: '79 项成就已解锁，共 90 项',
+      pctText: '(占 88%)',
+      pct: 88,
+      rareCount: 5,
+      friends: 14,
+      badges: [],
+      sets: null,
+      unlocked: [
+        { icon: 'fist', name: '钢筋铁骨', desc: '赢得钢铁模式下的所有挑战', time: '2026年11月17日 10:02', pct: 13.9, set: 'base' },
+        { icon: 'shield', name: '逆袭英雄', desc: '赢得英雄模式下的所有挑战', time: '2026年11月17日 09:48', pct: 13.6, set: 'base' },
+        { icon: 'guardian', name: '无敌的守护者', desc: '在不可能难度下完成战役。', time: '2026年11月17日 09:36', pct: 9.2, rare: true, set: 'base' },
+        { icon: 'mage', name: '超本能', desc: '让精英骚扰者闪避 800 次攻击', time: '2026年11月16日 02:39', pct: 25.5, set: 'base' },
+        { icon: 'spider', name: '育母蜘蛛', desc: '召唤 150 只小蜘蛛并击败来袭的敌军', time: '2026年11月15日 23:31', pct: 24.0, set: 'base' },
+        { icon: 'gold', name: '暗影金库', desc: '单场战斗中累计掠夺超过 20,000 枚金币', time: '2026年11月15日 21:14', pct: 4.8, rare: true, set: 'base' },
+      ],
+      locked: [
+        { icon: 'helm', name: '无畏领主', desc: '在冰封王座关卡中不损失任何生命值并三星通关', pct: 6.4, rare: true, set: 'base' },
+        { icon: 'skull', name: '隐藏成就', desc: '包含剧透的隐藏成就内容', spoiler: '在最终章用全魔导塔阵容击溃迪纳斯国王', pct: 3.1, rare: true, hidden: true, set: 'base' },
+      ],
+    },
+    farmer: {
+      title: '编程农场 · The Farmer Was Replaced',
+      art: ART.farmer,
+      tier: 'progress',
+      subtitle: '多集合成就：本体 32/32 · DLC 4/12（共 36/44）',
+      playtime: '游戏时间：48.2 小时 · 过去两周：6.5 小时',
+      summaryMain: '36 项成就已解锁，共 44 项',
+      pctText: '(占 82%)',
+      pct: 82,
+      segmented: true,
+      basePct: 72.7,
+      dlcPct: 9.1,
+      rareCount: 4,
+      friends: 9,
+      badges: [{ type: 'base', title: '本体集合已全达成' }],
+      sets: [
+        { id: 'all', label: '所有集合 (36/44)' },
+        { id: 'base', label: '本体集合 ✓ (32/32)' },
+        { id: 'dlc', label: 'DLC · 无限农田 (4/12)', isDlc: true },
+      ],
+      unlocked: [
+        { icon: 'code', name: '递归丰收', desc: '编写全自动无人机迷宫寻路并连续完成 300 次寻宝', time: '2026年11月19日 22:18', pct: 7.4, rare: true, set: 'base' },
+        { icon: 'water', name: '流体灌溉协议', desc: '在 DLC 扩建农场中将全局湿润度维持 95% 以上达 10 分钟', time: '2026年11月20日 19:05', pct: 11.2, set: 'dlc', setLabel: 'DLC · 无限农田' },
+        { icon: 'gems', name: '并行调度大师', desc: '同时驱动 16 台无人机零碰撞完成向日葵能量矩阵', time: '2026年11月18日 15:40', pct: 8.9, rare: true, set: 'base' },
+        { icon: 'gold', name: '黄金南瓜王', desc: '合并出一整块 24×24 完美巨型南瓜', time: '2026年11月16日 20:11', pct: 28.4, set: 'base' },
+      ],
+      locked: [
+        { icon: 'peak', name: '量子收割机', desc: '在 60 秒内以多线程脚本收获 1,000,000 单位能源', pct: 2.3, rare: true, set: 'dlc', setLabel: 'DLC · 无限农田' },
+        { icon: 'skull', name: '零延迟集群', desc: '保持 32 台 DLC 无人机连续 5 分钟无空闲周期', pct: 1.9, rare: true, set: 'dlc', setLabel: 'DLC · 无限农田' },
+      ],
+    },
+    cairn: {
+      title: '孤山独影 · Cairn',
+      art: ART.cairn,
+      tier: 'all100',
+      subtitle: '多集合全部达成：本体 52/52 · DLC 深水试炼 10/10（共 62/62）',
+      playtime: '游戏时间：29.4 小时 · 全卷无瑕',
+      summaryMain: '全部 62 项成就已解锁！',
+      pctText: '(100% · 全卷无瑕)',
+      pct: 100,
+      segmented: true,
+      basePct: 83.87,
+      dlcPct: 16.13,
+      rareCount: 8,
+      friends: 6,
+      badges: [
+        { type: 'all', title: '本体 + 所有 DLC 集合全达成' },
+      ],
+      sets: [
+        { id: 'all', label: '所有集合 ✓ (62/62)' },
+        { id: 'base', label: '本体集合 ✓ (52/52)' },
+        { id: 'dlc', label: 'DLC · 深水试炼 ✓ (10/10)', isDlc: true },
+      ],
+      unlocked: [
+        { icon: 'water', name: '深水孤行', desc: '在「深水试炼」湿滑岩壁模式下无坠落完成全程攀登', time: '2026年11月21日 03:18', pct: 2.6, rare: true, set: 'dlc', setLabel: 'DLC · 深水试炼' },
+        { icon: 'peak', name: '卡米之巅', desc: '抵达无人登顶过的神之山终极顶峰', time: '2026年11月01日 23:41', pct: 8.4, rare: true, set: 'base' },
+        { icon: 'moth', name: '极简行囊', desc: '仅携带 3 枚岩钉完成整段北壁路线', time: '2026年11月01日 21:05', pct: 4.1, rare: true, set: 'base' },
+        { icon: 'gems', name: '潮汐回响', desc: '收集深水海岸线全部 6 处隐藏营地日志', time: '2026年11月20日 23:50', pct: 12.8, set: 'dlc', setLabel: 'DLC · 深水试炼' },
+        { icon: 'shield', name: '风暴中的庇护', desc: '在暴风雪夜间扎营并成功生火度过寒夜', time: '2026年10月30日 18:22', pct: 34.2, set: 'base' },
+      ],
+      locked: [],
+    },
+  };
+
+  const GLOBE_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><ellipse cx="8" cy="8" rx="3" ry="6.2"/><line x1="2" y1="8" x2="14" y2="8"/></svg>';
+  const SEARCH_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><line x1="10.6" y1="10.6" x2="14" y2="14" stroke-linecap="round"/></svg>';
+
+  const detailState = {
+    game: 'krv',
+    showGlobal: true,
+    pinned: false,
+    setFilter: 'all',
+    query: '',
+    revealedHidden: false,
+  };
+
+  function renderAchRow(item, locked = false, showGlobal = true) {
+    const isHiddenLocked = locked && item.hidden && !detailState.revealedHidden;
+    const cls = ['ach-row', item.rare ? 'is-rare' : '', locked ? 'is-locked' : ''].filter(Boolean).join(' ');
+    const meterW = Math.max(4, Math.min(100, item.pct));
+    return `<div class="${cls}">
+      ${renderIconTile(item.icon, { rare: item.rare && !locked, locked })}
+      <div class="ach-row-mid">
+        <div class="ach-row-title">
+          <span>${isHiddenLocked ? '隐藏成就' : item.name}</span>
+          ${item.rare ? '<span class="ach-rare-chip">稀有</span>' : ''}
+          ${item.setLabel ? `<span class="ach-set-badge is-dlc">${item.setLabel}</span>` : ''}
+        </div>
+        <div class="ach-row-desc">
+          ${isHiddenLocked
+            ? `<span>此成就的详情已被隐藏以防剧透</span><button type="button" class="ach-hidden-btn" data-reveal="1">查看剧透</button>`
+            : (item.spoiler || item.desc)}
+        </div>
+      </div>
+      <div class="ach-row-right">
+        ${!locked && item.time ? `<span class="ach-unlock-time">解锁时间：${item.time}</span>` : ''}
+        ${showGlobal ? `<div class="ach-global-wrap">
+          <span class="ach-global">${GLOBE_SVG}${item.pct.toFixed(1)}%</span>
+          <span class="ach-rarity-meter"><i style="width:${meterW}%"></i></span>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function renderDetailView() {
+    const g = DETAIL_GAMES[detailState.game];
+    const q = detailState.query.trim().toLowerCase();
+    const filterItem = (item) => {
+      if (detailState.setFilter !== 'all' && item.set !== detailState.setFilter) return false;
+      if (q && !(item.name.toLowerCase().includes(q) || (item.desc || '').toLowerCase().includes(q))) return false;
+      return true;
+    };
+    const unlocked = g.unlocked.filter(filterItem);
+    const locked = g.locked.filter(filterItem);
+
+    const badgesHtml = g.badges.map((b) => renderBadge(b.type, 40, b.title)).join('');
+    const setTabsHtml = g.sets
+      ? `<div class="set-tabs">${g.sets.map((s) =>
+          `<button type="button" class="set-tab ${s.isDlc ? 'is-dlc' : ''} ${detailState.setFilter === s.id ? 'is-active' : ''}" data-set="${s.id}">${s.label}</button>`
+        ).join('')}</div>`
+      : `<select class="detail-select" aria-label="筛选成就"><option>所有成就</option><option>仅看稀有 (&lt;10%)</option><option>未解锁</option></select>`;
+
+    const mount = document.getElementById('detailMount');
+    mount.innerHTML = `<div class="detail-shell" data-tier="${g.tier}">
+      <div class="detail-hero">
+        <div class="detail-hero-bg" style="background-image:url('${g.art.hero}')"></div>
+        <div class="detail-hero-scrim"></div>
+        <div class="detail-hero-inner">
+          <div class="detail-cover"><img src="${g.art.cover}" alt="${g.title}"></div>
+          <div class="detail-hero-right">
+            <div>
+              <div class="detail-title-row">
+                <h2 class="detail-game-title">${g.title}</h2>
+              </div>
+              <div class="detail-sub">
+                <span>${g.subtitle}</span>
+                <span>|</span>
+                <span>${g.playtime}</span>
+              </div>
+            </div>
+            <div class="detail-stats-box ach-hover-zone ac-card-hoverable" data-tier="${g.tier}">
+              <div class="detail-stats-top">
+                <div class="detail-stats-left">
+                  <strong>${g.summaryMain}</strong>
+                  <span class="detail-stats-pct">${g.pctText}</span>
+                </div>
+                <span class="detail-rare-pill">✦ ${g.rareCount} 项为稀有</span>
+              </div>
+              <div class="detail-bar-row">
+                ${badgesHtml}
+                ${renderProgressBar({ pct: g.pct, tier: g.tier, segmented: !!g.segmented, basePct: g.basePct, dlcPct: g.dlcPct, height: 12 })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-body">
+        <div class="detail-friends-bar">
+          <div class="detail-friends-left">
+            <div class="friend-avatars">
+              <span style="background:#3b74d8">K</span>
+              <span style="background:#8a4fc8">M</span>
+              <span style="background:#2d8a6e">A</span>
+              <span style="background:#b56b32">R</span>
+            </div>
+            <span>${g.friends} 位好友玩此游戏</span>
+          </div>
+          <select class="detail-select" aria-label="与好友相比"><option>与好友相比…</option><option>Mikan (92%)</option><option>Aoi (74%)</option></select>
+        </div>
+
+        <div class="detail-toolbar">
+          <div class="detail-toggles">
+            <span class="steam-toggle ${detailState.showGlobal ? 'is-on' : ''}" data-toggle="global">
+              <span>显示全球统计数据</span><span class="steam-switch"></span>
+            </span>
+            <span class="steam-toggle ${detailState.pinned ? 'is-on' : ''}" data-toggle="pinned">
+              <span>置顶成就</span><span class="steam-switch"></span>
+            </span>
+          </div>
+          <div class="detail-filters">
+            ${setTabsHtml}
+            <div class="detail-search">
+              <input type="text" placeholder="搜索成就…" value="${detailState.query.replace(/"/g, '&quot;')}" id="detailSearchInput">
+              ${SEARCH_SVG}
+            </div>
+          </div>
+        </div>
+
+        <div class="ach-group-heading">已解锁的成就 (${unlocked.length})</div>
+        <div class="ach-list">
+          ${unlocked.length ? unlocked.map((it) => renderAchRow(it, false, detailState.showGlobal)).join('') : '<div style="padding:14px;color:#7c879b;text-align:center">当前筛选下无匹配成就</div>'}
+        </div>
+
+        ${locked.length ? `
+          <div class="ach-group-heading" style="margin-top:14px">锁定的成就 (${locked.length})</div>
+          <div class="ach-list">
+            ${locked.map((it) => renderAchRow(it, true, detailState.showGlobal)).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </div>`;
+
+    mount.querySelectorAll('[data-toggle]').forEach((el) => {
+      el.addEventListener('click', () => {
+        if (el.dataset.toggle === 'global') detailState.showGlobal = !detailState.showGlobal;
+        else detailState.pinned = !detailState.pinned;
+        renderDetailView();
+      });
+    });
+    mount.querySelectorAll('[data-set]').forEach((el) => {
+      el.addEventListener('click', () => {
+        detailState.setFilter = el.dataset.set;
+        renderDetailView();
+      });
+    });
+    const searchInput = mount.querySelector('#detailSearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        detailState.query = e.target.value;
+        const pos = e.target.selectionStart;
+        renderDetailView();
+        const next = document.getElementById('detailSearchInput');
+        if (next) { next.focus(); next.setSelectionRange(pos, pos); }
+      });
+    }
+    mount.querySelectorAll('[data-reveal]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        detailState.revealedHidden = true;
+        renderDetailView();
+      });
+    });
+    bindPrismPointer(mount);
+  }
+
+  /* ── 8. Section 3 Data: Profile Recent Activity ───────────────────────── */
+  const RECENT_GAMES = [
+    {
+      name: 'Kingdom Rush Vengeance',
+      art: ART.krv.header,
+      hours: '总时数 36.6 小时',
+      last: '最后运行日期：11 月 17 日',
+      tier: 'progress',
+      count: '79 / 90',
+      pct: 88,
+      badges: [{ type: 'empty', title: '未全成就（精铸暗银胚）' }],
+      icons: [{ k: 'fist' }, { k: 'shield' }, { k: 'guardian', rare: true }, { k: 'mage' }, { k: 'spider' }],
+      more: '+74',
+    },
+    {
+      name: '编程农场 · The Farmer Was Replaced',
+      art: ART.farmer.header,
+      hours: '总时数 48.2 小时',
+      last: '最后运行日期：11 月 20 日 · 本体已满',
+      tier: 'progress',
+      count: '36 / 44',
+      pct: 82,
+      segmented: true,
+      basePct: 72.7,
+      dlcPct: 9.1,
+      badges: [{ type: 'base', title: '本体集合全达成' }],
+      icons: [{ k: 'code', rare: true }, { k: 'water' }, { k: 'gems', rare: true }, { k: 'gold' }, { k: 'shield' }],
+      more: '+31',
+    },
+    {
+      name: '孤山独影 · Cairn',
+      art: ART.cairn.header,
+      hours: '总时数 29.4 小时',
+      last: '最后运行日期：11 月 21 日 · 本体 + 全 DLC 达成',
+      tier: 'all100',
+      count: '62 / 62',
+      pct: 100,
+      segmented: true,
+      basePct: 83.87,
+      dlcPct: 16.13,
+      badges: [{ type: 'all', title: '全部成就集合达成' }],
+      icons: [{ k: 'water', rare: true }, { k: 'peak', rare: true }, { k: 'moth', rare: true }, { k: 'gems' }, { k: 'shield' }],
+      more: '+57',
+    },
+  ];
+
+  function renderRecentCard(g, compact = false) {
+    return `<div class="recent-game-card ach-hover-zone ac-card-hoverable" data-tier="${g.tier}">
+      <div class="recent-game-top">
+        <div class="recent-cap" style="${compact ? 'width:108px' : ''}"><img src="${g.art}" alt="${g.name}"></div>
+        <div class="recent-meta">
+          <div class="recent-name">
+            <span>${g.name}</span>
+            ${g.tier === 'all100' ? '<span class="gp-ach-tier-tag">全卷无瑕</span>' : ''}
+          </div>
+          <div class="recent-sub">${g.hours} · ${g.last}</div>
+        </div>
+      </div>
+      <div class="recent-ach-strip">
+        <div class="recent-ach-left" style="${compact ? 'min-width:150px' : ''}">
+          <div class="recent-ach-label">
+            <span>成就进度</span>
+            <strong>${g.count} (${g.pct}%)</strong>
+          </div>
+          <div class="recent-bar-row">
+            ${g.badges.map((b) => renderBadge(b.type, 24, b.title)).join('')}
+            ${renderProgressBar({ pct: g.pct, tier: g.tier, segmented: !!g.segmented, basePct: g.basePct, dlcPct: g.dlcPct, height: 8 })}
+          </div>
+        </div>
+        ${compact ? '' : `<div class="recent-icons">
+          ${g.icons.map((x) => renderIconTile(x.k, { rare: x.rare })).join('')}
+          <span class="gp-more-tile">${g.more}</span>
+        </div>`}
+      </div>
+    </div>`;
+  }
+
+  /* ── 9. Section 4 Data: Lab Spec Strip ────────────────────────────────── */
+  const LAB_BARS = [
+    { name: '未开始', sub: '0% 静息空槽', pct: 0, tier: 'progress' },
+    { name: '探索前期', sub: '38% 静息蓝渐进', pct: 38, tier: 'progress' },
+    { name: '进度过半', sub: '88% 悬停唤醒星尘', pct: 88, tier: 'progress' },
+    { name: '近在咫尺', sub: '94% 晨金收尾提示', pct: 94, tier: 'near' },
+    { name: '本体全成就', sub: '100% 静谧慢星尘', pct: 100, tier: 'base100' },
+    { name: '多集合分段', sub: '本体满 + DLC 进行中', pct: 82, tier: 'progress', segmented: true, basePct: 72.7, dlcPct: 9.1 },
+    { name: '全集合无瑕', sub: '本体 + 全 DLC 100%', pct: 100, tier: 'all100', segmented: true, basePct: 74, dlcPct: 26 },
+  ];
+
+  function renderLab() {
+    const barsHtml = LAB_BARS.map((b) => `
+      <div class="lab-bar-item ach-hover-zone">
+        <div class="lab-bar-name"><span>${b.name}</span><small>${b.sub}</small></div>
+        ${renderProgressBar({ pct: b.pct, tier: b.tier, segmented: !!b.segmented, basePct: b.basePct, dlcPct: b.dlcPct })}
+        <span class="lab-bar-val">${b.pct}%</span>
+      </div>
+    `).join('');
+
+    const badgesHtml = [
+      { type: 'empty', title: '未达成 / 进行中', sub: '精铸暗银胚 · 空宝珠槽' },
+      { type: 'base', title: '本体全成就', sub: 'tools/badge.svg 原蓝' },
+      { type: 'dlc', title: '独立 DLC 集合', sub: '同几何 Steam DLC 紫' },
+      { type: 'all', title: '本体 + 全 DLC', sub: '左蓝右紫全集合' },
+    ].map((b) => `
+      <div class="badge-specimen ac-card-hoverable">
+        <div class="badge-sizes">
+          ${renderBadge(b.type, 44, b.title)}
+          ${renderBadge(b.type, 32, b.title)}
+          ${renderBadge(b.type, 22, b.title)}
+        </div>
+        <div class="badge-specimen-label">${b.title}</div>
+        <div class="badge-specimen-sub">${b.sub}</div>
+      </div>
+    `).join('');
+
+    const miniItemsHtml = [
+      { badge: 'empty', count: '79/90', pct: 88, tier: 'progress', color: '' },
+      { badge: 'empty', count: '49/52', pct: 94, tier: 'near', color: '' },
+      { badge: 'base', count: '45/45', pct: 100, tier: 'base100', color: 'color:#ffe299' },
+      { badge: 'all', count: '62/62', pct: 100, tier: 'all100', color: 'color:#dfc0ff' },
+    ].map((m) => `
+      <div class="minibar-item ach-hover-zone ac-card-hoverable">
+        ${renderBadge(m.badge, 22, m.count)}
+        <div class="minibar-meta">
+          <span class="minibar-lbl">成就</span>
+          <span class="minibar-row"><strong style="${m.color}">${m.count}</strong>${renderProgressBar({ pct: m.pct, tier: m.tier, height: 6 })}</span>
+        </div>
+      </div>
+    `).join('');
+
+    document.getElementById('labMount').innerHTML = `
+      <div class="lab-box">
+        <h4>进度条七档状态检视 <small>0–99% 平时安静 · 悬停唤醒星尘与扫光 · 100% 自带慢速静谧星尘</small></h4>
+        ${barsHtml}
+        <h4 style="margin-top:6px">游戏页顶部 MiniBar 概览条 <small>未全成就时以暗银空槽徽章衔接，100% 原地点亮</small></h4>
+        <div class="minibar-preview-strip">${miniItemsHtml}</div>
+      </div>
+      <div class="lab-box">
+        <h4>徽章四态与尺寸预览（沿用 tools/badge.svg） <small>44px 详情页 · 32px 右侧栏/最近游玩 · 22px MiniBar</small></h4>
+        <div class="badge-showcase-grid">${badgesHtml}</div>
+        <div style="font-size:11.5px;color:#8a96aa;line-height:1.6;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05)">
+          <strong style="color:#dde5f5">四态徽章语义说明：</strong><br>
+          · 尚未全成就（MiniBar / 最近游玩 / 未完成集合）→ <span style="color:#aeb9cc">精铸暗银胚（空宝珠槽）</span>；<br>
+          · 单集合 100% 或本体全成就 → 原地点亮为<span style="color:#7ab8ff">蓝色徽章</span>；<br>
+          · 独立 DLC 集合 → <span style="color:#df92f0">纯紫 DLC 徽章</span>；全部集合达成 → <span style="color:#d498ff">左蓝右紫全集合徽章</span>。
+        </div>
+      </div>
+    `;
+  }
+
+  /* ── 10. 3-Up Side-by-Side Comparison View ────────────────────────────── */
+  function renderCompareView() {
+    const keys = ['horizon', 'prism', 'gilt'];
+    const grid = document.getElementById('compareGrid');
+    grid.innerHTML = keys.map((k) => {
+      const s = SCHEMES[k];
+      return `<div class="compare-col ${s.cls}">
+        <div class="compare-col-head">
+          <h3>${s.name.split('（')[0]}</h3>
+          <button type="button" class="compare-pick-btn" data-jump="${k}">完整检视 →</button>
+        </div>
+
+        <div>
+          <div class="compare-mini-title">徽章承托（本体 / 独立 DLC / 全集合）</div>
+          <div style="display:flex;align-items:center;justify-content:space-around;padding:10px 6px;border-radius:8px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.05)">
+            ${renderBadge('base', 38, '本体')}
+            ${renderBadge('dlc', 38, '独立 DLC')}
+            ${renderBadge('all', 38, '全集合')}
+          </div>
+        </div>
+
+        <div>
+          <div class="compare-mini-title">四档进度条（悬停触发星尘）</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div class="ach-hover-zone" style="display:flex;align-items:center;gap:8px">
+              <span style="width:46px;font-size:11px;color:#8e9ab0">88%</span>
+              ${renderProgressBar({ pct: 88, tier: 'progress' })}
+            </div>
+            <div class="ach-hover-zone" style="display:flex;align-items:center;gap:8px">
+              <span style="width:46px;font-size:11px;color:#8e9ab0">94%</span>
+              ${renderProgressBar({ pct: 94, tier: 'near' })}
+            </div>
+            <div class="ach-hover-zone" style="display:flex;align-items:center;gap:8px">
+              <span style="width:46px;font-size:11px;color:#8e9ab0">分段</span>
+              ${renderProgressBar({ pct: 82, tier: 'progress', segmented: true, basePct: 72.7, dlcPct: 9.1 })}
+            </div>
+            <div class="ach-hover-zone" style="display:flex;align-items:center;gap:8px">
+              <span style="width:46px;font-size:11px;color:#8e9ab0">全集合</span>
+              ${renderProgressBar({ pct: 100, tier: 'all100', segmented: true, basePct: 76, dlcPct: 24 })}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="compare-mini-title">右侧成就卡片 · 进行中 88%</div>
+          ${renderSidebarCard(SIDEBAR_CASES[0], true)}
+        </div>
+
+        <div>
+          <div class="compare-mini-title">右侧成就卡片 · 全集合 100%</div>
+          ${renderSidebarCard(SIDEBAR_CASES[4], true)}
+        </div>
+
+        <div>
+          <div class="compare-mini-title">成就详情行 · 普通 vs 稀有 (&lt;10%)</div>
+          <div class="ach-list">
+            ${renderAchRow(DETAIL_GAMES.krv.unlocked[0], false, true)}
+            ${renderAchRow(DETAIL_GAMES.krv.unlocked[2], false, true)}
+          </div>
+        </div>
+
+        <div>
+          <div class="compare-mini-title">个人资料 · 最近游玩</div>
+          ${renderRecentCard(RECENT_GAMES[2], true)}
+        </div>
+      </div>`;
+    }).join('');
+
+    grid.querySelectorAll('[data-jump]').forEach((btn) => {
+      btn.addEventListener('click', () => setScheme(btn.dataset.jump));
+    });
+    bindPrismPointer(grid);
+  }
+
+  /* ── 11. Pointer-following Prism Rim Light for Scheme 2 ───────────────── */
+  function bindPrismPointer(root = document) {
+    root.querySelectorAll('.ach-bar').forEach((bar) => {
+      if (bar.dataset.prismBound) return;
+      bar.dataset.prismBound = '1';
+      bar.addEventListener('pointermove', (e) => {
+        const rect = bar.getBoundingClientRect();
+        bar.style.setProperty('--px', `${Math.round(e.clientX - rect.left)}px`);
+        bar.style.setProperty('--py', `${Math.round(e.clientY - rect.top)}px`);
+      });
+    });
+  }
+
+  /* ── 12. Render Initial Sections & Wire Toolbar ───────────────────────── */
+  function renderStaticSections() {
+    document.getElementById('sidebarGrid').innerHTML = SIDEBAR_CASES.map((c) => `
+      <div>
+        <div class="card-slot-label"><strong>${c.slotTitle}</strong><span class="state-chip">${c.slotChip}</span></div>
+        <div class="gp-ach-sec-title">成就</div>
+        ${renderSidebarCard(c, false)}
+      </div>
+    `).join('');
+
+    document.getElementById('profileMount').innerHTML = `
+      <div class="profile-block-head">
+        <strong>最新动态</strong>
+        <span>过去 2 周共 28.4 小时</span>
+      </div>
+      ${RECENT_GAMES.map((g) => renderRecentCard(g, false)).join('')}
+    `;
+
+    renderLab();
+    renderDetailView();
+    renderCompareView();
+    bindPrismPointer(document);
+  }
+
+  let currentScheme = 'horizon';
+  function setScheme(scheme) {
+    currentScheme = scheme;
+    document.querySelectorAll('#schemeTabs .tab').forEach((t) => {
+      t.classList.toggle('is-active', t.dataset.scheme === scheme);
+    });
+    const single = document.getElementById('singleView');
+    const compare = document.getElementById('compareView');
+    if (scheme === 'compare') {
+      single.hidden = true;
+      compare.hidden = false;
+      return;
+    }
+    single.hidden = false;
+    compare.hidden = true;
+    const meta = SCHEMES[scheme] || SCHEMES.horizon;
+    single.className = meta.cls;
+    document.getElementById('schemeBrief').innerHTML = `
+      <div>
+        <h2>${meta.name}</h2>
+        <p>${meta.desc}</p>
+      </div>
+      <div class="brief-tags">${meta.tags.map((t) => `<span class="brief-tag">${t}</span>`).join('')}</div>
+    `;
+  }
+
+  function setSection(sec) {
+    document.querySelectorAll('#sectionSeg button').forEach((b) => {
+      b.classList.toggle('is-active', b.dataset.sec === sec);
+    });
+    document.querySelectorAll('#singleView .studio-section').forEach((s) => {
+      s.hidden = sec !== 'all' && s.dataset.section !== sec;
+    });
+    if (currentScheme === 'compare' && sec !== 'all') setScheme('horizon');
+  }
+
+  document.querySelectorAll('#schemeTabs .tab').forEach((tab) => {
+    tab.addEventListener('click', () => setScheme(tab.dataset.scheme));
+  });
+  document.querySelectorAll('#shellSeg button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#shellSeg button').forEach((b) => b.classList.toggle('is-active', b === btn));
+      document.body.dataset.shell = btn.dataset.shell;
+    });
+  });
+  document.querySelectorAll('#sectionSeg button').forEach((btn) => {
+    btn.addEventListener('click', () => setSection(btn.dataset.sec));
+  });
+  document.querySelectorAll('#detailGameSeg button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#detailGameSeg button').forEach((b) => b.classList.toggle('is-active', b === btn));
+      detailState.game = btn.dataset.game;
+      detailState.setFilter = 'all';
+      detailState.query = '';
+      detailState.revealedHidden = false;
+      renderDetailView();
+    });
+  });
+
+  const hoverBtn = document.getElementById('hoverSimBtn');
+  hoverBtn.addEventListener('click', () => {
+    const on = document.body.dataset.forceHover !== '1';
+    document.body.dataset.forceHover = on ? '1' : '0';
+    hoverBtn.classList.toggle('is-on', on);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+    if (e.key === '1') setScheme('horizon');
+    else if (e.key === '2') setScheme('prism');
+    else if (e.key === '3') setScheme('gilt');
+    else if (e.key === '0') setScheme('baseline');
+    else if (e.key.toLowerCase() === 'a') setScheme('compare');
+  });
+
+  renderStaticSections();
+  // Support URL query params for instant deep-linking / automated visual QA
+  const params = new URLSearchParams(location.search);
+  const initScheme = params.get('scheme');
+  const initSec = params.get('sec');
+  const initGame = params.get('game');
+  const initHover = params.get('hover');
+  const initShell = params.get('shell');
+  if (initShell === 'spacetheme') {
+    document.body.dataset.shell = 'spacetheme';
+    document.querySelectorAll('#shellSeg button').forEach((b) => b.classList.toggle('is-active', b.dataset.shell === 'spacetheme'));
+  }
+  if (initGame && DETAIL_GAMES[initGame]) {
+    detailState.game = initGame;
+    document.querySelectorAll('#detailGameSeg button').forEach((b) => b.classList.toggle('is-active', b.dataset.game === initGame));
+    renderDetailView();
+  }
+  if (initHover === '1') {
+    document.body.dataset.forceHover = '1';
+    hoverBtn.classList.add('is-on');
+  }
+  setScheme(initScheme && (SCHEMES[initScheme] || initScheme === 'compare') ? initScheme : 'horizon');
+  if (initSec) setSection(initSec);
+})();
+</script>
+</body>
+</html>

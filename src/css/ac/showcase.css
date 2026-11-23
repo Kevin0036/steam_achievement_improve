@@ -275,6 +275,197 @@ html body.profile_page .showcase_stat[data-ac-stat="hidden"] {
     display: none;
 }
 
+/* ── 个人资料页 ·「最近游玩」成就状态（穹光棱镜融合版，适配 2026 profilev2.css） ── */
+
+html body.profile_page .recent_game:has(.game_info_achievements) {
+    position: relative;
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(22, 29, 43, 0.82) 0%, rgba(15, 20, 30, 0.9) 100%);
+    border: 1px solid rgba(138, 184, 255, 0.14);
+    box-shadow:
+        inset 0 1px 0 rgba(162, 206, 255, 0.12),
+        0 6px 18px rgba(0, 0, 0, 0.3);
+    transition: border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+html body.profile_page .recent_game[data-ac-tier="base100"] {
+    border-color: rgba(246, 202, 102, 0.28);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 224, 140, 0.2),
+        0 8px 22px -10px rgba(246, 198, 86, 0.28);
+}
+
+html body.profile_page .recent_game[data-ac-tier="all100"] {
+    border-color: rgba(178, 136, 255, 0.34);
+    box-shadow:
+        inset 0 1px 0 rgba(196, 232, 255, 0.22),
+        0 8px 24px -10px rgba(170, 112, 255, 0.34);
+}
+
+html body.profile_page .recent_game .game_info_stats {
+    border-radius: 6px;
+    background: rgba(11, 15, 24, 0.56);
+    border: 1px solid rgba(140, 184, 255, 0.1);
+}
+
+/* 进度条外槽（兼容新版 .achievement_segmented_bar 与旧版 .progress_bar） */
+html body.profile_page .recent_game .achievement_progress_bar_ctn {
+    position: relative;
+    height: 9px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(8, 12, 20, 0.92), rgba(14, 20, 32, 0.86));
+    box-shadow:
+        inset 0 1px 2px rgba(0, 0, 0, 0.68),
+        inset 0 0 0 1px rgba(142, 188, 255, 0.18);
+    transition: box-shadow 0.24s ease;
+}
+
+html body.profile_page .recent_game:hover .achievement_progress_bar_ctn {
+    box-shadow:
+        inset 0 0 0 1px rgba(154, 206, 255, 0.44),
+        0 0 12px -2px rgba(92, 168, 255, 0.48);
+}
+
+html body.profile_page .recent_game[data-ac-tier="base100"] .achievement_progress_bar_ctn {
+    box-shadow:
+        inset 0 0 0 1px rgba(248, 210, 118, 0.36),
+        0 0 12px -2px rgba(246, 198, 86, 0.38);
+}
+
+html body.profile_page .recent_game[data-ac-tier="all100"] .achievement_progress_bar_ctn {
+    box-shadow:
+        inset 0 0 0 1px rgba(188, 144, 255, 0.42),
+        0 0 14px -2px rgba(170, 112, 255, 0.46);
+}
+
+/* 新版 2026 分段 Grid 进度条 (.achievement_segmented_bar > .segment.base / .segment.dlc) */
+html body.profile_page .recent_game .achievement_progress_bar_ctn .achievement_segmented_bar {
+    position: relative;
+    height: 100%;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+html body.profile_page .recent_game .achievement_segmented_bar .segment.base {
+    background-color: transparent;
+    background-image: linear-gradient(90deg, #255bc7 0%, #4895ff 64%, #82cbff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+html body.profile_page .recent_game[data-ac-tier="near"] .achievement_segmented_bar:not(:has(> .segment.dlc)) .segment.base {
+    background-image: linear-gradient(90deg, #3274e6 0%, #5ea4ff 48%, #f3bc4f 86%, #ffe69c 100%);
+}
+
+html body.profile_page .recent_game[data-ac-tier="base100"] .achievement_segmented_bar:not(:has(> .segment.dlc)) .segment.base {
+    background-image: linear-gradient(90deg, #2f6ee0 0%, #60a5ff 36%, #e5b74e 76%, #fff0b3 100%);
+}
+
+html body.profile_page .recent_game[data-ac-tier="all100"] .achievement_segmented_bar:not(:has(> .segment.dlc)) .segment.base {
+    background-image: linear-gradient(90deg, #3fd0e6 0%, #5492ff 46%, #a95ef0 82%, #e0a6ff 100%);
+}
+
+html body.profile_page .recent_game .achievement_segmented_bar .segment.dlc {
+    background-color: transparent;
+    background-image: linear-gradient(90deg, #8e3fb0 0%, #bc63d6 68%, #e5a3ff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    border-left: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* 旧版单段 .progress_bar 兜底 */
+html body.profile_page .recent_game .achievement_progress_bar_ctn .progress_bar {
+    position: relative;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #255bc7 0%, #4895ff 64%, #82cbff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+html body.profile_page .recent_game[data-ac-tier="near"] .progress_bar {
+    background: linear-gradient(90deg, #3274e6 0%, #5ea4ff 48%, #f3bc4f 86%, #ffe69c 100%);
+}
+html body.profile_page .recent_game[data-ac-tier="base100"] .progress_bar,
+html body.profile_page .recent_game .progress_bar[style*="width: 100%"],
+html body.profile_page .recent_game .progress_bar[style*="width:100%"] {
+    background: linear-gradient(90deg, #2f6ee0 0%, #60a5ff 36%, #e5b74e 76%, #fff0b3 100%);
+}
+html body.profile_page .recent_game[data-ac-tier="all100"] .progress_bar {
+    background: linear-gradient(90deg, #3fd0e6 0%, #5492ff 46%, #a95ef0 82%, #e0a6ff 100%);
+}
+
+/* 星尘与扫光叠加层（0–99% 平时安静，悬停与 100% 唤醒） */
+html body.profile_page .recent_game:not([data-ac-pct="0"]):hover .ac-pbar-stars {
+    opacity: 1;
+}
+html body.profile_page .recent_game:not([data-ac-pct="0"]):hover .ac-pbar-star {
+    animation-play-state: running;
+}
+html body.profile_page .recent_game:not([data-ac-pct="0"]):hover .ac-pbar-sweep {
+    opacity: 0.76;
+    animation-duration: 2.5s;
+    animation-play-state: running;
+}
+
+/* 2026 最近游玩左侧奖章：未完成态换为精铸暗银空槽徽章，已完成态原地点亮为蓝/紫 badge.svg */
+html body.profile_page .recent_game .game_info_achievements_ribbons .showcase_completion_ribbon_group {
+    opacity: 1;
+}
+html body.profile_page .recent_game .game_info_achievements_ribbons .showcase_completion_ribbon_group .showcase_completion_ribbon {
+    --trophy-w: calc(var(--trophy-h, var(--trophy-base, 34px)) * 100 / 118);
+    transition: transform 0.22s var(--ac-ease-out), opacity 0.2s ease;
+}
+html body.profile_page .recent_game .game_info_achievements_ribbons .showcase_completion_ribbon_group.empty .showcase_completion_ribbon {
+    background-image: var(--ac-badge-img-empty);
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.45));
+    opacity: 0.88;
+}
+html body.profile_page .recent_game:hover .game_info_achievements_ribbons .showcase_completion_ribbon_group.empty .showcase_completion_ribbon {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.04);
+}
+html body.profile_page .recent_game .game_info_achievements_ribbons .showcase_completion_ribbon_group:not(.empty) .showcase_completion_ribbon {
+    background-image: var(--ac-badge-img);
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+    opacity: 1;
+}
+html body.profile_page .recent_game .game_info_achievements_ribbons .showcase_completion_ribbon_group.dlc:not(.empty) .showcase_completion_ribbon {
+    background-image: var(--ac-badge-img-dlc);
+}
+html body.profile_page .recent_game:hover .game_info_achievements_ribbons .showcase_completion_ribbon_group:not(.empty) .showcase_completion_ribbon:first-of-type {
+    transform: translateY(-1px) scale(1.06);
+}
+
+html body.profile_page .recent_game .game_info_achievement_summary {
+    font-variant-numeric: tabular-nums;
+}
+
+/* 最近游玩里的成就图标与 +N 溢出格（融合方案二暗曜微玻璃） */
+html body.profile_page .recent_game .game_info_achievement img {
+    border-radius: 5px;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 2px 6px rgba(0, 0, 0, 0.48);
+    transition: transform 0.18s ease;
+}
+html body.profile_page .recent_game .game_info_achievement:hover img {
+    transform: translateY(-2px) scale(1.06);
+}
+html body.profile_page .recent_game .game_info_achievement.plus_more {
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    color: #d4d7e6;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-weight: 600;
+}
+html body.profile_page .recent_game .game_info_achievement.plus_more:hover {
+    background: rgba(155, 114, 203, 0.18);
+    border-color: rgba(176, 134, 240, 0.45);
+    color: #ffffff;
+}
+
 /* ── 减少动态效果 ──────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {

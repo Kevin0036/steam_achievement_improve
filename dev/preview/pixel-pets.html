@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>成就收藏册 · 原创 MIT 像素桌宠 · 全部动画检视台</title>
+<link rel="stylesheet" href="/theme/plugin/src/bottombarpets.css">
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #11161f;
+    --panel: rgba(24, 31, 44, 0.78);
+    --line: rgba(164, 198, 255, 0.13);
+    --line-hi: rgba(130, 196, 255, 0.42);
+    --text: #eef3fb;
+    --muted: #93a4be;
+    --accent: #68a8ff;
+    --stage-scale: 1;
+  }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background:
+      radial-gradient(90% 45% at 20% 0%, rgba(72, 128, 224, 0.16), transparent 65%),
+      radial-gradient(80% 40% at 85% 0%, rgba(148, 127, 214, 0.16), transparent 65%),
+      #10151d;
+    color: var(--text);
+    font-family: "Be Vietnam Pro", "Microsoft YaHei UI", system-ui, sans-serif;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding-bottom: 108px;
+  }
+
+  /* 顶部工具条 */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    backdrop-filter: blur(14px);
+    background: rgba(16, 21, 29, 0.88);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 18px;
+  }
+  .title-block h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge-mit {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: #9be4b8;
+    background: rgba(71, 166, 96, 0.18);
+    border: 1px solid rgba(118, 227, 143, 0.34);
+  }
+  .title-block p {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .seg {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid var(--line);
+    gap: 2px;
+  }
+  .seg button, .btn-ctrl {
+    border: 1px solid transparent;
+    background: transparent;
+    color: #b7c4d9;
+    font: inherit;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .seg button:hover, .btn-ctrl:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .seg button.active {
+    color: #fff;
+    background: rgba(104, 168, 255, 0.24);
+    border-color: rgba(130, 196, 255, 0.45);
+  }
+  .btn-ctrl {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--line);
+  }
+  .btn-ctrl.is-paused {
+    color: #ffe082;
+    background: rgba(242, 197, 75, 0.18);
+    border-color: rgba(242, 197, 75, 0.45);
+  }
+
+  /* 展板网格 */
+  .main {
+    width: 100%;
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 18px 24px 28px;
+    flex: 1;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  body[data-scale="1.5"] .grid {
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  }
+  body[data-scale="2"] .grid {
+    grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+  }
+  .card:hover {
+    border-color: var(--line-hi);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+  }
+  .card.is-hidden { display: none; }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px 6px;
+  }
+  .card-title {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+  }
+  .card-title strong {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #f4f7fc;
+    white-space: nowrap;
+  }
+  .card-title code {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 11px;
+    color: #7d92b0;
+  }
+  .pill {
+    flex: none;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+  }
+  .pill-daily { color: #8ec5ff; background: rgba(72, 149, 255, 0.14); border-color: rgba(72, 149, 255, 0.3); }
+  .pill-rare  { color: #ffd479; background: rgba(242, 197, 75, 0.14); border-color: rgba(242, 197, 75, 0.34); }
+  .pill-duet  { color: #d5b4ff; background: rgba(164, 118, 240, 0.16); border-color: rgba(186, 142, 255, 0.36); }
+  .pill-inter { color: #9de8b8; background: rgba(94, 206, 134, 0.14); border-color: rgba(118, 227, 143, 0.32); }
+
+  /* 模拟底栏舞台视口 */
+  .stage-well {
+    position: relative;
+    height: calc(124px * var(--stage-scale));
+    margin: 4px 10px 0;
+    border-radius: 9px;
+    background:
+      linear-gradient(180deg, rgba(14, 19, 28, 0.88) 0%, rgba(19, 25, 36, 0.92) calc(100% - 18px * var(--stage-scale)), #171d25 calc(100% - 18px * var(--stage-scale)), #141920 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .stage-well::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(18px * var(--stage-scale));
+    height: 1px;
+    background: rgba(94, 110, 134, 0.42);
+    pointer-events: none;
+  }
+  .stage-scaler {
+    position: relative;
+    width: 210px;
+    height: 108px;
+    transform: scale(var(--stage-scale));
+    transform-origin: center bottom;
+    margin-bottom: calc(14px * var(--stage-scale));
+  }
+  .stage-scaler .ac-bb-pets {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 84px !important;
+    z-index: 2 !important;
+  }
+
+  .card-foot {
+    padding: 8px 12px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .card-desc {
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .card-actions {
+    display: flex;
+    flex: none;
+    gap: 5px;
+  }
+  .mini-btn {
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #d2def2;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .mini-btn:hover {
+    background: rgba(104, 168, 255, 0.22);
+    border-color: rgba(130, 196, 255, 0.45);
+    color: #fff;
+  }
+
+  /* 底部真实尺寸 Steam 底栏互动沙盒 */
+  .sandbox-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+  }
+  .sandbox-banner {
+    align-self: flex-start;
+    margin-left: 16px;
+    margin-bottom: 6px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    background: rgba(16, 22, 32, 0.86);
+    border: 1px solid rgba(142, 188, 255, 0.24);
+    backdrop-filter: blur(10px);
+    font-size: 11.5px;
+    color: #b8cae5;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sandbox-banner b { color: #eef4ff; font-weight: 600; }
+  .sandbox-banner button {
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    color: #dbe7fa;
+    font: inherit;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .sandbox-banner button:hover { background: rgba(104, 168, 255, 0.24); }
+
+  .steam-bar {
+    position: relative;
+    height: 50px;
+    background: #171d25;
+    box-shadow: inset 0 1px 0 rgba(78, 90, 108, 0.65), 0 -10px 28px rgba(0, 0, 0, 0.45);
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #8b929a;
+    user-select: none;
+    pointer-events: auto;
+  }
+  .steam-bar .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .steam-bar .ac-bb-pets {
+    position: absolute !important;
+    left: 0 !important;
+    right: 14px !important;
+    width: auto !important;
+    bottom: calc(100% - 9px) !important;
+  }
+</style>
+</head>
+<body data-scale="1">
+
+<header class="topbar">
+  <div class="title-block">
+    <h1>
+      原创双像素桌宠 · 全部动画检视台
+      <span class="badge-mit">MIT v2 · 27 组动作</span>
+    </h1>
+    <p>上方卡片为 27 组全部动画循环检视（支持放大逐像素查看与单帧步进）；下方为 1:1 真实 Steam 底栏沙盒，可直接拖拽、抛落、叠叠乐、5 段戳与右键投喂。</p>
+  </div>
+  <div class="toolbar">
+    <div class="seg" id="catTabs" role="tablist">
+      <button type="button" class="active" data-cat="all">全部 (27)</button>
+      <button type="button" data-cat="daily">日常与道具 (14)</button>
+      <button type="button" data-cat="rare">彩蛋演出 (3)</button>
+      <button type="button" data-cat="duet">双宠合演 (4)</button>
+      <button type="button" data-cat="inter">互动与物理 (6)</button>
+    </div>
+    <div class="seg" id="scaleTabs" title="缩放像素检视倍率">
+      <button type="button" class="active" data-scale="1">1×</button>
+      <button type="button" data-scale="1.5">1.5×</button>
+      <button type="button" data-scale="2">2×</button>
+    </div>
+    <button type="button" class="btn-ctrl" id="pauseAllBtn">⏸ 暂停全部</button>
+    <button type="button" class="btn-ctrl" id="stepBtn" title="暂停状态下逐拍步进，细看每一帧像素">⏭ 步进 +1 拍</button>
+  </div>
+</header>
+
+<main class="main">
+  <div class="grid" id="gallery"></div>
+</main>
+
+<div class="sandbox-dock">
+  <div class="sandbox-banner">
+    <span>底部 1:1 互动沙盒：<b id="sandboxStatus">自主日常剧场中</b>（左键连点 5 段戳 · 长按抚摸 · 右键投喂 · 拖拽抛落/叠叠乐）</span>
+    <button type="button" id="sandboxReset">归位</button>
+    <button type="button" id="sandboxCelebrate">触发全成就庆典</button>
+  </div>
+  <div class="steam-bar" id="steamBar">
+    <span class="btn">＋ 添加游戏</span>
+    <span class="btn">⬇ 管理下载</span>
+    <span class="btn">好友与聊天 👥</span>
+    <div class="ac-bb-pets ag-cs-dual-stage" id="sandboxStage"></div>
+  </div>
+</div>
+
+<script type="module">
+import { mountDualMascotStage } from '/theme/plugin/src/pixelpets.js';
+
+const ITEMS = [
+  // 日常与道具 (14)
+  { key: 'idle',        cat: 'daily', title: '待机微动作',     desc: '自然眨眼、双连眨、呼吸起伏、小猫抖耳摆尾与东张西望' },
+  { key: 'walk',        cat: 'daily', title: '巡逻散步',       desc: '交替迈步巡逻，靠边自动转身；底栏中偶遇还会自动跳马越顶' },
+  { key: 'butterfly',   cat: 'daily', title: '追蝴蝶',         desc: '蓝蝶 6 位置轨迹飞舞，眼神全程追随，最终停落头顶闪星' },
+  { key: 'flower',      cat: 'daily', title: '种小花',         desc: '6 段生长：松土 → 播籽 → 嫩芽 → 展叶 → 花苞 → 鎏金盛开 + 彩屑' },
+  { key: 'snack',       cat: 'daily', title: '吃面 / 吃烤鱼',  desc: '小蟹热气拉面挑筷吃光 · 小猫烤鱼从整鱼吃到剩鱼骨 + 冒心' },
+  { key: 'donut',       cat: 'daily', title: '草莓甜甜圈',     desc: '3 阶段咬食草莓糖霜甜甜圈，吃完开心冒爱心（右键投喂触发）' },
+  { key: 'coffee',      cat: 'daily', title: '喝热饮',         desc: '瓷杯蒸汽袅袅，周期性抬杯啜饮并满足眯眼脸红' },
+  { key: 'letter',      cat: 'daily', title: '拆信阅读',       desc: '火漆信封 → 拆开封口 → 展开信纸左右扫读 → 开心冒粉心' },
+  { key: 'laser',       cat: 'daily', title: '追激光点',       desc: '压低蓄力、小猫飞机耳，锁定移动红点后向前飞扑' },
+  { key: 'trophy',      cat: 'daily', title: '举奖杯欢呼',     desc: '高举 Steam 鎏金成就奖杯，高光交替闪烁并飘落彩屑与星芒' },
+  { key: 'gaming',      cat: 'daily', title: '手柄打游戏',     desc: '手握双色按键手柄左右摇晃连按 → 通关高举双手欢呼' },
+  { key: 'bubbles',     cat: 'daily', title: '吹像素泡泡',     desc: '鼓腮吐出冰蓝与淡紫高光泡泡，飘升后爆成像素水花' },
+  { key: 'stretch',     cat: 'daily', title: '伸懒腰',         desc: '小猫弓背拉长、小蟹高举双钳舒展，头顶冒波浪符' },
+  { key: 'groom',       cat: 'daily', title: '理毛 / 招手',    desc: '小猫闭眼舔爪洗脸，小蟹悠闲挥钳整理' },
+
+  // 彩蛋演出 (3)
+  { key: 'cheerSticks', cat: 'rare',  title: '荧光棒应援',     desc: '4 拍挥舞绿/粉荧光棒并带半透明残影光轨，伴随漂浮音符' },
+  { key: 'micSing',     cat: 'rare',  title: '麦霸哼歌',       desc: '银色立麦从地面升起，跟随节拍左右摇摆并飘出像素音符' },
+  { key: 'campfire',    cat: 'rare',  title: '淡定火堆',       desc: '背后三帧多焰舌篝火燃起、暖橙余烬飘升，淡定端杯喝热饮' },
+
+  // 双宠合演 (4)
+  { key: 'greet',       cat: 'duet',  title: '互相招手',       desc: '两只转向对望，小蟹挥钳、小猫蹦跳，头顶同冒爱心与音符' },
+  { key: 'nuzzle',      cat: 'duet',  title: '贴贴摸头',       desc: '小猫凑近小蟹互相蹭蹭理毛，中间升起双份粉红爱心' },
+  { key: 'leapfrog',    cat: 'duet',  title: '跳马越顶',       desc: '一只蓄力起跳空翻越过伙伴头顶，被越过的伙伴冒红感叹号' },
+  { key: 'twinCheer',   cat: 'duet',  title: '双宠举杯庆典',   desc: '齐声举起鎏金奖杯并抛洒双倍彩屑（成就卡包新卡入册联动）' },
+
+  // 互动与物理 (6)
+  { key: 'poke',        cat: 'inter', title: '5 段连点戳一戳', desc: '循环演示 5 段情绪递进：开心跳 → 晃动 → 歪头? → 惊吓! → 气鼓鼓💢' },
+  { key: 'pet',         cat: 'inter', title: '长按抚摸',       desc: '左键按住 340ms 触发：眯眼腮红、小猫举爪 + 持续飘粉红爱心' },
+  { key: 'stack',       cat: 'inter', title: '叠叠乐',         desc: '拖动轻放到伙伴头顶即可骑乘叠高高，附带地面压扁反馈与爱心' },
+  { key: 'spinHop',     cat: 'inter', title: '转圈蹦跳',       desc: '原地腾空旋身 + 三拍弹性落地缓冲（压扁→回弹→稳住）+ 彩屑' },
+  { key: 'dangle',      cat: 'inter', title: '拎起悬空',       desc: '鼠标拖拽拎起时瞪眼晃腿，地面伙伴眼神还会实时抬头追随' },
+  { key: 'doze',        cat: 'inter', title: '打盹 ZzZ',       desc: '静置超时或深夜进入低功耗打盹：小猫揣手猫条 + 漂浮 ZzZ' },
+];
+
+const CAT_LABELS = {
+  daily: ['日常', 'pill-daily'],
+  rare:  ['彩蛋', 'pill-rare'],
+  duet:  ['双宠', 'pill-duet'],
+  inter: ['互动', 'pill-inter'],
+};
+
+// 底部 1:1 可交互 Steam 底栏沙盒
+const sandboxRig = mountDualMascotStage(document.getElementById('sandboxStage'), {
+  popoverRightWidth: 0,
+  alwaysAnimate: true,
+});
+const sandboxStatus = document.getElementById('sandboxStatus');
+
+document.getElementById('sandboxReset').onclick = () => {
+  sandboxRig.triggerDemo('idle');
+  sandboxStatus.textContent = '已归位 · 自主日常剧场中';
+};
+document.getElementById('sandboxCelebrate').onclick = () => {
+  sandboxRig.notify('aura-complete');
+  sandboxStatus.textContent = '播放中：双宠举杯庆典';
+};
+
+// 27 张检视卡片
+const gallery = document.getElementById('gallery');
+const cardRigs = [];
+let globalPaused = false;
+
+const io = new IntersectionObserver((entries) => {
+  for (const ent of entries) {
+    const rec = ent.target._rec;
+    if (!rec) continue;
+    rec.visible = ent.isIntersecting;
+    if (!ent.isIntersecting) {
+      rec.rig.park(true);
+    } else {
+      rec.rig.resume();
+      if (globalPaused) rec.rig.setPaused(true);
+    }
+  }
+}, { rootMargin: '120px 0px' });
+
+for (const item of ITEMS) {
+  const card = document.createElement('section');
+  card.className = 'card';
+  card.dataset.cat = item.cat;
+  const [catText, catCls] = CAT_LABELS[item.cat];
+
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="card-title">
+        <strong>${item.title}</strong>
+        <code>${item.key}</code>
+      </div>
+      <span class="pill ${catCls}">${catText}</span>
+    </div>
+    <div class="stage-well">
+      <div class="stage-scaler">
+        <div class="ac-bb-pets ag-cs-dual-stage"></div>
+      </div>
+    </div>
+    <div class="card-foot">
+      <div class="card-desc">${item.desc}</div>
+      <div class="card-actions">
+        <button type="button" class="mini-btn" data-act="replay" title="从头重播该动作">↻</button>
+        <button type="button" class="mini-btn" data-act="send" title="投送到下方 1:1 Steam 底栏试玩">投送底栏</button>
+      </div>
+    </div>
+  `;
+
+  gallery.appendChild(card);
+
+  const stageEl = card.querySelector('.ac-bb-pets');
+  const rig = mountDualMascotStage(stageEl, {
+    align: 'center',
+    autoTheater: false,
+    alwaysAnimate: true,
+    minStageWidth: 180,
+  });
+  rig.triggerDemo(item.key, { loop: true });
+
+  const rec = { item, card, rig, visible: true };
+  card._rec = rec;
+  cardRigs.push(rec);
+  io.observe(card);
+
+  card.querySelector('[data-act="replay"]').onclick = () => {
+    rig.triggerDemo(item.key, { loop: true });
+    if (globalPaused) rig.setPaused(true);
+  };
+  card.querySelector('[data-act="send"]').onclick = () => {
+    sandboxRig.triggerDemo(item.key, { loop: false });
+    sandboxStatus.textContent = `底栏播放：${item.title} (${item.key})`;
+  };
+}
+
+// 分类筛选
+const catTabs = document.getElementById('catTabs');
+catTabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-cat]');
+  if (!btn) return;
+  const cat = btn.dataset.cat;
+  for (const b of catTabs.querySelectorAll('button')) b.classList.toggle('active', b === btn);
+  for (const rec of cardRigs) {
+    const show = cat === 'all' || rec.item.cat === cat;
+    rec.card.classList.toggle('is-hidden', !show);
+    if (!show) rec.rig.park(true);
+    else if (rec.visible) {
+      rec.rig.resume();
+      if (globalPaused) rec.rig.setPaused(true);
+    }
+  }
+});
+
+// 倍率缩放
+const scaleTabs = document.getElementById('scaleTabs');
+scaleTabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-scale]');
+  if (!btn) return;
+  const s = btn.dataset.scale;
+  for (const b of scaleTabs.querySelectorAll('button')) b.classList.toggle('active', b === btn);
+  document.documentElement.style.setProperty('--stage-scale', s);
+  document.body.dataset.scale = s;
+});
+
+// 暂停与单帧步进
+const pauseAllBtn = document.getElementById('pauseAllBtn');
+pauseAllBtn.onclick = () => {
+  globalPaused = !globalPaused;
+  pauseAllBtn.classList.toggle('is-paused', globalPaused);
+  pauseAllBtn.textContent = globalPaused ? '▶ 继续播放' : '⏸ 暂停全部';
+  for (const rec of cardRigs) rec.rig.setPaused(globalPaused);
+  sandboxRig.setPaused(globalPaused);
+};
+
+document.getElementById('stepBtn').onclick = () => {
+  if (!globalPaused) {
+    globalPaused = true;
+    pauseAllBtn.classList.toggle('is-paused', true);
+    pauseAllBtn.textContent = '▶ 继续播放';
+    for (const rec of cardRigs) rec.rig.setPaused(true);
+    sandboxRig.setPaused(true);
+  }
+  for (const rec of cardRigs) {
+    if (!rec.card.classList.contains('is-hidden') && rec.visible) rec.rig.stepTick(1);
+  }
+  sandboxRig.stepTick(1);
+};
+</script>
+</body>
+</html>

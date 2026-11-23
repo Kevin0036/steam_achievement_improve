@@ -498,7 +498,7 @@
     display: none;
 }
 
-._1pwP4eeP1zQD7PEgmsep0W:has(._3zxPLsbnU5LuorR0_EPCEC) ._1LJqx_qFOC8199RBQO5kU8 {
+._1pwP4eeP1zQD7PEgmsep0W:has(._3zxPLsbnU5LuorR0_EPCEC) ._1LJqx_qFOC8199RBQO5kU8:where(:not(._1KR40mXc7Z4Dss99aBDbyN):not(._1H3NRDhuiZh5xH5jZsiI38):not(._3lWVD8RYypVvbk60T5Vqcs)) {
     width: calc(100% - 42px);
     margin-left: auto;
 }
@@ -512,23 +512,7 @@
 
 
 /* 成就信息条的三种状态在 src/css/ac/library.css（插件与主题共用） */
-/* Metacritic */
-._1LJqx_qFOC8199RBQO5kU8._1KR40mXc7Z4Dss99aBDbyN,
-._1LJqx_qFOC8199RBQO5kU8._1H3NRDhuiZh5xH5jZsiI38,
-._1LJqx_qFOC8199RBQO5kU8._3lWVD8RYypVvbk60T5Vqcs {
-    text-align: center;
-    border-radius: var(--st-border-radius);
-    color: #fff;
-}
-._1LJqx_qFOC8199RBQO5kU8._1KR40mXc7Z4Dss99aBDbyN {
-    background-color: rgba(0, 206, 122, 1);
-}
-._1LJqx_qFOC8199RBQO5kU8._1H3NRDhuiZh5xH5jZsiI38 {
-    background-color: rgba(255, 189, 63, 1);
-}
-._1LJqx_qFOC8199RBQO5kU8._3lWVD8RYypVvbk60T5Vqcs {
-    background-color: rgba(255, 104, 116, 1);
-}
+/* Metacritic / Steam 评测分数条保持 Valve 默认的小胶囊，别在这里加宽高或配色 */
 
 
 /*

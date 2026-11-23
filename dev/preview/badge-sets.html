@@ -44,7 +44,22 @@
     .bar { position: relative; width: 100%; max-width: 220px; height: 34px; border-radius: 0 0 6px 6px; background: linear-gradient(#4a86f0, #346ae0); }
     .bar .badge { position: absolute; right: 8px; bottom: 3px; height: 44px; }
 
-    @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    /* 贴合修正：四种画法并排，每列从上到下是整枚、三处放大、卡面、小尺寸 */
+    .fit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px; }
+    .fit-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .fit-col .tag { display: block; min-height: 4.6em; }
+    .fit-col .tag small { display: block; margin-top: 2px; line-height: 1.5; }
+    .fit-col[data-pick] .tag { color: #f1d38a; }
+    .fit-big { width: 72%; margin: 4px auto 0; }
+    .zooms { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .zoom { position: relative; aspect-ratio: 22 / 16; overflow: hidden; border-radius: 6px; background: #111; border: 1px solid rgba(255,255,255,.06); }
+    .zoom > i { position: absolute; width: calc(100% * 100 / 22); aspect-ratio: 100 / 118; background: center / contain no-repeat; }
+    .zoom > span { position: absolute; left: 6px; bottom: 4px; font-size: 11px; color: #7d838d; }
+    .fit-col .ac-card { cursor: default; }
+    .smalls { display: flex; align-items: flex-end; gap: 12px; padding: 10px; border-radius: 8px; background: rgba(255,255,255,.025); }
+    .smalls .bar { flex: 1; }
+
+    @media (max-width: 900px) { .cards, .fit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
 </head>
 <body>
@@ -54,6 +69,18 @@
         <select id="game"></select>
         <span style="color:#6c7179">悬停卡片会播放宝珠上的那道光，和收藏册里一样</span>
     </div>
+
+    <h2>贴合修正（2026-11-05）</h2>
+    <p class="lead">金边、外圈暗边、宝珠和绶带都没动，只重画星形里面的彩色区域。原来深色斜面是把外框缩小画的，凹角是尖的，金边内侧在凹角却是圆的，中间露出一小块浅色三角；蓝紫版的明暗层还把金边内侧那道暗线盖成了褐色。A、B 都改成直接沿金边内侧的轮廓填色，斜面线从这条轮廓等距往里收，凹角、尖角处的宽度处处一样。</p>
+    <div class="tools" style="margin-bottom:14px">
+        <label for="fitPalette">配色</label>
+        <select id="fitPalette">
+            <option value="horizontal">蓝紫（本体 + 全部 DLC 集合）</option>
+            <option value="base">蓝色（本体集合）</option>
+        </select>
+        <span style="color:#6c7179">中间四格放大的是星形左右两侧的凹角和尖角，蓝紫版右边是紫色那一侧</span>
+    </div>
+    <div class="fit-grid" id="fitGrid"></div>
 
     <h2>卡面效果</h2>
     <p class="lead">左一是现在的蓝徽章：本体集合全成就（没有成就集合的游戏也用它）。右边是「本体 + 所有 DLC 集合都全成就」的左蓝右紫：紫色改用 Steam 自己 DLC 集合奖章的颜色，过渡收窄，另外补了一层上亮下暗。中间是上一稿，方便对比。金色宝珠和奶金描边都不变。</p>
@@ -127,7 +154,56 @@ function renderSheet() {
     for (const v of VARIANTS) cell('', `<div class="bar">${badge(v.id, 44)}</div>`);
 }
 
-select.addEventListener('change', renderCards);
+/* ── 贴合修正 ── */
+const FITS = [
+    { id: 'legacy', name: '旧版（1.2.3）', note: '凹角露出浅色三角；蓝紫版金边内侧的暗线发褐' },
+    { id: 'A', name: 'A · 立体内线（正式默认）', note: '原来那道细斜面线沿金边内侧走；蓝紫版的深色线左半深蓝、右半深紫，跟着徽章的渐变走' },
+    { id: 'B', name: 'B · 关闭「徽章立体内线」', note: '彩色直接贴着暗线，和绶带同一种画法，最干净' },
+];
+// 左右各看一处凹角和尖角：蓝紫版右边是紫色那一侧
+const ZOOMS = [[27, 10, '左上凹角'], [51, 10, '右上凹角'], [0, 37, '左尖角'], [78, 37, '右尖角']];
+const fitVar = (palette, fit) => (fit === 'legacy' ? `var(--ac-badge-${palette})` : `var(--ac-badge-${palette}-${fit})`);
+const fitPalette = document.getElementById('fitPalette');
+
+function renderFits() {
+    const palette = fitPalette.value;
+    const card = CARDS.find((c) => String(c.appid) === select.value) ?? CARDS[0];
+    const host = document.getElementById('fitGrid');
+    host.replaceChildren();
+    for (const fit of FITS) {
+        const image = fitVar(palette, fit.id);
+        const col = document.createElement('div');
+        col.className = 'fit-col';
+        const zooms = ZOOMS.map(([x, y, label]) =>
+            `<div class="zoom"><i style="background-image:${image};left:${(-x * 100) / 22}%;top:${(-y * 100) / 16}%"></i><span>${label}</span></div>`).join('');
+        col.innerHTML =
+            `<div class="tag">${fit.name}<small>${fit.note}</small></div>` +
+            `<div class="badge fit-big" style="background-image:${image}"></div>` +
+            `<div class="zooms">${zooms}</div>`;
+
+        const box = document.createElement('div');
+        box.className = 'ac-card';
+        const tilt = document.createElement('div');
+        tilt.className = 'ac-card__tilt';
+        tilt.append(createCardFront(document, { ...card, allSets: palette === 'horizontal' }, { owner: OWNER }));
+        box.append(Object.assign(document.createElement('div'), { className: 'ac-card__shadow' }), tilt);
+        box.querySelector('.ac-cf__badge').style.backgroundImage = image;
+        box.addEventListener('pointerenter', () => box.setAttribute('data-hover', ''));
+        box.addEventListener('pointerleave', () => box.removeAttribute('data-hover'));
+        col.append(box);
+
+        const smalls = document.createElement('div');
+        smalls.className = 'smalls';
+        smalls.innerHTML = [46, 28].map((h) => `<div class="badge" style="height:${h}px;background-image:${image}"></div>`).join('') +
+            `<div class="bar"><div class="badge" style="height:44px;background-image:${image}"></div></div>`;
+        col.append(smalls);
+        host.append(col);
+    }
+}
+
+fitPalette.addEventListener('change', renderFits);
+select.addEventListener('change', () => { renderCards(); renderFits(); });
+renderFits();
 renderCards();
 renderSheet();
 </script>

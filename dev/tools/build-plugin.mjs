@@ -78,6 +78,8 @@ function buildCss() {
         'albumframes.css',
         'albumstyles.css',
         'cardpack.css',
+        'library.css',
+        'gameach.css',
     ];
     const fontImport =
         "@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap');\n";
@@ -95,10 +97,12 @@ function buildCss() {
     console.log(`[css] ${path.relative(root, output)}  ${(Buffer.byteLength(chunks.join('\n')) / 1024).toFixed(1)} KB`);
 }
 
-/** 社区展柜走 Lua 的 add_browser_css/js，需要独立的 CSS 与 IIFE bundle。 */
+/** 社区展柜走 Lua 的 add_browser_css/js，需要独立的 CSS 与 IIFE bundle。
+ *  library.css 也拼进来：同一个文件再按 steamloopback 规则注入一次，
+ *  游戏库在 Steam 启动时就有进度条样式，不必先打开卡包。 */
 function buildShowcaseCss() {
     const cssDir = path.join(THEME_DIR, 'src/css/ac');
-    const files = ['art.css', 'tokens.css', 'showcase.css'];
+    const files = ['art.css', 'tokens.css', 'showcase.css', 'library.css', 'gameach.css'];
     const chunks = [];
     for (const file of files) {
         const full = path.join(cssDir, file);

@@ -1,0 +1,1840 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>库内成就进度展示 · 新设计实验室 v4</title>
+<link rel="stylesheet" href="/theme/options/fonts/beVietnamPro.css">
+<link rel="stylesheet" href="/theme/src/css/ac/tokens.css">
+<style>
+  :root {
+    --st-border-radius: 8px;
+    --st-color-1: 17, 17, 17;
+    --ui-bg: #0f1217;
+    --ui-panel: #161a22;
+    --ui-panel-2: #1c212c;
+    --ui-border: rgba(255, 255, 255, 0.08);
+    --ui-border-strong: rgba(255, 255, 255, 0.16);
+    --ui-text: #eef1f6;
+    --ui-dim: #9aa4b5;
+    --ui-faint: #6b7485;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    font-family: var(--ac-font, "Be Vietnam Pro", "Microsoft YaHei UI", sans-serif);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top Studio Toolbar ─────────────────────────────────────────────── */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(15, 18, 23, 0.9);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--ui-border);
+  }
+  .topbar-inner {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 12px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 18px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { margin: 0; font-size: 15px; font-weight: 600; color: #f4f6fa; }
+  .brand span { font-size: 12px; color: var(--ui-faint); }
+
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .seg {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--ui-panel);
+    border: 1px solid var(--ui-border);
+    gap: 2px;
+  }
+  .seg button {
+    border: 0;
+    background: transparent;
+    color: var(--ui-dim);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.16s ease, color 0.16s ease;
+    white-space: nowrap;
+  }
+  .seg button:hover { color: #fff; }
+  .seg button.is-active {
+    background: rgba(90, 148, 255, 0.22);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(108, 162, 255, 0.45);
+  }
+
+  .tabs-bar {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 0 24px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tab {
+    border: 1px solid var(--ui-border);
+    background: var(--ui-panel);
+    color: var(--ui-dim);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.18s ease;
+  }
+  .tab:hover { color: #fff; border-color: var(--ui-border-strong); }
+  .tab.is-active {
+    background: linear-gradient(180deg, rgba(84, 140, 250, 0.28), rgba(64, 114, 224, 0.18));
+    border-color: rgba(114, 166, 255, 0.58);
+    color: #fff;
+  }
+  .tab small { font-size: 11px; opacity: 0.68; font-weight: 400; }
+
+  /* ── Main Content Shell ─────────────────────────────────────────────── */
+  main {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 20px 24px 68px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .section-card {
+    border-radius: 14px;
+    border: 1px solid var(--ui-border);
+    background: var(--ui-panel);
+    overflow: hidden;
+  }
+  .section-head {
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--ui-border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+  }
+  .section-head-left { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+  .section-head h2 { margin: 0; font-size: 14.5px; font-weight: 600; color: #f4f6fa; }
+  .section-head p { margin: 0; font-size: 12px; color: var(--ui-dim); }
+  .section-head-right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+  .head-action {
+    border: 1px solid var(--ui-border);
+    background: var(--ui-panel-2);
+    color: var(--ui-dim);
+    font: inherit;
+    font-size: 12px;
+    padding: 5px 11px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+  }
+  .head-action:hover { color: #fff; border-color: var(--ui-border-strong); }
+
+  .notes-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--ui-border);
+    background: rgba(255, 255, 255, 0.015);
+  }
+  @media (max-width: 860px) { .notes-grid { grid-template-columns: 1fr; } }
+  .note-box h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #dce3ef; }
+  .note-box p { margin: 0; font-size: 12px; color: var(--ui-dim); line-height: 1.6; }
+
+  /* ── Authentic Steam Library Canvas ─────────────────────────────────── */
+  .steam-stage {
+    padding: 28px 26px 34px;
+    background:
+      radial-gradient(960px 360px at 15% -20%, rgba(74, 128, 224, 0.09), transparent 65%),
+      linear-gradient(180deg, #1f252f 0%, #171c24 100%);
+    transition: background 0.25s ease;
+  }
+  .steam-stage[data-bg="space"] {
+    background:
+      radial-gradient(900px 340px at 15% -20%, rgba(255, 255, 255, 0.025), transparent 65%),
+      #0a0b0e;
+  }
+  .steam-shelf-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    font-size: 12px;
+    color: rgba(188, 200, 220, 0.66);
+  }
+  .steam-shelf-bar strong { color: rgba(235, 240, 248, 0.9); font-weight: 500; margin-right: 10px; }
+  .steam-sort-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(226, 234, 246, 0.85);
+    font-size: 11.5px;
+  }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-w, 204px), var(--card-w, 204px)));
+    gap: var(--row-gap, 32px) var(--col-gap, 24px);
+    justify-content: start;
+    align-items: end;
+  }
+  .cards-grid[data-size="lg"] { --card-w: 204px; --col-gap: 24px; --row-gap: 34px; }
+  .cards-grid[data-size="md"] { --card-w: 168px; --col-gap: 20px; --row-gap: 28px; }
+  .cards-grid[data-size="sm"] { --card-w: 126px; --col-gap: 16px; --row-gap: 24px; }
+
+  .tile-slot {
+    width: var(--card-w, 204px);
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+  }
+  .tile-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 11.5px;
+    color: rgba(170, 182, 202, 0.72);
+    padding: 0 2px;
+  }
+  .tile-caption b {
+    font-weight: 500;
+    color: rgba(234, 240, 250, 0.86);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tile-caption span { flex: none; font-variant-numeric: tabular-nums; font-size: 11px; }
+
+  .steam-tile {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 600 / 900;
+    perspective: 560px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .tile-body {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.44s cubic-bezier(0.16, 0.84, 0.44, 1);
+  }
+  .steam-tile:hover .tile-body {
+    transform: rotateX(3deg) translateY(-3px) translateZ(14px);
+  }
+
+  .cover-box {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--tile-radius, 3px);
+    overflow: hidden;
+    background: #141820;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    transition: box-shadow 0.44s cubic-bezier(0.16, 0.84, 0.44, 1);
+  }
+  .steam-stage[data-bg="space"] .cover-box { --tile-radius: 8px; }
+  .steam-tile:hover .cover-box { box-shadow: 0 18px 34px rgba(0, 0, 0, 0.65); }
+  .cover-box img.cover-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: filter 0.35s ease;
+  }
+  .steam-tile:hover .cover-box img.cover-img { filter: brightness(1.05) saturate(1.03); }
+
+  .silk-sheen {
+    position: absolute;
+    inset: -14%;
+    pointer-events: none;
+    z-index: 18;
+    opacity: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 22%,
+      rgba(255, 255, 255, 0.06) 38%,
+      rgba(255, 255, 255, 0.34) 48%,
+      rgba(255, 255, 255, 0.06) 58%,
+      transparent 74%
+    );
+    transform: translateX(-118%) skewX(-16deg);
+  }
+  .steam-tile:hover .silk-sheen {
+    animation: ac-silk-sweep 0.82s cubic-bezier(0.22, 0.1, 0.25, 1) 1 forwards;
+  }
+  @keyframes ac-silk-sweep {
+    0% { opacity: 1; transform: translateX(-118%) skewX(-16deg); }
+    100% { opacity: 0.9; transform: translateX(148%) skewX(-16deg); }
+  }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* ── Baseline: v1.2.4 Legacy Pill Snapshot (for side-by-side comparison) ─ */
+  .v-current .real-pill {
+    position: relative;
+    z-index: 12;
+    width: calc(100% - 12px);
+    margin: -30px 6px 6px;
+    padding: 4px;
+    border-radius: var(--st-border-radius, 8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 16px;
+    color: #fff;
+    background: linear-gradient(180deg, #3a475d 0%, #333f54 55%, #2b3547 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.35);
+  }
+  .v-current .real-pill:has(.-zN46pB8pmZXuCZhPxSMN),
+  .v-current .real-pill:has(.ZIGP3oO2DN1MGwxWyf54t) {
+    background: linear-gradient(180deg, var(--ac-blue-hi) 0%, var(--ac-blue) 55%, var(--ac-blue-lo) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 6px rgba(0, 0, 0, 0.35);
+  }
+  .v-current .real-pill:has(.-zN46pB8pmZXuCZhPxSMN)::before,
+  .v-current .real-pill:has(.ZIGP3oO2DN1MGwxWyf54t)::before,
+  .v-current .real-pill._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw)::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 12px;
+    height: 14px;
+    background: var(--ac-badge-img) center / contain no-repeat;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+  }
+  .v-current .real-pill ._1p4OC0BKEjB8LT2BlRyxO-,
+  .v-current .real-pill ._4yfj5N2soD6vkHQDBDaOw,
+  .v-current .real-pill .-zN46pB8pmZXuCZhPxSMN,
+  .v-current .real-pill .ZIGP3oO2DN1MGwxWyf54t { display: none; }
+  .v-current .real-pill._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw),
+  .v-current .real-pill._1fddiVOLgn9nNxAEDjyV4k:has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2)),
+  .v-current .real-pill._1fddiVOLgn9nNxAEDjyV4k:has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3)) {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.12) 100%),
+      linear-gradient(90deg, var(--ac-blue) 0%, var(--ac-blue) 30%, #8a5fd6 52%, #a856c2 72%, #b658c4 100%);
+  }
+  .v-current .real-pill._1fddiVOLgn9nNxAEDjyV4k:has(._4yfj5N2soD6vkHQDBDaOw)::before,
+  .v-current .real-pill._1fddiVOLgn9nNxAEDjyV4k:has(.-zN46pB8pmZXuCZhPxSMN ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(2))::before,
+  .v-current .real-pill._1fddiVOLgn9nNxAEDjyV4k:has(.ZIGP3oO2DN1MGwxWyf54t ._1p4OC0BKEjB8LT2BlRyxO-:nth-child(3))::before {
+    background-image: var(--ac-badge-img-all);
+  }
+  .v-current .real-pill .LTPd1K0p7pbPS9nEgQGLs { display: none; }
+  .cards-grid[data-size="sm"] .v-current .real-pill { font-size: 10px; }
+  .cards-grid[data-size="sm"] .v-current .real-pill ._2EqIgCcLt4h8d4NKik-VAp { display: none; }
+  .cards-grid[data-size="sm"] .v-current .real-pill .LTPd1K0p7pbPS9nEgQGLs { display: inline; }
+
+  /* ======================================================================
+     LAYOUT 1: 「穹光地平线」 HORIZON AURA
+     ====================================================================== */
+  .v-horizon .hz-scrim {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 46%;
+    pointer-events: none;
+    z-index: 6;
+    background: linear-gradient(
+      180deg,
+      rgba(7, 9, 14, 0) 0%,
+      rgba(7, 9, 14, 0.16) 28%,
+      rgba(7, 9, 14, 0.62) 64%,
+      rgba(6, 8, 13, 0.94) 100%
+    );
+    transition: opacity 0.35s ease;
+  }
+  .v-horizon:hover .hz-scrim { opacity: 0.9; }
+
+  .v-horizon .hz-aura {
+    position: absolute;
+    left: -10%; right: -10%; bottom: -6px;
+    height: 98px;
+    pointer-events: none;
+    z-index: 7;
+    transition: transform 0.45s cubic-bezier(0.16, 0.84, 0.44, 1);
+  }
+  .v-horizon[data-tier="low"] .hz-aura,
+  .v-horizon[data-tier="mid"] .hz-aura {
+    background: radial-gradient(
+      70% 40px at calc(var(--pct, 0) * 0.8% + 10%) 100%,
+      rgba(96, 166, 255, 0.24) 0%,
+      transparent 100%
+    );
+  }
+  .v-horizon[data-tier="near"] .hz-aura {
+    background:
+      radial-gradient(90% 52px at 50% 100%, rgba(246, 190, 74, 0.30) 0%, transparent 100%),
+      radial-gradient(45% 42px at calc(var(--pct, 95) * 0.82% + 9%) 100%, rgba(255, 224, 128, 0.38) 0%, transparent 100%);
+  }
+  .v-horizon[data-state="base"] .hz-aura {
+    background:
+      radial-gradient(100% 74px at 50% 100%, rgba(62, 134, 248, 0.26) 0%, transparent 100%),
+      radial-gradient(84% 58px at 46% 100%, rgba(248, 200, 88, 0.44) 0%, rgba(240, 174, 54, 0.14) 55%, transparent 100%);
+  }
+  .v-horizon[data-state="all"] .hz-aura {
+    background:
+      radial-gradient(62% 68px at 20% 100%, rgba(88, 242, 200, 0.40) 0%, transparent 100%),
+      radial-gradient(68% 72px at 52% 100%, rgba(86, 156, 255, 0.42) 0%, transparent 100%),
+      radial-gradient(64% 68px at 84% 100%, rgba(202, 108, 250, 0.48) 0%, transparent 100%);
+  }
+  .v-horizon:hover .hz-aura { transform: scaleY(1.18); }
+
+  .v-horizon .hz-dust {
+    position: absolute;
+    left: 0; right: 0; bottom: 4px;
+    height: 44px;
+    pointer-events: none;
+    z-index: 8;
+    opacity: 0;
+    transition: opacity 0.4s ease, transform 0.5s ease;
+    background-image:
+      radial-gradient(1px 1px at 14% 72%, rgba(255, 244, 200, 0.85), transparent),
+      radial-gradient(1.2px 1.2px at 31% 48%, rgba(255, 232, 168, 0.72), transparent),
+      radial-gradient(1px 1px at 49% 68%, rgba(255, 255, 255, 0.8), transparent),
+      radial-gradient(1.3px 1.3px at 66% 38%, rgba(255, 236, 176, 0.75), transparent),
+      radial-gradient(1px 1px at 81% 62%, rgba(255, 248, 224, 0.7), transparent),
+      radial-gradient(1px 1px at 91% 46%, rgba(210, 232, 255, 0.75), transparent);
+  }
+  .v-horizon[data-state="base"] .hz-dust { opacity: 0.65; }
+  .v-horizon[data-state="all"] .hz-dust {
+    opacity: 0.85;
+    background-image:
+      radial-gradient(1.1px 1.1px at 14% 70%, rgba(132, 248, 214, 0.9), transparent),
+      radial-gradient(1.3px 1.3px at 29% 44%, rgba(255, 238, 162, 0.85), transparent),
+      radial-gradient(1px 1px at 47% 64%, rgba(164, 214, 255, 0.9), transparent),
+      radial-gradient(1.4px 1.4px at 64% 34%, rgba(230, 174, 255, 0.9), transparent),
+      radial-gradient(1.1px 1.1px at 78% 58%, rgba(255, 246, 206, 0.85), transparent),
+      radial-gradient(1.2px 1.2px at 90% 42%, rgba(180, 152, 255, 0.9), transparent);
+  }
+  .v-horizon:hover .hz-dust { transform: translateY(-4px); opacity: 1; }
+
+  .v-horizon[data-state="base"] .cover-box {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 224, 148, 0.18),
+      inset 0 -1px 0 rgba(255, 234, 170, 0.45),
+      0 8px 24px rgba(0, 0, 0, 0.56),
+      0 10px 26px -14px rgba(246, 198, 86, 0.42);
+  }
+  .v-horizon[data-state="all"] .cover-box {
+    box-shadow:
+      inset 0 0 0 1px rgba(196, 212, 255, 0.22),
+      inset 0 -1px 0 rgba(176, 242, 232, 0.5),
+      0 8px 26px rgba(0, 0, 0, 0.58),
+      0 10px 28px -12px rgba(178, 118, 250, 0.48);
+  }
+
+  .v-horizon .hz-content {
+    position: absolute;
+    left: 11px; right: 10px; bottom: 8px;
+    z-index: 12;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .v-horizon .hz-num-block { display: inline-flex; align-items: baseline; gap: 7px; }
+  .v-horizon .hz-sub {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    color: rgba(214, 226, 244, 0.72);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.92);
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .v-horizon[data-tier="near"] .hz-sub { color: rgba(255, 226, 146, 0.92); }
+  .v-horizon[data-state="base"] .hz-sub { color: #f6d88b; }
+  .v-horizon[data-state="all"] .hz-sub {
+    background: linear-gradient(90deg, #ffe88a 0%, #8ff6cf 50%, #d8a6ff 100%);
+    -webkit-background-clip: text;
+    color: transparent;
+    font-weight: 600;
+    filter: drop-shadow(0 1px 4px rgba(0,0,0,0.88));
+    text-shadow: none;
+  }
+  .v-horizon .hz-num { display: inline-flex; align-items: baseline; gap: 1.5px; line-height: 0.9; }
+  .v-horizon .hz-digits {
+    font-size: 23px; font-weight: 300; letter-spacing: -0.04em;
+    color: rgba(246, 249, 255, 0.94);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+  }
+  .v-horizon .hz-sym { font-size: 10.5px; font-weight: 500; color: rgba(226, 236, 252, 0.62); }
+  .v-horizon[data-tier="near"] .hz-digits { font-weight: 400; color: #ffe9aa; }
+  .v-horizon[data-tier="near"] .hz-sym { color: rgba(255, 224, 144, 0.8); }
+  .v-horizon[data-state="base"] .hz-digits {
+    font-weight: 600;
+    background: linear-gradient(180deg, #fffdf0 0%, #fae096 52%, #d89f36 100%);
+    -webkit-background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.78));
+    text-shadow: none;
+  }
+  .v-horizon[data-state="base"] .hz-sym { color: #f6cd6d; }
+  .v-horizon[data-state="all"] .hz-digits {
+    font-weight: 600;
+    background: linear-gradient(96deg, #fff4b3 0%, #8bf5ca 45%, #a8caff 72%, #dfb0ff 100%);
+    -webkit-background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.82));
+    text-shadow: none;
+  }
+  .v-horizon[data-state="all"] .hz-sym { color: #d0b8ff; }
+
+  .v-horizon .hz-crest {
+    width: 26px; height: 26px; flex: none; margin-bottom: -1px;
+    transition: transform 0.55s cubic-bezier(0.16, 0.84, 0.44, 1);
+  }
+  .v-horizon[data-state="base"] .hz-crest {
+    filter: drop-shadow(0 0 8px rgba(248, 200, 88, 0.55)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.7));
+  }
+  .v-horizon[data-state="all"] .hz-crest {
+    filter: drop-shadow(0 0 10px rgba(154, 174, 255, 0.65)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.75));
+  }
+  .v-horizon:hover .hz-crest { transform: rotate(18deg) scale(1.08); }
+
+  .v-horizon .hz-rail {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 13;
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .v-horizon .hz-beam {
+    position: relative; height: 100%; width: calc(var(--pct, 0) * 1%);
+    background: linear-gradient(90deg, rgba(84, 146, 245, 0.35) 0%, #6eb5ff 78%, #cbe5ff 100%);
+    box-shadow: 0 0 8px rgba(114, 182, 255, 0.55);
+    transition: width 0.22s ease;
+  }
+  .v-horizon[data-state="pending"] .hz-beam::after {
+    content: ""; position: absolute; right: -2px; top: 50%;
+    width: 6px; height: 6px; border-radius: 50%; transform: translateY(-50%);
+    background: #eef7ff; box-shadow: 0 0 10px 2px rgba(120, 188, 255, 0.9);
+  }
+  .v-horizon[data-pct="0"] .hz-beam::after { display: none; }
+  .v-horizon[data-tier="near"] .hz-beam {
+    background: linear-gradient(90deg, rgba(224, 148, 34, 0.42) 0%, #f7c752 72%, #fff3c4 100%);
+    box-shadow: 0 0 12px rgba(250, 200, 82, 0.8);
+  }
+  .v-horizon[data-tier="near"] .hz-beam::after { background: #fffbeb; box-shadow: 0 0 12px 3px rgba(255, 212, 92, 0.95); }
+  .v-horizon[data-state="base"] .hz-beam {
+    width: 100%;
+    background: linear-gradient(90deg, #5e9fff 0%, #f5c95d 32%, #fff3c4 52%, #f5c95d 72%, #5e9fff 100%);
+    box-shadow: 0 0 14px rgba(248, 206, 98, 0.82);
+  }
+  .v-horizon[data-state="all"] .hz-beam {
+    width: 100%;
+    background: linear-gradient(90deg, #ffe26a 0%, #6cf2c2 34%, #66b4ff 66%, #cf74ff 100%);
+    box-shadow: 0 0 16px rgba(146, 198, 255, 0.85);
+  }
+  .cards-grid[data-size="md"] .v-horizon .hz-digits { font-size: 20px; }
+  .cards-grid[data-size="md"] .v-horizon .hz-crest { width: 22px; height: 22px; }
+  .cards-grid[data-size="sm"] .v-horizon .hz-content { left: 8px; right: 7px; bottom: 7px; }
+  .cards-grid[data-size="sm"] .v-horizon .hz-sub { display: none; }
+  .cards-grid[data-size="sm"] .v-horizon .hz-digits { font-size: 16px; }
+  .cards-grid[data-size="sm"] .v-horizon .hz-sym { font-size: 8.5px; }
+  .cards-grid[data-size="sm"] .v-horizon .hz-crest { width: 17px; height: 17px; }
+
+  /* ======================================================================
+     LAYOUT 2 (Flat Quarter-Bound): 「平视精装书脊」 QUARTER-BOUND SPINE
+     Zero fake/sideways 3D! Authentic straight-on hardcover book photography:
+       - Left cloth/foil spine (face-on, 100% razor-sharp & readable)
+       - Physical debossed binding hinge groove separating spine & art
+       - Right 100% intact, uncropped 2:3 cover artwork
+       - Calm native Steam hover lift (zero weird perspective twist)
+     ====================================================================== */
+  .v-spine {
+    --sp-w: 28px;
+    aspect-ratio: auto;
+    height: auto;
+    perspective: 560px;
+  }
+  .v-spine .qb-book {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    border-radius: 5px 4px 4px 5px;
+    overflow: hidden;
+    background: #12161e;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.12),
+      0 8px 22px rgba(0, 0, 0, 0.54);
+    transform-style: preserve-3d;
+    transition:
+      transform 0.38s cubic-bezier(0.16, 0.84, 0.44, 1),
+      box-shadow 0.38s cubic-bezier(0.16, 0.84, 0.44, 1);
+  }
+  .steam-stage[data-bg="space"] .v-spine .qb-book {
+    border-radius: 8px;
+  }
+  .v-spine:hover .qb-book {
+    transform: rotateX(2.5deg) translateY(-4px) translateZ(14px);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.18),
+      0 20px 36px rgba(0, 0, 0, 0.68);
+  }
+  .v-spine[data-state="base"] .qb-book {
+    box-shadow:
+      0 0 0 1px rgba(246, 206, 110, 0.38),
+      0 9px 24px rgba(0, 0, 0, 0.56);
+  }
+  .v-spine[data-state="base"]:hover .qb-book {
+    box-shadow:
+      0 0 0 1px rgba(255, 224, 138, 0.58),
+      0 20px 38px rgba(0, 0, 0, 0.7),
+      0 8px 24px -10px rgba(246, 200, 88, 0.36);
+  }
+  .v-spine[data-state="all"] .qb-book {
+    box-shadow:
+      0 0 0 1px rgba(186, 162, 255, 0.44),
+      0 10px 26px rgba(0, 0, 0, 0.6),
+      0 0 22px -10px rgba(154, 118, 250, 0.48);
+  }
+  .v-spine[data-state="all"]:hover .qb-book {
+    box-shadow:
+      0 0 0 1px rgba(196, 232, 248, 0.62),
+      0 22px 40px rgba(0, 0, 0, 0.72),
+      0 8px 28px -8px rgba(176, 122, 252, 0.55);
+  }
+
+  /* Straight-on Flat Cloth/Foil Spine (100% legible, crisp vertical progress) */
+  .v-spine .qb-spine {
+    position: relative;
+    flex: 0 0 var(--sp-w);
+    width: var(--sp-w);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 9px 0 8px;
+    gap: 7px;
+    background:
+      /* Fine tactile bookbinding linen grain */
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.022) 0px, rgba(255,255,255,0.022) 1px, transparent 1px, transparent 3px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px),
+      linear-gradient(90deg, #28303f 0%, #1d2330 35%, #161b25 82%, #0e1219 100%);
+    box-shadow:
+      inset 1px 0 0 rgba(255, 255, 255, 0.14),
+      inset -1px 0 0 rgba(0, 0, 0, 0.65);
+    z-index: 4;
+  }
+  .v-spine[data-tier="near"] .qb-spine {
+    background:
+      repeating-linear-gradient(0deg, rgba(255,226,150,0.028) 0px, rgba(255,226,150,0.028) 1px, transparent 1px, transparent 3px),
+      linear-gradient(90deg, #322819 0%, #241d12 40%, #1b160e 84%, #120e09 100%);
+    box-shadow:
+      inset 1px 0 0 rgba(255, 224, 140, 0.28),
+      inset -1px 0 0 rgba(0, 0, 0, 0.7);
+  }
+  .v-spine[data-state="base"] .qb-spine {
+    background:
+      repeating-linear-gradient(0deg, rgba(255,232,170,0.028) 0px, rgba(255,232,170,0.028) 1px, transparent 1px, transparent 3px),
+      linear-gradient(90deg, #2d58b2 0%, #21438c 36%, #18326d 82%, #0f2048 100%);
+    box-shadow:
+      inset 1px 0 0 rgba(255, 232, 166, 0.36),
+      inset -1px 0 0 rgba(6, 12, 28, 0.72);
+  }
+  .v-spine[data-state="all"] .qb-spine {
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 3px),
+      linear-gradient(90deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 28%, rgba(0,0,0,0.20) 84%, rgba(0,0,0,0.42) 100%),
+      linear-gradient(180deg, #8637a8 0%, #583ea2 46%, #2452ad 100%);
+    box-shadow:
+      inset 1px 0 0 rgba(206, 240, 255, 0.42),
+      inset -1px 0 0 rgba(10, 8, 24, 0.74);
+  }
+
+  /* Intact, Uncropped 2:3 Front Cover Board beside the cloth spine */
+  .v-spine .qb-cover {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    aspect-ratio: 600 / 900;
+    overflow: hidden;
+    background: #141820;
+  }
+  .v-spine .qb-cover img.cover-img {
+    display: block; width: 100%; height: 100%; object-fit: cover;
+    transition: filter 0.35s ease;
+  }
+  .v-spine:hover .qb-cover img.cover-img {
+    filter: brightness(1.05) saturate(1.03);
+  }
+  /* Authentic blind-debossed bookbinding hinge groove right where cloth meets cover */
+  .v-spine .qb-groove {
+    position: absolute; top: 0; bottom: 0; left: 0; width: 7px;
+    z-index: 6; pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.56) 0%,
+      rgba(0, 0, 0, 0.24) 22%,
+      rgba(255, 255, 255, 0.18) 44%,
+      rgba(0, 0, 0, 0.16) 66%,
+      transparent 100%
+    );
+  }
+  .v-spine[data-state="base"] .qb-groove {
+    background: linear-gradient(
+      90deg,
+      rgba(10, 18, 38, 0.62) 0%,
+      rgba(255, 224, 140, 0.34) 24%,
+      rgba(0, 0, 0, 0.22) 52%,
+      transparent 100%
+    );
+  }
+  .v-spine[data-state="all"] .qb-groove {
+    background: linear-gradient(
+      90deg,
+      rgba(16, 10, 34, 0.62) 0%,
+      rgba(196, 232, 255, 0.36) 24%,
+      rgba(0, 0, 0, 0.22) 52%,
+      transparent 100%
+    );
+  }
+
+  /* Embossed gold / iridescent double tooling bands on 100% book spines */
+  .v-spine .sp-tooling {
+    position: absolute; left: 3px; right: 3px; height: 3.5px; pointer-events: none; opacity: 0;
+    border-top: 1px solid #f7d478;
+    border-bottom: 1px solid rgba(247, 212, 120, 0.52);
+  }
+  .v-spine .sp-tooling.is-top { top: 4.5px; }
+  .v-spine .sp-tooling.is-bot { bottom: 4.5px; }
+  .v-spine[data-state="base"] .sp-tooling { opacity: 0.92; }
+  .v-spine[data-state="all"] .sp-tooling {
+    opacity: 0.96; border: 0;
+    background:
+      linear-gradient(90deg, #ffe26d, #74f2c7, #a4b8ff, #df88ff) top / 100% 1px no-repeat,
+      linear-gradient(90deg, rgba(255,226,109,0.55), rgba(116,242,199,0.55), rgba(223,136,255,0.55)) bottom / 100% 1px no-repeat;
+  }
+
+  .v-spine .sp-crest { width: 15px; height: 15px; margin-top: 4px; display: grid; place-items: center; flex: none; }
+  .v-spine .sp-gauge-wrap {
+    position: relative; flex: 1 1 auto; width: 100%;
+    display: flex; justify-content: center; align-items: stretch; padding: 2px 0;
+  }
+  .v-spine .sp-ticks {
+    position: absolute; inset: 2px 4px; pointer-events: none;
+    background:
+      linear-gradient(180deg, transparent calc(25% - 0.5px), rgba(255,255,255,0.18) 25%, transparent calc(25% + 0.5px)),
+      linear-gradient(180deg, transparent calc(50% - 0.5px), rgba(255,255,255,0.24) 50%, transparent calc(50% + 0.5px)),
+      linear-gradient(180deg, transparent calc(75% - 0.5px), rgba(255,255,255,0.18) 75%, transparent calc(75% + 0.5px));
+  }
+  .v-spine .sp-channel {
+    position: relative; width: 5px; height: 100%; border-radius: 99px;
+    background: rgba(5, 8, 13, 0.74);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.88), 0 0 0 0.75px rgba(255, 255, 255, 0.10);
+    overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  .v-spine[data-state="base"] .sp-channel { width: 4.5px; box-shadow: 0 0 0 0.8px rgba(248, 210, 118, 0.42); }
+  .v-spine[data-state="all"] .sp-channel { width: 4.8px; box-shadow: 0 0 0 0.8px rgba(196, 224, 255, 0.44); }
+  .v-spine .sp-fill {
+    position: relative; width: 100%; height: calc(var(--pct, 0) * 1%); border-radius: 99px;
+    background: linear-gradient(0deg, #2d62c8 0%, #6cb4ff 76%, #d6ecff 100%);
+    box-shadow: 0 0 8px rgba(108, 180, 255, 0.62);
+    transition: height 0.24s ease;
+  }
+  .v-spine[data-state="pending"] .sp-fill::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 99px;
+    background: #ffffff; box-shadow: 0 0 6px #9ed0ff;
+  }
+  .v-spine[data-pct="0"] .sp-fill::before { display: none; }
+  .v-spine[data-tier="near"] .sp-fill {
+    background: linear-gradient(0deg, #b97716 0%, #f5c24a 70%, #fff3bf 100%);
+    box-shadow: 0 0 10px rgba(248, 198, 76, 0.85);
+  }
+  .v-spine[data-tier="near"] .sp-fill::before { background: #fffbeb; box-shadow: 0 0 8px #ffe07d; }
+  .v-spine[data-state="base"] .sp-fill {
+    height: 100%;
+    background: linear-gradient(0deg, #c99024 0%, #f7d276 52%, #fff6d4 100%);
+  }
+  .v-spine[data-state="all"] .sp-fill {
+    height: 100%;
+    background: linear-gradient(0deg, #5daeff 0%, #6cf2c6 38%, #ffe478 68%, #db84ff 100%);
+  }
+
+  .v-spine .sp-pct {
+    margin-bottom: 4px;
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: rgba(232, 240, 252, 0.92);
+    text-align: center;
+  }
+  .v-spine .sp-pct small { font-size: 6.8px; font-weight: 600; opacity: 0.7; }
+  .v-spine[data-tier="near"] .sp-pct { color: #ffe594; }
+  .v-spine[data-state="base"] .sp-pct { color: #fde29b; font-size: 9px; }
+  .v-spine[data-state="all"] .sp-pct { color: #ffffff; font-size: 9px; text-shadow: 0 0 8px rgba(212, 166, 255, 0.75); }
+
+  .cards-grid[data-size="md"] .v-spine { --sp-w: 24px; }
+  .cards-grid[data-size="md"] .v-spine .qb-spine { padding: 7px 0 6px; gap: 5px; }
+  .cards-grid[data-size="md"] .v-spine .sp-pct { font-size: 8.5px; }
+  .cards-grid[data-size="md"] .v-spine .sp-pct small { display: none; }
+
+  .cards-grid[data-size="sm"] .v-spine { --sp-w: 18px; }
+  .cards-grid[data-size="sm"] .v-spine .qb-spine { padding: 6px 0 5px; gap: 4px; }
+  .cards-grid[data-size="sm"] .v-spine .sp-crest { width: 11px; height: 11px; margin-top: 2px; }
+  .cards-grid[data-size="sm"] .v-spine .sp-channel { width: 3.5px; }
+  .cards-grid[data-size="sm"] .v-spine .sp-pct { font-size: 7.5px; margin-bottom: 2px; }
+  .cards-grid[data-size="sm"] .v-spine .sp-pct small { display: none; }
+
+  /* ======================================================================
+     LAYOUT 3 (Pure Optical Glass): 「亚克力冰砖」 3D OPTICAL ACRYLIC SLAB
+     Pure cast PMMA crystal craft — zero gratuitous hardware clutter:
+       - Clean translucent double-bevel glass walls + internal light-piped seam
+       - Visible extruded bottom crystal thickness + subtle caustic shelf glow
+       - Direct laser-etched bottom chamber + pointer-tracking specular glare
+     ====================================================================== */
+  .v-acrylic {
+    aspect-ratio: auto;
+    height: auto;
+    perspective: 720px;
+  }
+
+  /* Subtle colored caustic reflection spilled onto the Steam shelf beneath the brick */
+  .v-acrylic .ac-caustic {
+    position: absolute;
+    left: 10%; right: 10%; bottom: -10px;
+    height: 16px;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .v-acrylic[data-tier="near"] .ac-caustic {
+    opacity: 0.42;
+    background: linear-gradient(90deg, transparent, rgba(248, 198, 78, 0.7), transparent);
+  }
+  .v-acrylic[data-state="base"] .ac-caustic {
+    opacity: 0.65;
+    background: linear-gradient(90deg, rgba(72, 144, 255, 0.45), rgba(248, 206, 94, 0.82), rgba(72, 144, 255, 0.45));
+  }
+  .v-acrylic[data-state="all"] .ac-caustic {
+    opacity: 0.8;
+    background: linear-gradient(90deg, rgba(114, 244, 202, 0.78), rgba(102, 174, 255, 0.75), rgba(208, 118, 255, 0.88));
+  }
+  .v-acrylic:hover .ac-caustic { transform: scaleX(1.06) translateY(2px); }
+
+  /* Main cast acrylic block body */
+  .v-acrylic .ac-slab {
+    position: relative;
+    width: 100%;
+    padding: 5.5px 5.5px 28px 5.5px;
+    border-radius: 9px;
+    background:
+      linear-gradient(
+        138deg,
+        rgba(255, 255, 255, 0.16) 0%,
+        rgba(216, 232, 255, 0.04) 28%,
+        rgba(14, 19, 29, 0.54) 70%,
+        rgba(200, 224, 255, 0.09) 100%
+      ),
+      rgba(20, 26, 36, 0.74);
+    backdrop-filter: blur(12px) saturate(1.15);
+    -webkit-backdrop-filter: blur(12px) saturate(1.15);
+    /* Visible physical extruded cast-acrylic thickness */
+    box-shadow:
+      inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.34),
+      inset -1.5px -1.5px 0 rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(196, 218, 255, 0.14),
+      0 2px 0 rgba(160, 186, 226, 0.16),
+      0 4.5px 0 rgba(18, 24, 34, 0.94),
+      0 5.5px 0 rgba(186, 212, 252, 0.18),
+      0 15px 28px rgba(0, 0, 0, 0.62);
+    transform-style: preserve-3d;
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.32s ease;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  }
+  .v-acrylic:hover .ac-slab {
+    box-shadow:
+      inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.46),
+      inset -1.5px -1.5px 0 rgba(0, 0, 0, 0.42),
+      0 0 0 1px rgba(214, 232, 255, 0.24),
+      0 2px 0 rgba(180, 206, 244, 0.22),
+      0 5.5px 0 rgba(18, 24, 34, 0.94),
+      0 6.5px 0 rgba(202, 224, 255, 0.24),
+      0 22px 38px rgba(0, 0, 0, 0.72);
+  }
+
+  /* Near 90%+: Warm Amber Edge-Lit Acrylic */
+  .v-acrylic[data-tier="near"] .ac-slab {
+    background:
+      linear-gradient(
+        138deg,
+        rgba(255, 236, 178, 0.20) 0%,
+        rgba(255, 206, 98, 0.05) 30%,
+        rgba(24, 20, 14, 0.62) 72%,
+        rgba(255, 214, 114, 0.16) 100%
+      ),
+      rgba(26, 22, 17, 0.78);
+    box-shadow:
+      inset 1.5px 1.5px 0 rgba(255, 236, 172, 0.46),
+      inset -1.5px -1.5px 0 rgba(120, 78, 12, 0.4),
+      0 0 0 1px rgba(248, 204, 102, 0.26),
+      0 2px 0 rgba(246, 196, 86, 0.24),
+      0 4.5px 0 #261d0f,
+      0 5.5px 0 rgba(255, 218, 122, 0.34),
+      0 16px 30px rgba(0, 0, 0, 0.64);
+  }
+
+  /* Base 100%: Sealed Museum Gold & Sapphire Crystal Slab */
+  .v-acrylic[data-state="base"] .ac-slab {
+    padding: 6.5px 6.5px 30px 6.5px;
+    background:
+      linear-gradient(
+        134deg,
+        rgba(255, 246, 206, 0.32) 0%,
+        rgba(128, 186, 255, 0.14) 34%,
+        rgba(18, 34, 68, 0.64) 70%,
+        rgba(252, 212, 114, 0.26) 100%
+      ),
+      rgba(22, 36, 62, 0.80);
+    box-shadow:
+      inset 1.5px 1.5px 0 rgba(255, 248, 216, 0.76),
+      inset -1.5px -1.5px 0 rgba(98, 162, 255, 0.38),
+      0 0 0 1px rgba(248, 210, 118, 0.46),
+      0 2px 0 rgba(248, 210, 118, 0.38),
+      0 5px 0 #1b2c4e,
+      0 6px 0 rgba(255, 230, 152, 0.62),
+      0 18px 34px rgba(0, 0, 0, 0.68);
+  }
+
+  /* All Sets 100%: Prismatic Dispersion Optical Crystal Slab */
+  .v-acrylic[data-state="all"] .ac-slab {
+    padding: 6.5px 6.5px 30px 6.5px;
+    background:
+      linear-gradient(
+        128deg,
+        rgba(255, 236, 140, 0.30) 0%,
+        rgba(110, 246, 208, 0.22) 32%,
+        rgba(96, 162, 255, 0.20) 62%,
+        rgba(214, 124, 255, 0.34) 100%
+      ),
+      rgba(22, 22, 42, 0.82);
+    box-shadow:
+      inset 1.5px 1.5px 0 rgba(255, 248, 206, 0.82),
+      inset -1.5px -1.5px 0 rgba(216, 138, 255, 0.62),
+      0 0 0 1px rgba(172, 236, 244, 0.50),
+      0 2px 0 rgba(132, 236, 226, 0.40),
+      0 5px 0 #231c42,
+      0 6px 0 rgba(206, 156, 255, 0.66),
+      0 20px 38px rgba(0, 0, 0, 0.72);
+  }
+
+  /* Clean outer crystal bevel refraction ring on 100% slabs */
+  .v-acrylic[data-state="base"] .ac-slab::before,
+  .v-acrylic[data-state="all"] .ac-slab::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(132deg, #fff2b8 0%, #e6b44a 45%, #7ec2ff 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.62;
+    pointer-events: none;
+    z-index: 17;
+  }
+  .v-acrylic[data-state="all"] .ac-slab::before {
+    background: linear-gradient(128deg, #ffe67a 0%, #72f2c8 34%, #6db8ff 66%, #da7eff 100%);
+    opacity: 0.88;
+  }
+
+  /* Inner Recessed Cover Well sealed behind optical glass */
+  .v-acrylic .ac-cavity {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 600 / 900;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #10141c;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.16),
+      inset 0 2px 8px rgba(0, 0, 0, 0.52);
+  }
+  .v-acrylic[data-state="base"] .ac-cavity {
+    box-shadow:
+      0 0 0 1px rgba(255, 232, 166, 0.42),
+      0 1px 0 rgba(255, 236, 178, 0.35),
+      inset 0 2px 8px rgba(0, 0, 0, 0.48);
+  }
+  .v-acrylic[data-state="all"] .ac-cavity {
+    box-shadow:
+      0 0 0 1px rgba(196, 240, 248, 0.48),
+      0 1px 0 rgba(192, 232, 255, 0.42),
+      inset 0 2px 8px rgba(0, 0, 0, 0.48);
+  }
+  .v-acrylic .ac-cavity img.cover-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* Glass front reflection sheet + crisp diagonal specular prism band (tracks pointer!) */
+  .v-acrylic .ac-glare {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 15;
+    border-radius: inherit;
+    background:
+      radial-gradient(
+        190px circle at var(--gx, 26%) var(--gy, 16%),
+        rgba(255, 255, 255, 0.28) 0%,
+        rgba(255, 255, 255, 0.06) 36%,
+        transparent 72%
+      ),
+      linear-gradient(
+        124deg,
+        rgba(255, 255, 255, 0.16) 0%,
+        rgba(255, 255, 255, 0.04) 18%,
+        transparent 28%,
+        transparent 68%,
+        rgba(255, 255, 255, 0.08) 82%,
+        transparent 100%
+      );
+    opacity: 0.78;
+  }
+  .v-acrylic[data-state="all"] .ac-glare {
+    background:
+      radial-gradient(
+        210px circle at var(--gx, 26%) var(--gy, 16%),
+        rgba(255, 255, 255, 0.34) 0%,
+        rgba(124, 246, 222, 0.16) 24%,
+        rgba(202, 134, 255, 0.14) 48%,
+        transparent 76%
+      ),
+      linear-gradient(
+        124deg,
+        rgba(255, 244, 196, 0.18) 0%,
+        transparent 28%,
+        rgba(148, 224, 255, 0.07) 56%,
+        rgba(214, 138, 255, 0.14) 80%,
+        transparent 100%
+      );
+  }
+
+  /* Pure Direct Laser-Etched Bottom Acrylic Chamber (no inner box clutter!) */
+  .v-acrylic .ac-chamber {
+    position: absolute;
+    left: 9px; right: 9px; bottom: 4.5px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    z-index: 16;
+  }
+  .v-acrylic .ac-fiber-track {
+    position: relative;
+    flex: 1 1 auto;
+    height: 4px;
+    border-radius: 99px;
+    background:
+      linear-gradient(90deg, transparent calc(25% - 0.5px), rgba(255,255,255,0.22) 25%, transparent calc(25% + 0.5px)),
+      linear-gradient(90deg, transparent calc(50% - 0.5px), rgba(255,255,255,0.26) 50%, transparent calc(50% + 0.5px)),
+      linear-gradient(90deg, transparent calc(75% - 0.5px), rgba(255,255,255,0.22) 75%, transparent calc(75% + 0.5px)),
+      rgba(6, 9, 14, 0.72);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.88), 0 1px 0 rgba(255, 255, 255, 0.14);
+    overflow: hidden;
+  }
+  .v-acrylic .ac-fiber-fill {
+    position: relative;
+    height: 100%;
+    width: calc(var(--pct, 0) * 1%);
+    border-radius: 99px;
+    background: linear-gradient(90deg, #3c76e0 0%, #82c4ff 82%, #e6f5ff 100%);
+    box-shadow: 0 0 10px rgba(124, 194, 255, 0.75);
+    transition: width 0.22s ease;
+  }
+  .v-acrylic[data-tier="near"] .ac-fiber-fill {
+    background: linear-gradient(90deg, #cf8920 0%, #ffd262 74%, #fff6cc 100%);
+    box-shadow: 0 0 12px rgba(250, 202, 84, 0.9);
+  }
+  .v-acrylic .ac-etch-pct {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(232, 240, 252, 0.9);
+    letter-spacing: 0.01em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .v-acrylic[data-tier="near"] .ac-etch-pct { color: #ffe498; }
+
+  .v-acrylic .ac-grade-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: #fae096;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.72);
+    white-space: nowrap;
+  }
+  .v-acrylic[data-state="all"] .ac-grade-left {
+    background: linear-gradient(90deg, #ffeb8e 0%, #8ff6cf 50%, #dfa6ff 100%);
+    -webkit-background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+    text-shadow: none;
+  }
+  .v-acrylic[data-state="base"] .ac-etch-pct {
+    color: #fff6d6;
+    font-weight: 700;
+    text-shadow: 0 0 8px rgba(248, 206, 98, 0.55);
+  }
+  .v-acrylic[data-state="all"] .ac-etch-pct {
+    color: #ffffff;
+    font-weight: 700;
+    text-shadow: 0 0 10px rgba(186, 152, 255, 0.78);
+  }
+
+  .cards-grid[data-size="md"] .v-acrylic .ac-slab { padding: 5px 5px 25px 5px; border-radius: 8px; }
+  .cards-grid[data-size="md"] .v-acrylic[data-state="base"] .ac-slab,
+  .cards-grid[data-size="md"] .v-acrylic[data-state="all"] .ac-slab { padding: 5.5px 5.5px 27px 5.5px; }
+  .cards-grid[data-size="md"] .v-acrylic .ac-chamber { left: 7px; right: 7px; bottom: 3.5px; height: 19px; }
+
+  .cards-grid[data-size="sm"] .v-acrylic .ac-slab { padding: 4px 4px 22px 4px; border-radius: 7px; }
+  .cards-grid[data-size="sm"] .v-acrylic[data-state="base"] .ac-slab,
+  .cards-grid[data-size="sm"] .v-acrylic[data-state="all"] .ac-slab { padding: 4.5px 4.5px 23px 4.5px; }
+  .cards-grid[data-size="sm"] .v-acrylic .ac-chamber { left: 6px; right: 6px; bottom: 2.5px; height: 17px; gap: 5px; }
+  .cards-grid[data-size="sm"] .v-acrylic .ac-grade-left span { display: none; }
+  .cards-grid[data-size="sm"] .v-acrylic .ac-etch-pct { font-size: 9.5px; }
+
+  /* ── Sandbox Panel ──────────────────────────────────────────────────── */
+  .sandbox-card {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 24px;
+    padding: 20px 24px; border-top: 1px solid var(--ui-border);
+    background: rgba(255, 255, 255, 0.015);
+  }
+  .sandbox-stage { padding: 22px 26px 28px; border-radius: 12px; border: 1px solid var(--ui-border); flex: none; }
+  .sandbox-controls { flex: 1 1 360px; display: flex; flex-direction: column; gap: 12px; }
+  .sandbox-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .sandbox-top h3 { margin: 0; font-size: 14px; font-weight: 600; color: #f2f5fb; }
+  .sandbox-readout {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums;
+    font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 7px;
+    background: #0f1218; border: 1px solid var(--ui-border); color: #f6d583;
+  }
+  .slider-row { display: flex; align-items: center; gap: 12px; color: var(--ui-dim); font-size: 12px; }
+  .slider-row input[type="range"] { flex: 1; accent-color: #5a94ff; cursor: pointer; }
+  .presets { display: flex; flex-wrap: wrap; gap: 7px; }
+  .preset-btn {
+    border: 1px solid var(--ui-border); background: var(--ui-panel-2); color: var(--ui-dim);
+    font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 7px; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .preset-btn:hover { color: #fff; border-color: var(--ui-border-strong); }
+  .cover-picker { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ui-dim); }
+  .cover-picker select {
+    background: var(--ui-panel-2); color: #eef1f6; border: 1px solid var(--ui-border);
+    border-radius: 7px; padding: 4px 10px; font: inherit;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Steam 库成就进度展示 · 新设计实验室 v4</h1>
+      <span>穹光地平线 · 平视精装书脊 · 纯净亚克力冰砖</span>
+    </div>
+    <div class="controls">
+      <div class="seg" id="lineupSeg" aria-label="游戏队列">
+        <button data-lineup="spectrum">全阶段 5 卡</button>
+        <button data-lineup="screenshot">还原截图 5 卡</button>
+        <button data-lineup="wall">10 款真实库墙</button>
+      </div>
+      <div class="seg" id="sizeSeg" aria-label="网格大小">
+        <button data-size="lg">大</button>
+        <button data-size="md">中</button>
+        <button data-size="sm">小 · Small</button>
+      </div>
+      <div class="seg" id="bgSeg" aria-label="背景风格">
+        <button data-bg="vanilla">原版 Steam</button>
+        <button data-bg="space">SpaceTheme 黑</button>
+      </div>
+    </div>
+  </div>
+  <nav class="tabs-bar" id="tabsBar" role="tablist">
+    <button class="tab" data-tab="compare">同屏总览 <small>现状 + 三套定选方向</small></button>
+    <button class="tab" data-tab="horizon">方案一 · 穹光地平线 <small>全卷无瑕 / 正篇归册 / 近在咫尺</small></button>
+    <button class="tab" data-tab="spine">方案二 · 平视精装书脊 <small>去 3D · 清晰可读 + 封面 0 遮挡</small></button>
+    <button class="tab" data-tab="acrylic">方案三 · 亚克力冰砖 <small>纯净厚切光学玻璃 + 导光底面</small></button>
+  </nav>
+</header>
+
+<main id="appRoot"></main>
+
+<script type="module">
+const COVERS = {
+  farmer:      { name: '编程农场',                 src: '/assets/2060160/b687e9404563e049be65cb043aafe6751ae744b8/library_capsule_schinese.jpg' },
+  helldivers2: { name: 'HELLDIVERS 2',             src: '/assets/553850/301eff830eba56a4e684354b73f70dd80bf6e372/library_capsule_schinese.jpg' },
+  fantasylife: { name: '幻想生活i',                src: '/assets/2993780/f721afc86b0b28f75723cda6b8dca57687dfdf8f/library_600x900_schinese.jpg' },
+  trails2nd:   { name: '空之轨迹 the 2nd',          src: '/preview/nasa-punk/assets/4225980/cover.jpg' },
+  silksong:    { name: 'Hollow Knight: Silksong',   src: '/assets/1030300/93637c34351160eaa7d7ff0cce69cb4312abb819/library_capsule.jpg' },
+  tunic:       { name: 'TUNIC',                    src: '/assets/553420/library_600x900.jpg' },
+  silenthill2: { name: 'SILENT HILL 2',            src: '/assets/2124490/library_600x900.jpg' },
+  mhw:         { name: 'Monster Hunter: World',    src: '/assets/582010/library_600x900.jpg' },
+  relink:      { name: 'Granblue Fantasy: Relink', src: '/assets/881020/library_600x900.jpg' },
+  trails1st:   { name: '空之轨迹 the 1st',          src: '/assets/3447040/0a99e4a12fbf1e349c634b5b253160da286e511f/library_600x900_schinese.jpg' },
+  krf:         { name: 'Kingdom Rush Frontiers',   src: '/assets/458710/library_600x900.jpg' },
+  fishing:     { name: '悠哉钓鱼',                 src: '/assets/3399960/961232292d1615e64104d7a543d3429daf354a68/library_capsule_schinese.jpg' },
+};
+
+const POETIC_SETS = {
+  scroll: {
+    label: '藏卷雅韵',
+    all: '全卷无瑕',
+    base: '正篇归册',
+    near: '近在咫尺',
+  },
+  dawn: {
+    label: '穹光天象',
+    all: '极光全境',
+    base: '初阳既明',
+    near: '破晓将至',
+  },
+  zen: {
+    label: '极简二字',
+    all: '全璧',
+    base: '完篇',
+    near: '将圆',
+  },
+};
+
+const LINEUPS = {
+  spectrum: [
+    { cover: 'farmer',      state: 'all',     pct: 100, note: '全集合 100%' },
+    { cover: 'helldivers2', state: 'base',    pct: 100, note: '本体 100%' },
+    { cover: 'fantasylife', state: 'pending', pct: 95,  note: '95%' },
+    { cover: 'trails2nd',   state: 'pending', pct: 62,  note: '62%' },
+    { cover: 'silksong',    state: 'pending', pct: 18,  note: '18%' },
+  ],
+  screenshot: [
+    { cover: 'farmer',      state: 'all',     pct: 100, note: '全集合对照' },
+    { cover: 'helldivers2', state: 'base',    pct: 100, note: '截图 #1 · 100%' },
+    { cover: 'fantasylife', state: 'pending', pct: 95,  note: '截图 #2 · 95%' },
+    { cover: 'trails2nd',   state: 'pending', pct: 93,  note: '截图 #3 · 93%' },
+    { cover: 'silksong',    state: 'pending', pct: 92,  note: '截图 #4 · 92%' },
+  ],
+  wall: [
+    { cover: 'farmer',      state: 'all',     pct: 100, note: '全集合' },
+    { cover: 'mhw',         state: 'all',     pct: 100, note: '全集合' },
+    { cover: 'helldivers2', state: 'base',    pct: 100, note: '本体 100%' },
+    { cover: 'tunic',       state: 'base',    pct: 100, note: '本体 100%' },
+    { cover: 'fantasylife', state: 'pending', pct: 95,  note: '95%' },
+    { cover: 'trails2nd',   state: 'pending', pct: 93,  note: '93%' },
+    { cover: 'silksong',    state: 'pending', pct: 92,  note: '92%' },
+    { cover: 'relink',      state: 'pending', pct: 74,  note: '74%' },
+    { cover: 'silenthill2', state: 'pending', pct: 48,  note: '48%' },
+    { cover: 'fishing',     state: 'pending', pct: 14,  note: '14%' },
+  ],
+};
+
+const LAYOUTS = {
+  horizon: {
+    title: '方案一 ·「穹光地平线」Horizon Aura',
+    sub: '无框光影排印 × 星仪菱钻徽印 · 默认文案：全卷无瑕 / 正篇归册 / 近在咫尺',
+    notes: [
+      ['文艺文案已按意见调整', '默认「藏卷雅韵」改为：全卷无瑕 / 正篇归册 / 近在咫尺；标题栏右侧仍保留「穹光天象」与「极简二字」两组一键对照。'],
+      ['呼吸感与光影层次', '无框羽化暗角 + 纯净无刻度 3px 光学底轨 + 前沿激光光斑；本体走蓝金双层底光，全集合走青绿→钴蓝→绛紫星云光幕与细微星尘。'],
+      ['落地成本低且兼容全主题', '纯 CSS 可承接全部三档光幕与星仪；外挂 ~25 行轻量 MutationObserver 写入 --ac-pct 即可点亮精确进度光斑与 90%+ 暖金预警。'],
+    ],
+  },
+  spine: {
+    title: '方案二 ·「平视精装书脊」Quarter-Bound Hardcover Spine（回归纯粹平视）',
+    sub: '去掉破坏可读性的侧转 3D · 完整 2:3 封面右侧平铺 + 左侧精装布脊压槽，清晰度与实体书质感兼得',
+    notes: [
+      ['为什么果断去掉 3D 侧转', '真 3D 侧立虽然透视正确，但会压缩书脊超过一半的投影宽度，导致百分比与进度条难以一眼读清，且整排斜立与 Steam 网格节奏冲突。'],
+      ['平视「半精装布脊」装帧', '就像精装藏书平铺正视：左侧布脊（细麻织纹 + 上下烫金/全息双线 + 正立数字与液光柱）与右侧完整 2:3 封面之间通过一道真实的「压槽折痕」自然衔接，零遮挡、零裁切、100% 清晰可读。'],
+      ['自然统一的悬停手感', '与 Steam 原生网格一致的克制微抬（rotateX 2.5° + 柔和阴影加深 + 100% 丝光扫过），毫无眩晕感与畸变。'],
+    ],
+  },
+  acrylic: {
+    title: '方案三 ·「亚克力冰砖」3D Optical Acrylic Slab（纯净光学精修）',
+    sub: '去掉多余装饰点与套框 · 专注纯粹厚切透明玻璃壁 × 导光底切面焦散反光 × 底部直接激光内雕',
+    notes: [
+      ['克制做减法：回归纯净光学玻璃', '去掉四角磁柱与多余的底部内套框，只靠透明亚克力的双层倒角高光、5px 实体玻璃厚度和底部在 Steam 背景上投下的柔和焦散光斑传达质感。'],
+      ['直接激光内雕在玻璃腔体内', '未完成采用带 25/50/75% 微刻度的导光光纤槽；100% 直接把星标、文案（正篇归册 / 全卷无瑕）与 100% 激光浮雕在透明底边里，干净利落。'],
+      ['实时 3D 倾角与游走玻璃反光', '卡片随鼠标指针产生细腻的 3D 倾角与光学镜面反光；本体呈现温润鎏金蓝晶折射，全集合呈现三棱镜边缘色散。'],
+    ],
+  },
+};
+
+const STEAM_PILL = '_1LJqx_qFOC8199RBQO5kU8';
+const STEAM_GROUPS = '_1Z1AifHmEdIUbvNWXmJ1hK';
+const STEAM_ALL = '_1fddiVOLgn9nNxAEDjyV4k';
+const STEAM_AWARD = '_1p4OC0BKEjB8LT2BlRyxO-';
+const STEAM_DLC2 = '-zN46pB8pmZXuCZhPxSMN';
+
+const state = {
+  tab: 'compare',
+  lineup: 'spectrum',
+  size: 'lg',
+  bg: 'vanilla',
+  poetic: 'scroll',
+  sandboxPct: 94,
+  sandboxState: 'pending',
+  sandboxCover: 'tunic',
+};
+
+let uidCounter = 0;
+function uid(p) { return `${p}_${++uidCounter}`; }
+function getTier(itemState, pct) {
+  if (itemState === 'all') return 'all';
+  if (itemState === 'base') return 'base';
+  if (pct >= 90) return 'near';
+  if (pct >= 40) return 'mid';
+  return 'low';
+}
+
+function svgAstrolabe(all) {
+  const g1 = uid('ag1'), g2 = uid('ag2');
+  if (all) {
+    return `<svg class="hz-crest" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="${g1}" x1="2" y1="2" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ffe784"/><stop offset="0.45" stop-color="#74f2ca"/>
+          <stop offset="0.75" stop-color="#7eb8ff"/><stop offset="1" stop-color="#d886ff"/>
+        </linearGradient>
+        <radialGradient id="${g2}" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stop-color="#ffffff"/><stop offset="0.55" stop-color="#b4e8ff"/>
+          <stop offset="1" stop-color="#c884ff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <circle cx="18" cy="18" r="14.5" stroke="url(#${g1})" stroke-width="1" stroke-dasharray="17 5 11 5" opacity="0.82"/>
+      <circle cx="18" cy="18" r="10.2" stroke="url(#${g1})" stroke-width="0.9" opacity="0.58"/>
+      <path d="M18 1.5V5M18 31V34.5M1.5 18H5M31 18H34.5" stroke="url(#${g1})" stroke-width="1.2" stroke-linecap="round"/>
+      <circle cx="18" cy="18" r="7.5" fill="url(#${g2})" opacity="0.5"/>
+      <path d="M18 6.8L20.4 15.6L29.2 18L20.4 20.4L18 29.2L15.6 20.4L6.8 18L15.6 15.6Z" fill="url(#${g1})"/>
+      <path d="M18 12.2L19.4 16.6L23.8 18L19.4 19.4L18 23.8L16.6 19.4L12.2 18L16.6 16.6Z" fill="#ffffff"/>
+    </svg>`;
+  }
+  return `<svg class="hz-crest" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="${g1}" x1="4" y1="3" x2="32" y2="33" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#fff8d6"/><stop offset="0.52" stop-color="#f5ca64"/><stop offset="1" stop-color="#c98e26"/>
+      </linearGradient>
+    </defs>
+    <circle cx="18" cy="18" r="13.5" stroke="url(#${g1})" stroke-width="1" stroke-dasharray="16 6" opacity="0.78"/>
+    <path d="M18 2.2V5.4M18 30.6V33.8M2.2 18H5.4M30.6 18H33.8" stroke="#f7d582" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>
+    <path d="M18 7.5L20.5 15.5L28.5 18L20.5 20.5L18 28.5L15.5 20.5L7.5 18L15.5 15.5Z" fill="url(#${g1})"/>
+    <circle cx="18" cy="18" r="2.3" fill="#fffdf2"/>
+  </svg>`;
+}
+
+function svgSpineCrest(stateType, tier) {
+  const g1 = uid('sg');
+  if (stateType === 'all') {
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs><linearGradient id="${g1}" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffe77a"/><stop offset="0.5" stop-color="#72f2c8"/><stop offset="1" stop-color="#dc88ff"/>
+      </linearGradient></defs>
+      <polygon points="12,1.5 21,6.8 21,17.2 12,22.5 3,17.2 3,6.8" stroke="url(#${g1})" stroke-width="1.7" fill="rgba(16,12,34,0.45)"/>
+      <path d="M12 5L13.9 10.1L19 12L13.9 13.9L12 19L10.1 13.9L5 12L10.1 10.1Z" fill="url(#${g1})"/>
+    </svg>`;
+  }
+  if (stateType === 'base') {
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs><linearGradient id="${g1}" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#fff6d2"/><stop offset="0.55" stop-color="#f4c75c"/><stop offset="1" stop-color="#c68a22"/>
+      </linearGradient></defs>
+      <rect x="4.5" y="4.5" width="15" height="15" rx="2" transform="rotate(45 12 12)" stroke="url(#${g1})" stroke-width="1.7" fill="rgba(12,24,54,0.5)"/>
+      <path d="M12 5.4L13.8 10.2L18.6 12L13.8 13.8L12 18.6L10.2 13.8L5.4 12L10.2 10.2Z" fill="url(#${g1})"/>
+    </svg>`;
+  }
+  if (tier === 'near') {
+    return `<svg width="12" height="12" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <circle cx="9" cy="9" r="5.5" stroke="#f7cb5e" stroke-width="1.7" stroke-dasharray="28 6"/>
+      <circle cx="9" cy="9" r="2.2" fill="#ffe7a3"/>
+    </svg>`;
+  }
+  return `<svg width="11" height="11" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+    <circle cx="9" cy="9" r="4.8" stroke="rgba(182,202,232,0.5)" stroke-width="1.6"/>
+  </svg>`;
+}
+
+function svgEtchStar(all) {
+  const g1 = uid('es');
+  if (all) {
+    return `<svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <defs><linearGradient id="${g1}" x1="2" y1="2" x2="18" y2="18" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffe77a"/><stop offset="0.5" stop-color="#76f2cb"/><stop offset="1" stop-color="#db86ff"/>
+      </linearGradient></defs>
+      <path d="M10 1.2L12.1 7.9L18.8 10L12.1 12.1L10 18.8L7.9 12.1L1.2 10L7.9 7.9Z" fill="url(#${g1})"/>
+      <circle cx="10" cy="10" r="2.1" fill="#ffffff"/>
+    </svg>`;
+  }
+  return `<svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path d="M10 1.5L12.1 7.9L18.5 10L12.1 12.1L10 18.5L7.9 12.1L1.5 10L7.9 7.9Z" fill="#f8d47a"/>
+  </svg>`;
+}
+
+function buildRealCurrentPill(itemState, pct) {
+  const pill = document.createElement('div');
+  pill.className = `real-pill ${STEAM_PILL}`;
+  if (itemState !== 'pending') pill.classList.add(STEAM_GROUPS);
+  if (itemState === 'all') pill.classList.add(STEAM_ALL);
+  if (itemState === 'base' || itemState === 'all') {
+    const group = document.createElement('div');
+    group.className = STEAM_DLC2;
+    const stack = document.createElement('span');
+    for (let i = 0; i < (itemState === 'all' ? 2 : 1); i++) {
+      const icon = document.createElement('span');
+      icon.className = STEAM_AWARD;
+      stack.append(icon);
+    }
+    group.append(stack);
+    pill.append(group);
+  }
+  const full = document.createElement('span');
+  full.className = '_2EqIgCcLt4h8d4NKik-VAp';
+  full.textContent = `已完成 ${pct}%`;
+  const short = document.createElement('span');
+  short.className = 'LTPd1K0p7pbPS9nEgQGLs';
+  short.textContent = `${pct}%`;
+  pill.append(full, short);
+  return pill;
+}
+
+/* Interactive pointer-tracking 3D tilt + moving glass specular glare for Acrylic Brick */
+function attachAcrylicPointer(tile, slab) {
+  tile.addEventListener('pointermove', (e) => {
+    const r = tile.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width;
+    const py = (e.clientY - r.top) / r.height;
+    const ry = ((px - 0.5) * 15).toFixed(2);
+    const rx = ((0.5 - py) * 13).toFixed(2);
+    slab.style.setProperty('--rx', `${rx}deg`);
+    slab.style.setProperty('--ry', `${ry}deg`);
+    slab.style.setProperty('--gx', `${(px * 100).toFixed(1)}%`);
+    slab.style.setProperty('--gy', `${(py * 100).toFixed(1)}%`);
+  });
+  tile.addEventListener('pointerleave', () => {
+    slab.style.setProperty('--rx', '0deg');
+    slab.style.setProperty('--ry', '0deg');
+    slab.style.setProperty('--gx', '26%');
+    slab.style.setProperty('--gy', '16%');
+  });
+}
+
+function buildCard(layoutId, item, showCaption = true) {
+  const tier = getTier(item.state, item.pct);
+  const isDone = item.state === 'base' || item.state === 'all';
+  const coverInfo = COVERS[item.cover];
+  const copy = POETIC_SETS[state.poetic];
+
+  const slot = document.createElement('div');
+  slot.className = 'tile-slot';
+
+  const tile = document.createElement('div');
+  tile.className = `steam-tile v-${layoutId}`;
+  tile.dataset.state = item.state;
+  tile.dataset.tier = tier;
+  tile.dataset.pct = String(item.pct);
+  tile.style.setProperty('--pct', String(item.pct));
+
+  const img = document.createElement('img');
+  img.className = 'cover-img';
+  img.src = coverInfo.src;
+  img.alt = coverInfo.name;
+  img.loading = 'eager';
+
+  /* ── Layout 1: Horizon Aura ────────────────────────────────────────── */
+  if (layoutId === 'horizon') {
+    const body = document.createElement('div');
+    body.className = 'tile-body';
+    const box = document.createElement('div');
+    box.className = 'cover-box';
+    box.append(img);
+    if (isDone) {
+      const sheen = document.createElement('div');
+      sheen.className = 'silk-sheen';
+      box.append(sheen);
+    }
+
+    const scrim = document.createElement('div'); scrim.className = 'hz-scrim';
+    const aura = document.createElement('div');  aura.className = 'hz-aura';
+    const dust = document.createElement('div');  dust.className = 'hz-dust';
+    const content = document.createElement('div'); content.className = 'hz-content';
+
+    const subHtml =
+      item.state === 'all'  ? `<span class="hz-sub">${copy.all}</span>` :
+      item.state === 'base' ? `<span class="hz-sub">${copy.base}</span>` :
+      tier === 'near'       ? `<span class="hz-sub">${copy.near}</span>` :
+                              '';
+    content.innerHTML = `
+      <div class="hz-num-block">
+        <span class="hz-num tabular">
+          <span class="hz-digits">${item.pct}</span>
+          <span class="hz-sym">%</span>
+        </span>
+        ${subHtml}
+      </div>
+      ${isDone ? svgAstrolabe(item.state === 'all') : ''}
+    `;
+    const rail = document.createElement('div');
+    rail.className = 'hz-rail';
+    rail.innerHTML = `<div class="hz-beam"></div>`;
+
+    box.append(scrim, aura, dust, content, rail);
+    body.append(box);
+    tile.append(body);
+  }
+
+  /* ── Layout 2: Flat Quarter-Bound Hardcover Spine ──────────────────── */
+  else if (layoutId === 'spine') {
+    const book = document.createElement('div');
+    book.className = 'qb-book';
+
+    const spineFace = document.createElement('div');
+    spineFace.className = 'qb-spine';
+    spineFace.innerHTML = `
+      <span class="sp-tooling is-top"></span>
+      <span class="sp-crest">${svgSpineCrest(item.state, tier)}</span>
+      <div class="sp-gauge-wrap">
+        <div class="sp-ticks"></div>
+        <div class="sp-channel"><div class="sp-fill"></div></div>
+      </div>
+      <span class="sp-pct tabular">${item.pct}<small>%</small></span>
+      <span class="sp-tooling is-bot"></span>
+    `;
+
+    const cover = document.createElement('div');
+    cover.className = 'qb-cover';
+    const groove = document.createElement('div');
+    groove.className = 'qb-groove';
+    cover.append(img, groove);
+    if (isDone) {
+      const sheen = document.createElement('div');
+      sheen.className = 'silk-sheen';
+      cover.append(sheen);
+    }
+
+    book.append(spineFace, cover);
+    tile.append(book);
+  }
+
+  /* ── Layout 3: Pure 3D Optical Acrylic Slab ────────────────────────── */
+  else if (layoutId === 'acrylic') {
+    const caustic = document.createElement('div');
+    caustic.className = 'ac-caustic';
+
+    const slab = document.createElement('div');
+    slab.className = 'ac-slab';
+
+    const cavity = document.createElement('div');
+    cavity.className = 'ac-cavity';
+    cavity.append(img);
+
+    const glare = document.createElement('div');
+    glare.className = 'ac-glare';
+
+    const chamber = document.createElement('div');
+    chamber.className = 'ac-chamber';
+    if (isDone) {
+      chamber.innerHTML = `
+        <span class="ac-grade-left">
+          ${svgEtchStar(item.state === 'all')}
+          <span>${item.state === 'all' ? copy.all : copy.base}</span>
+        </span>
+        <span class="ac-etch-pct tabular">100%</span>
+      `;
+    } else {
+      chamber.innerHTML = `
+        <div class="ac-fiber-track"><div class="ac-fiber-fill"></div></div>
+        <span class="ac-etch-pct tabular">${item.pct}%</span>
+      `;
+    }
+
+    slab.append(cavity, glare, chamber);
+    tile.append(caustic, slab);
+    attachAcrylicPointer(tile, slab);
+  }
+
+  /* ── Baseline: Production library.css ──────────────────────────────── */
+  else {
+    const body = document.createElement('div');
+    body.className = 'tile-body';
+    const box = document.createElement('div');
+    box.className = 'cover-box';
+    box.append(img);
+    body.append(box, buildRealCurrentPill(item.state, item.pct));
+    tile.append(body);
+  }
+
+  slot.append(tile);
+
+  if (showCaption) {
+    const cap = document.createElement('div');
+    cap.className = 'tile-caption';
+    cap.innerHTML = `<b>${coverInfo.name}</b><span>${item.note}</span>`;
+    slot.append(cap);
+  }
+  return slot;
+}
+
+function buildPoeticSwitch() {
+  const seg = document.createElement('div');
+  seg.className = 'seg';
+  seg.title = '切换文案风格';
+  for (const [key, set] of Object.entries(POETIC_SETS)) {
+    const btn = document.createElement('button');
+    btn.textContent = `${set.label} · ${set.near}`;
+    btn.classList.toggle('is-active', state.poetic === key);
+    btn.addEventListener('click', () => {
+      state.poetic = key;
+      render();
+    });
+    seg.append(btn);
+  }
+  return seg;
+}
+
+function buildSection(layoutId, title, sub, items, options = {}) {
+  const sec = document.createElement('section');
+  sec.className = 'section-card';
+
+  const head = document.createElement('div');
+  head.className = 'section-head';
+  head.innerHTML = `
+    <div class="section-head-left">
+      <h2>${title}</h2>
+      <p>${sub}</p>
+    </div>
+  `;
+  const right = document.createElement('div');
+  right.className = 'section-head-right';
+
+  if (layoutId === 'horizon') right.append(buildPoeticSwitch());
+  if (options.openBtn) {
+    const btn = document.createElement('button');
+    btn.className = 'head-action';
+    btn.textContent = '单方案深看 + 滑块 →';
+    btn.addEventListener('click', () => {
+      state.tab = layoutId;
+      render();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    right.append(btn);
+  }
+  if (right.childNodes.length) head.append(right);
+  sec.append(head);
+
+  if (options.notes) {
+    const ng = document.createElement('div');
+    ng.className = 'notes-grid';
+    for (const [h, p] of options.notes) {
+      const nb = document.createElement('div');
+      nb.className = 'note-box';
+      nb.innerHTML = `<h3>${h}</h3><p>${p}</p>`;
+      ng.append(nb);
+    }
+    sec.append(ng);
+  }
+
+  const stage = document.createElement('div');
+  stage.className = 'steam-stage';
+  stage.dataset.bg = state.bg;
+
+  if (options.shelfBar) {
+    const hint =
+      layoutId === 'spine'   ? '平视半精装书脊 · 封面 100% 完整无遮挡，悬停自然抬升与 100% 丝光扫过' :
+      layoutId === 'acrylic' ? '在亚克力冰砖上移动鼠标体验实时 3D 倾角与游走玻璃反光' :
+                               '鼠标悬停体验 Steam 3D 倾斜与 100% 专属光效';
+    const bar = document.createElement('div');
+    bar.className = 'steam-shelf-bar';
+    bar.innerHTML = `
+      <div><strong>收藏夹 (82)</strong><span class="steam-sort-chip">排序方式：按成就完成度 ▾</span></div>
+      <span>${hint}</span>
+    `;
+    stage.append(bar);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'cards-grid';
+  grid.dataset.size = state.size;
+  for (const item of items) {
+    grid.append(buildCard(layoutId, item, options.captions !== false));
+  }
+  stage.append(grid);
+  sec.append(stage);
+
+  if (options.sandbox) sec.append(buildSandbox(layoutId));
+  return sec;
+}
+
+function buildSandbox(layoutId) {
+  const wrap = document.createElement('div');
+  wrap.className = 'sandbox-card';
+
+  const previewStage = document.createElement('div');
+  previewStage.className = 'steam-stage sandbox-stage';
+  previewStage.dataset.bg = state.bg;
+
+  const previewGrid = document.createElement('div');
+  previewGrid.className = 'cards-grid';
+  previewGrid.dataset.size = 'md';
+  previewGrid.style.setProperty('--card-w', '172px');
+  previewGrid.style.setProperty('--col-gap', '0px');
+  previewGrid.style.setProperty('--row-gap', '0px');
+
+  const controls = document.createElement('div');
+  controls.className = 'sandbox-controls';
+
+  const readoutText = () => {
+    const c = POETIC_SETS[state.poetic];
+    if (state.sandboxState === 'all') return `100% · ${c.all}（本体+DLC）`;
+    if (state.sandboxState === 'base') return `100% · ${c.base}（本体）`;
+    if (state.sandboxPct >= 90) return `${state.sandboxPct}% · ${c.near}`;
+    if (state.sandboxPct === 0) return '0% · 尚未启程';
+    return `${state.sandboxPct}% · 推进中`;
+  };
+
+  controls.innerHTML = `
+    <div class="sandbox-top">
+      <h3>单卡实时演练台</h3>
+      <span class="sandbox-readout" id="sbReadout">${readoutText()}</span>
+    </div>
+    <div class="slider-row">
+      <span class="tabular">0%</span>
+      <input id="sbSlider" type="range" min="0" max="100" value="${state.sandboxPct}">
+      <span class="tabular">100%</span>
+    </div>
+    <div class="presets">
+      <button class="preset-btn" data-p="zero">0% 未开始</button>
+      <button class="preset-btn" data-p="low">18% 初启</button>
+      <button class="preset-btn" data-p="mid">62% 推进中</button>
+      <button class="preset-btn" data-p="near">94% 近在咫尺</button>
+      <button class="preset-btn" data-p="base">本体集合 100%</button>
+      <button class="preset-btn" data-p="all">本体 + DLC 全集合 100%</button>
+    </div>
+    <div class="cover-picker">
+      <label for="sbCover">切换测试封面：</label>
+      <select id="sbCover">
+        ${Object.entries(COVERS).map(([k, v]) => `<option value="${k}" ${k === state.sandboxCover ? 'selected' : ''}>${v.name}</option>`).join('')}
+      </select>
+    </div>
+  `;
+
+  function refreshCard() {
+    previewGrid.replaceChildren(buildCard(layoutId, {
+      cover: state.sandboxCover,
+      state: state.sandboxState,
+      pct: state.sandboxPct,
+      note: '',
+    }, false));
+    controls.querySelector('#sbReadout').textContent = readoutText();
+    controls.querySelector('#sbSlider').value = String(state.sandboxPct);
+  }
+
+  controls.querySelector('#sbSlider').addEventListener('input', (e) => {
+    const v = Number(e.target.value);
+    state.sandboxPct = v;
+    if (v === 100 && state.sandboxState === 'pending') state.sandboxState = 'base';
+    else if (v < 100) state.sandboxState = 'pending';
+    refreshCard();
+  });
+  controls.querySelectorAll('.preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.p;
+      if (p === 'zero') { state.sandboxPct = 0; state.sandboxState = 'pending'; }
+      if (p === 'low')  { state.sandboxPct = 18; state.sandboxState = 'pending'; }
+      if (p === 'mid')  { state.sandboxPct = 62; state.sandboxState = 'pending'; }
+      if (p === 'near') { state.sandboxPct = 94; state.sandboxState = 'pending'; }
+      if (p === 'base') { state.sandboxPct = 100; state.sandboxState = 'base'; }
+      if (p === 'all')  { state.sandboxPct = 100; state.sandboxState = 'all'; }
+      refreshCard();
+    });
+  });
+  controls.querySelector('#sbCover').addEventListener('change', (e) => {
+    state.sandboxCover = e.target.value;
+    refreshCard();
+  });
+
+  refreshCard();
+  previewStage.append(previewGrid);
+  wrap.append(previewStage, controls);
+  return wrap;
+}
+
+function syncToolbar() {
+  document.querySelectorAll('#tabsBar .tab').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === state.tab));
+  document.querySelectorAll('#lineupSeg button').forEach((b) => b.classList.toggle('is-active', b.dataset.lineup === state.lineup));
+  document.querySelectorAll('#sizeSeg button').forEach((b) => b.classList.toggle('is-active', b.dataset.size === state.size));
+  document.querySelectorAll('#bgSeg button').forEach((b) => b.classList.toggle('is-active', b.dataset.bg === state.bg));
+}
+
+function render() {
+  syncToolbar();
+  const root = document.getElementById('appRoot');
+  const items = LINEUPS[state.lineup];
+  root.replaceChildren();
+
+  if (state.tab === 'compare') {
+    root.append(
+      buildSection('current', '旧版对照 · v1.2.4 胶囊样式（缎带徽章 + 底部胶囊）', '保留 v1.2.4 胶囊样式作为历史基准对照；方案一已实装为当前生产版，方案二 / 三归档保留', items, { captions: true }),
+      buildSection('horizon', LAYOUTS.horizon.title, LAYOUTS.horizon.sub, items, { openBtn: true, captions: false }),
+      buildSection('spine',   LAYOUTS.spine.title,   LAYOUTS.spine.sub,   items, { openBtn: true, captions: false }),
+      buildSection('acrylic', LAYOUTS.acrylic.title, LAYOUTS.acrylic.sub, items, { openBtn: true, captions: false }),
+    );
+  } else {
+    const cfg = LAYOUTS[state.tab];
+    root.append(
+      buildSection(state.tab, cfg.title, cfg.sub, items, {
+        notes: cfg.notes, shelfBar: true, captions: true, sandbox: true,
+      }),
+      buildSection('current', '同队列现状对照 · 生产 library.css', '方便直接上下对比遮挡范围、立体层次与识别度', items, { captions: false }),
+    );
+  }
+}
+
+document.querySelectorAll('#tabsBar .tab').forEach((b) => b.addEventListener('click', () => { state.tab = b.dataset.tab; render(); }));
+document.querySelectorAll('#lineupSeg button').forEach((b) => b.addEventListener('click', () => { state.lineup = b.dataset.lineup; render(); }));
+document.querySelectorAll('#sizeSeg button').forEach((b) => b.addEventListener('click', () => { state.size = b.dataset.size; render(); }));
+document.querySelectorAll('#bgSeg button').forEach((b) => b.addEventListener('click', () => { state.bg = b.dataset.bg; render(); }));
+
+const q = new URLSearchParams(location.search);
+if (q.get('tab') && ['compare', 'horizon', 'spine', 'acrylic'].includes(q.get('tab'))) state.tab = q.get('tab');
+if (q.get('lineup') && LINEUPS[q.get('lineup')]) state.lineup = q.get('lineup');
+if (q.get('size') && ['lg', 'md', 'sm'].includes(q.get('size'))) state.size = q.get('size');
+if (q.get('bg') && ['vanilla', 'space'].includes(q.get('bg'))) state.bg = q.get('bg');
+if (q.get('poetic') && POETIC_SETS[q.get('poetic')]) state.poetic = q.get('poetic');
+
+render();
+</script>
+</body>
+</html>

@@ -11,6 +11,7 @@
 import { PLUGIN_VERSION, PLUGIN_NAME } from './mode.js';
 import './styles.js';
 import { installLibraryWindowHook, refreshLibraryStyles } from './librarystyle.js';
+import { celebrateBottomBarPets } from './bottombarpets.js';
 import { waitForGlobal } from '../../src/js/ac/env.js';
 import { buildPanel, buildPanelContent } from './panel.js';
 import { syncShowcaseCovers } from './showcasecovers.js';
@@ -118,9 +119,17 @@ async function bootstrap() {
 
     registerPanel(React);
     window.addEventListener('ac:open-settings', openPluginSettings);
+    window.addEventListener('ac:settings-changed', () => {
+        refreshLibraryStyles();
+    });
     window.addEventListener('ac:cardpack-opened', (event) => {
         maybeCheckOnOpen(event?.detail?.host ?? null);
+        refreshLibraryStyles();
         syncShowcaseCovers();
+        celebrateBottomBarPets();
+    });
+    window.addEventListener('ac:sets-updated', (event) => {
+        refreshLibraryStyles(event?.detail?.allSets ?? null);
     });
     window.addEventListener('ac:update-open', (event) => {
         openUpdateDialog(event?.detail?.host ?? null);

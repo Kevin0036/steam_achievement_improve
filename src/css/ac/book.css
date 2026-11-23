@@ -258,6 +258,13 @@
 .ac-book[data-per-page="4"] .ac-slot[data-slot="2"] { top: 68.5%; left: 31.4%; }
 .ac-book[data-per-page="4"] .ac-slot[data-slot="3"] { top: 68.5%; left: 68.6%; }
 
+/* 同一叶翻过书脊后落在左页（卡片背面）：每行左右镜像，
+   使每张卡的正反面落在物理上的同一个卡位（顺序入册与最新优先的背面都在左页） */
+.ac-book[data-per-page="4"] .ac-page--left .ac-slot[data-slot="0"] { left: 68.6%; }
+.ac-book[data-per-page="4"] .ac-page--left .ac-slot[data-slot="1"] { left: 31.4%; }
+.ac-book[data-per-page="4"] .ac-page--left .ac-slot[data-slot="2"] { left: 68.6%; }
+.ac-book[data-per-page="4"] .ac-page--left .ac-slot[data-slot="3"] { left: 31.4%; }
+
 .ac-book[data-per-page="4"] .ac-slot::after {
     inset: -0.45cqh;
     border-radius: 1.9cqh;

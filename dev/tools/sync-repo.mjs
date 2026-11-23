@@ -34,7 +34,7 @@ const MAP = [
     [THEME, 'LICENSE', 'LICENSE'],
     [THEME, '.gitignore', '.gitignore'],
     [THEME, 'skin.json', 'skin.json'],
-    [THEME, 'src', 'src'],
+    [THEME, 'src', 'src', /\.stackdump$/],
     [THEME, 'options', 'options'],
     [THEME, 'docs', 'docs'],
     [THEME, 'packaging', 'packaging'],
@@ -43,7 +43,7 @@ const MAP = [
     [ROOT, 'package.json', 'dev/package.json'],
     [ROOT, 'package-lock.json', 'dev/package-lock.json'],
     [ROOT, 'tools', 'dev/tools'],
-    [ROOT, 'preview', 'dev/preview', /^preview\/(fixtures\.js$|client-snapshot\.json$|assets\/)/],
+    [ROOT, 'preview', 'dev/preview', /^preview\/(fixtures\.js$|client-snapshot\.json$|assets\/|nasa-punk\/|nasa-library\/|.*\.stackdump$)/],
     [ROOT, 'viewer/src', 'dev/viewer/src', /\.mp3$/],
     [ROOT, 'share-server', 'dev/share-server', /(^|\/)node_modules\//],
 ];
